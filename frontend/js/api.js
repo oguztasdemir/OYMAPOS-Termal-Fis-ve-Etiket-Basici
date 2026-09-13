@@ -64,19 +64,21 @@ const API = {
   },
 
   // 3. Ürün İşlemleri
-  async getProducts(query = '', onlyNew = false, onlyDiff = false, limit = 0) {
+  async getProducts(query = '', onlyNew = false, onlyDiff = false, limit = 0, onlyBlacklist = false) {
     const newParam = onlyNew ? '&only_new=true' : '';
     const diffParam = onlyDiff ? '&only_diff=true' : '';
+    const blParam = onlyBlacklist ? '&only_blacklist=true' : '';
     const limitParam = limit > 0 ? `&limit=${limit}` : '';
-    const res = await fetch(`/api/products?q=${encodeURIComponent(query)}${limitParam}${newParam}${diffParam}`);
+    const res = await fetch(`/api/products?q=${encodeURIComponent(query)}${limitParam}${newParam}${diffParam}${blParam}`);
     return await res.json();
   },
 
-  async searchProducts(query = '', limit = 0, onlyNew = false, onlyDiff = false) {
+  async searchProducts(query = '', limit = 0, onlyNew = false, onlyDiff = false, onlyBlacklist = false) {
     const newParam = onlyNew ? '&only_new=true' : '';
     const diffParam = onlyDiff ? '&only_diff=true' : '';
+    const blParam = onlyBlacklist ? '&only_blacklist=true' : '';
     const limitParam = limit > 0 ? `&limit=${limit}` : '';
-    const res = await fetch(`/api/products?q=${encodeURIComponent(query)}${limitParam}${newParam}${diffParam}`);
+    const res = await fetch(`/api/products?q=${encodeURIComponent(query)}${limitParam}${newParam}${diffParam}${blParam}`);
     return await res.json();
   },
 
@@ -166,22 +168,22 @@ const API = {
     return await res.json();
   },
 
-  // 5. VegaWin Senkronizasyon (Stok, Fiyat Değişimi & Yeni Ürünler)
-  async previewVegawin(file, deviceName = '') {
+  // 5. kasa_aktarim Senkronizasyon (Stok, Fiyat Değişimi & Yeni Ürünler)
+  async previewkasa_aktarim(file, deviceName = '') {
     const formData = new FormData();
     formData.append('file', file);
     if (deviceName && deviceName.trim()) {
       formData.append('device_name', deviceName.trim());
     }
-    const res = await fetch('/api/vegawin/preview', {
+    const res = await fetch('/api/kasa_aktarim/preview', {
       method: 'POST',
       body: formData
     });
     return await res.json();
   },
 
-  async confirmVegawinSync(items, sourceName = '', deviceName = '') {
-    const res = await fetch('/api/vegawin/confirm-sync', {
+  async confirmkasa_aktarimSync(items, sourceName = '', deviceName = '') {
+    const res = await fetch('/api/kasa_aktarim/confirm-sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -193,13 +195,13 @@ const API = {
     return await res.json();
   },
 
-  async uploadVegawin(file, deviceName = '') {
+  async uploadkasa_aktarim(file, deviceName = '') {
     const formData = new FormData();
     formData.append('file', file);
     if (deviceName && deviceName.trim()) {
       formData.append('device_name', deviceName.trim());
     }
-    const res = await fetch('/api/vegawin/upload', {
+    const res = await fetch('/api/kasa_aktarim/upload', {
       method: 'POST',
       body: formData
     });
@@ -207,32 +209,32 @@ const API = {
   },
 
   async getPriceChanges(unprintedOnly = false) {
-    const res = await fetch(`/api/vegawin/changes?unprinted=${unprintedOnly}`);
+    const res = await fetch(`/api/kasa_aktarim/changes?unprinted=${unprintedOnly}`);
     return await res.json();
   },
 
   async printPriceChanges() {
-    const res = await fetch('/api/vegawin/print_changes', { method: 'POST' });
+    const res = await fetch('/api/kasa_aktarim/print_changes', { method: 'POST' });
     return await res.json();
   },
 
   async getNewProducts(unprintedOnly = false) {
-    const res = await fetch(`/api/vegawin/new-products?unprinted=${unprintedOnly}`);
+    const res = await fetch(`/api/kasa_aktarim/new-products?unprinted=${unprintedOnly}`);
     return await res.json();
   },
 
   async printNewProducts() {
-    const res = await fetch('/api/vegawin/print_new_products', { method: 'POST' });
+    const res = await fetch('/api/kasa_aktarim/print_new_products', { method: 'POST' });
     return await res.json();
   },
 
   async getSyncHistory(limit = 50) {
-    const res = await fetch(`/api/vegawin/sync-history?limit=${limit}`);
+    const res = await fetch(`/api/kasa_aktarim/sync-history?limit=${limit}`);
     return await res.json();
   },
 
   async rollbackSync(syncId) {
-    const res = await fetch(`/api/vegawin/sync/${encodeURIComponent(syncId)}/rollback`, {
+    const res = await fetch(`/api/kasa_aktarim/sync/${encodeURIComponent(syncId)}/rollback`, {
       method: 'POST'
     });
     return await res.json();

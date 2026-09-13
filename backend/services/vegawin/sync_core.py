@@ -194,11 +194,11 @@ def sync_vegawin_items(items: list, source_name: str = "VegaWin Aktarımı", dev
 
                     cursor.execute("""
                     UPDATE urunler 
-                    SET title = ?, price = ?, stock_code = COALESCE(NULLIF(?, ''), stock_code), 
+                    SET title = ?, price = ?, price_num = ?, stock_code = COALESCE(NULLIF(?, ''), stock_code), 
                         brand = COALESCE(NULLIF(?, ''), brand), updated_at = ?, price_updated_at = ?, 
                         label_price = COALESCE(label_price, ?)
                     WHERE barcode = ?;
-                    """, (clean_t or old_t, p, sc, brand, now_str, now_str, old_p, b))
+                    """, (clean_t or old_t, str(p), p, sc, brand, now_str, now_str, old_p, b))
 
                     record_product_history(
                         conn,

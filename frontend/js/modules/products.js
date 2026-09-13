@@ -97,10 +97,12 @@ function toggleFilter(filterType) {
   const btnAll = document.getElementById('filterAllBtn');
   const btnDiff = document.getElementById('filterDiffBtn');
   const btnNew = document.getElementById('filterNewBtn');
+  const btnBl = document.getElementById('filterBlacklistBtn');
   
   if (btnAll) btnAll.classList.toggle('active', filterType === 'all');
   if (btnDiff) btnDiff.classList.toggle('active', filterType === 'diff');
   if (btnNew) btnNew.classList.toggle('active', filterType === 'new');
+  if (btnBl) btnBl.classList.toggle('active', filterType === 'blacklist');
 
   const input = document.getElementById('productSearchInput');
   searchProducts(input ? input.value : '');
@@ -127,14 +129,26 @@ function handleSearchKeydown(e) {
     const q = (e.target.value || '').trim();
     if (!q) return;
 
-    searchProducts(q).then(() => {
-      if (cachedProductsList && cachedProductsList.length > 0) {
-        const exact = cachedProductsList.find(p => String(p.barcode) === q);
-        const targetProd = exact || (cachedProductsList.length === 1 ? cachedProductsList[0] : null);
-        if (targetProd && typeof openProductEditModal === 'function') {
-          openProductEditModal(targetProd.barcode);
-        }
+    API.getProduct(q).then((res) => {
+      const prod = (res && res.data && res.data.product) ? res.data.product : null;
+      if (prod) {
+        if (typeof SoundFeedback !== 'undefined') SoundFeedback.playSuccess();
+        openPosPriceCheckModal(prod.barcode);
+      } else {
+        searchProducts(q).then(() => {
+          if (cachedProductsList && cachedProductsList.length > 0) {
+            const exact = cachedProductsList.find(p => String(p.barcode) === q);
+            const targetProd = exact || (cachedProductsList.length === 1 ? cachedProductsList[0] : null);
+            if (targetProd) {
+              openPosPriceCheckModal(targetProd.barcode);
+            }
+          } else {
+            openPosPriceCheckModal(q);
+          }
+        });
       }
+    }).catch(() => {
+      searchProducts(q);
     });
   }
 }
@@ -145,7 +159,8 @@ async function searchProducts(query) {
       query,
       0,
       currentFilter === 'new',
-      currentFilter === 'diff'
+      currentFilter === 'diff',
+      currentFilter === 'blacklist'
     );
     const data = res.data || res;
     if (res.status === 'success' || data.products) {
@@ -179,12 +194,15 @@ async function searchProducts(query) {
       }
 
       const blCountEl = document.getElementById('blacklistProductsCount');
+      const blTabCountEl = document.getElementById('blacklistTabCount');
+      const blVal = counts.blacklist !== undefined ? counts.blacklist : 0;
       if (blCountEl) {
-        if (typeof animateCount === 'function' && counts.blacklist !== undefined) {
-          animateCount(blCountEl, counts.blacklist);
-        } else {
-          blCountEl.textContent = (counts.blacklist !== undefined ? counts.blacklist : 0).toLocaleString('tr-TR');
-        }
+        if (typeof animateCount === 'function') animateCount(blCountEl, blVal);
+        else blCountEl.textContent = blVal.toLocaleString('tr-TR');
+      }
+      if (blTabCountEl) {
+        if (typeof animateCount === 'function') animateCount(blTabCountEl, blVal);
+        else blTabCountEl.textContent = blVal.toLocaleString('tr-TR');
       }
 
       if (typeof updateHomeDashboardInfo === 'function') {
@@ -424,7 +442,7 @@ function renderProductsTable(products, page = 1) {
           <div class="empty-state">
             <div class="empty-state-icon">📦</div>
             <div class="empty-state-title">Kayıtlı Ürün Bulunamadı</div>
-            <div class="empty-state-desc">Arama teriminizi değiştirebilir veya VegaWin sekmesinden ürün dosyanızı yükleyebilirsiniz.</div>
+            <div class="empty-state-desc">Arama teriminizi değiştirebilir veya kasa_aktarim sekmesinden ürün dosyanızı yükleyebilirsiniz.</div>
           </div>
         </td>
       </tr>`;
@@ -492,15 +510,13 @@ function renderProductsTable(products, page = 1) {
     const printTitle = cleanProductTitle(p.title || p.raw_system_title || '').trim() || (p.title || '');
 
     const isBl = !!p.is_blacklisted;
-    const blBtnIcon = isBl ? '🛡️' : '🚫';
-    const blBtnTitle = isBl ? 'Kara Listeden Çıkar' : 'Kara Listeye Ekle';
-    const blBtnStyle = isBl ? 'background: rgba(239, 68, 68, 0.25); color: #f87171; border-color: rgba(239, 68, 68, 0.5);' : '';
+    const blBadge = isBl ? '<span class="badge" style="font-size:10px; margin-left:6px; background:rgba(239,68,68,0.25); color:#fca5a5; border:1px solid rgba(239,68,68,0.45);">🛡️ KARA LİSTE</span>' : '';
 
     return `
       <tr id="row-${barcodeEscaped}" class="${rowClass}" onclick="openProductEditModal('${barcodeEscaped}')" style="cursor: pointer;" title="Düzenlemek için tıklayın">
         <td class="col-idx">${globalIdx}</td>
         <td class="col-barcode" style="font-family:'JetBrains Mono', monospace; font-weight:700; color:#818cf8;" title="${p.barcode || ''}">${p.barcode || ''}</td>
-        <td class="col-title" style="font-weight:700; color:#fff;" title="Sistem Kaydı: ${escapeHtml(p.raw_system_title || p.title || '')}">${escapeHtml(printTitle)}${newBadge}</td>
+        <td class="col-title" style="font-weight:700; color:#fff;" title="Sistem Kaydı: ${escapeHtml(p.raw_system_title || p.title || '')}">${escapeHtml(printTitle)}${newBadge}${blBadge}</td>
         <td class="col-pos-price" id="pos-price-cell-${barcodeEscaped}">₺ ${posPriceStr}</td>
         <td class="col-label-price" id="label-price-cell-${barcodeEscaped}">${labelPriceHtml}</td>
         <td class="col-price-date">

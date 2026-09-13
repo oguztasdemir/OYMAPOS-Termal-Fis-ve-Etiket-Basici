@@ -168,62 +168,10 @@ def init_db():
 
 def cleanup_all_existing_titles_in_db(conn):
     """
-    Mevcut veritabanındaki ürün adlarını birleştirir, aynı ürünün farklı barkod/yazımlarında
-    başlıkları eşitler ve fiyatları en yüksek olan fiyata tamamlar.
+    Kullanıcının veritabanındaki orijinal ürün adlarını ve fiyatlarını korur.
+    Gereksiz ezme / otomatik birleştirme yapmaz.
     """
-    try:
-        from collections import defaultdict
-        import re
-        cursor = conn.cursor()
-        cursor.execute("SELECT barcode, title, raw_system_title, brand, price FROM urunler;")
-        rows = cursor.fetchall()
-        
-        # 1. Başlıkları standardize et, kara listeyi temizle & grupla
-        groups = defaultdict(list)
-        delete_barcodes = []
-        for r in rows:
-            b = r["barcode"]
-            t = str(r["title"] or "")
-            st = str(r["raw_system_title"] or t)
-            br = str(r["brand"] or "")
-            p_val = r["price"]
-            p = parse_price(p_val)
-
-            if is_invalid_or_blacklisted_product(b, t, p) or is_invalid_or_blacklisted_product(b, st, p):
-                delete_barcodes.append((b,))
-                continue
-            
-            unified_t = unify_product_title(t, st, br)
-            
-            # İsim imzasını çıkar (kelime sırası bağımsız)
-            folded = fold_turkish_text(unified_t)
-            folded = re.sub(r'([0-9]+),([0-9]+)', r'\1.\2', folded)
-            words = re.findall(r'[a-z0-9\.]+', folded)
-            sig = ' '.join(sorted(words))
-            
-            groups[sig].append({
-                'barcode': b,
-                'unified_title': unified_t,
-                'price': p
-            })
-            
-        if delete_barcodes:
-            cursor.executemany("DELETE FROM urunler WHERE barcode = ?;", delete_barcodes)
-
-        # 2. Aynı ürün gruplarında en yüksek fiyatı ve en iyi başlığı uygula
-        updates = []
-        for sig, items in groups.items():
-            max_price = max(it['price'] for it in items)
-            best_title = sorted(items, key=lambda x: (x['price'], len(x['unified_title'])), reverse=True)[0]['unified_title']
-            
-            for it in items:
-                bcode = it['barcode']
-                updates.append((best_title, max_price, bcode))
-                
-        if updates:
-            cursor.executemany("UPDATE urunler SET title = ?, price = ? WHERE barcode = ?;", updates)
-    except Exception as e:
-        print(f"⚠️ [cleanup_all_existing_titles_in_db] Hata: {e}")
+    pass
 
 def auto_discover_and_import(conn):
     """Eğer veritabanı boşsa, çevredeki OYMAPOS veya VegaWin veritabanlarını otomatik bulup aktarır."""

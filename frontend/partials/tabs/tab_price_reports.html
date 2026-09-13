@@ -1,0 +1,85 @@
+<!-- 📊 GÜNLÜK FİYAT DEĞİŞİM RAPORLARI SEKMESİ -->
+<section id="tab-price-reports" class="tab-pane">
+  <div class="panel" style="background:var(--card-bg); border:1px solid var(--border-color); border-radius:14px; padding:22px; box-shadow:0 4px 20px rgba(0,0,0,0.15);">
+    
+    <!-- Üst Başlık & Kontrol Çubuğu -->
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; border-bottom:1px solid var(--border-color); padding-bottom:16px; margin-bottom:20px;">
+      <div>
+        <h2 style="font-size:18px; font-weight:800; color:var(--text-main); margin:0; display:flex; align-items:center; gap:8px;">
+          <span>📊</span>
+          <span>Günlük Fiyat Değişim Raporları</span>
+        </h2>
+        <p style="font-size:12.5px; color:var(--text-muted); margin:4px 0 0 0;">
+          Her gün sistemde değişen fiyatların öncesi, sonrası, artış tutarı ve barkodlu dökümünü listeleyin ve PDF olarak indirin.
+        </p>
+      </div>
+
+      <!-- Tarih Seçici ve PDF İndirme Butonu -->
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <div style="display:flex; align-items:center; gap:6px; background:var(--card-inner); border:1px solid var(--border-color); padding:6px 12px; border-radius:10px;">
+          <span style="font-size:14px;">📅</span>
+          <label style="font-size:12px; font-weight:700; color:var(--text-muted);">Tarih Seç:</label>
+          <input type="date" id="reportDatePicker" onchange="loadPriceReportByDate(this.value)" style="background:transparent; border:none; color:var(--text-main); font-weight:700; font-size:13px; outline:none; cursor:pointer;">
+        </div>
+
+        <button class="btn btn-primary" onclick="downloadSelectedDateReportPdf()" style="display:flex; align-items:center; gap:6px; font-weight:700; padding:8px 16px;">
+          <span>📑</span>
+          <span>PDF Raporu İndir / Yazdır</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- İstatistik Özet Kartları -->
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin-bottom:20px;">
+      <div style="background:var(--card-inner); border:1px solid var(--border-color); border-radius:10px; padding:12px 16px;">
+        <div style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Seçili Tarih</div>
+        <div id="rep-stat-date" style="font-size:16px; font-weight:900; color:var(--primary); margin-top:4px;">-</div>
+      </div>
+      <div style="background:var(--card-inner); border:1px solid var(--border-color); border-radius:10px; padding:12px 16px;">
+        <div style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Toplam Değişen Ürün</div>
+        <div id="rep-stat-total" style="font-size:18px; font-weight:900; color:var(--text-main); margin-top:4px;">0</div>
+      </div>
+      <div style="background:var(--card-inner); border:1px solid var(--border-color); border-radius:10px; padding:12px 16px;">
+        <div style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Fiyatı Artanlar (Zam)</div>
+        <div id="rep-stat-inc" style="font-size:18px; font-weight:900; color:#10b981; margin-top:4px;">0</div>
+      </div>
+      <div style="background:var(--card-inner); border:1px solid var(--border-color); border-radius:10px; padding:12px 16px;">
+        <div style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Fiyatı Düşenler (İndirim)</div>
+        <div id="rep-stat-dec" style="font-size:18px; font-weight:900; color:#ef4444; margin-top:4px;">0</div>
+      </div>
+    </div>
+
+    <!-- Hızlı Tarih Hapları (Son Günler) -->
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
+      <span style="font-size:12px; font-weight:700; color:var(--text-muted);">Kayıtlı Günler:</span>
+      <div id="reportDatePills" style="display:flex; gap:6px; flex-wrap:wrap;">
+        <span style="font-size:12px; color:var(--text-muted);">Tarihler yükleniyor...</span>
+      </div>
+    </div>
+
+    <!-- Tablo Alanı -->
+    <div style="overflow-x:auto; border:1px solid var(--border-color); border-radius:10px; background:var(--card-inner);">
+      <table style="width:100%; border-collapse:collapse; text-align:left; font-size:13px;">
+        <thead>
+          <tr style="background:rgba(255,255,255,0.03); border-bottom:1px solid var(--border-color); color:var(--text-muted); font-size:11.5px; text-transform:uppercase;">
+            <th style="padding:10px 14px; width:45px; text-align:center;">#</th>
+            <th style="padding:10px 14px; width:140px;">Barkod</th>
+            <th style="padding:10px 14px;">Ürün Adı</th>
+            <th style="padding:10px 14px; text-align:right; width:110px;">Önceki Satış</th>
+            <th style="padding:10px 14px; text-align:right; width:120px;">Yeni Satış</th>
+            <th style="padding:10px 14px; text-align:right; width:110px;">Fark (TL)</th>
+            <th style="padding:10px 14px; text-align:center; width:90px;">Saat</th>
+          </tr>
+        </thead>
+        <tbody id="priceReportTableBody">
+          <tr>
+            <td colspan="7" style="padding:30px; text-align:center; color:var(--text-muted);">
+              Tarih seçildiğinde fiyat değişimleri burada listelenecektir.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</section>

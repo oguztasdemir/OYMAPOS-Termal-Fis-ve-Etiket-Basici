@@ -90,8 +90,14 @@ data/uploads/*
 *.tmp
 scratch/
 backend/certs/
+data/certs/
+data/sertifikalar/
+*.pem
+*.key
+*.crt
 data/baski_gecmisi.json
 
 # Portable & Embedded Python Runtimes
 win7_python/
 win7_python_x86/
+

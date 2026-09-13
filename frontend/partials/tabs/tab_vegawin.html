@@ -1,5 +1,5 @@
 <!-- SEKME 3: BAĞLI CİHAZLAR & DÜKKAN VERİ AKTARIM MASASI -->
-<section id="tab-vegawin" class="tab-pane">
+<section id="tab-kasa_aktarim" class="tab-pane">
   
   <!-- Üst Bilgilendirme ve Cihaz Seçim Kartı -->
   <div class="card" style="margin-bottom: 20px; background: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.85) 100%); border: 1.5px solid rgba(56, 189, 248, 0.35); border-radius: 16px; padding: 22px;">
@@ -19,11 +19,11 @@
           <!-- Bağlantı Linki & Kopyalama Butonu -->
           <div style="display:inline-flex; align-items:center; gap:8px; background:rgba(2,132,199,0.12); border:1.5px solid rgba(56,189,248,0.35); border-radius:8px; padding:6px 12px;">
             <span style="font-size:12px; color:#94a3b8; font-weight:700;">🔗 Dükkan Bağlantı Adresi:</span>
-            <code id="vegawinSyncUrlCode" style="font-family:'JetBrains Mono', monospace; font-size:13px; font-weight:800; color:#38bdf8;">http://{{ local_ip }}:8000/sync</code>
+            <code id="kasa_aktarimSyncUrlCode" style="font-family:'JetBrains Mono', monospace; font-size:13px; font-weight:800; color:#38bdf8;">http://{{ local_ip }}:8000/sync</code>
             <button type="button" class="btn btn-secondary btn-sm" onclick="copySyncLinkToClipboard()" style="padding:3px 8px; font-size:11px; font-weight:700; color:#38bdf8;" title="Linki Kopyala">
               📋 Kopyala
             </button>
-            <a id="vegawinSyncUrlLink" href="/sync" target="_blank" class="btn btn-secondary btn-sm" style="padding:3px 8px; font-size:11px; font-weight:700;" title="Sekmede Aç">
+            <a id="kasa_aktarimSyncUrlLink" href="/sync" target="_blank" class="btn btn-secondary btn-sm" style="padding:3px 8px; font-size:11px; font-weight:700;" title="Sekmede Aç">
               ↗️ Aç
             </a>
           </div>
@@ -34,12 +34,12 @@
       <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
         <div style="display: flex; align-items: center; gap: 8px; background: #0b1329; border: 1.5px solid #38bdf8; padding: 4px 10px; border-radius: 8px;">
           <label style="font-size: 11.5px; font-weight: 800; color: #38bdf8; white-space: nowrap;">🖥️ İncelecek Cihaz:</label>
-          <select id="vegawinDeviceSelect" class="form-select" onchange="onSelectVegawinDevice(this.value)" style="background: transparent; border: none; color: #fff; font-size: 12px; font-weight: 700; outline: none; cursor: pointer;">
+          <select id="kasa_aktarimDeviceSelect" class="form-select" onchange="onSelectkasa_aktarimDevice(this.value)" style="background: transparent; border: none; color: #fff; font-size: 12px; font-weight: 700; outline: none; cursor: pointer;">
             <option value="">Bağlı Cihazlar Taranıyor...</option>
           </select>
         </div>
 
-        <button class="btn btn-secondary" onclick="loadVegawinDevicesAndData(); showToast('Cihazlar ve veriler yenilendi', 'info');" style="font-weight: 700;">
+        <button class="btn btn-secondary" onclick="loadkasa_aktarimDevicesAndData(); showToast('Cihazlar ve veriler yenilendi', 'info');" style="font-weight: 700;">
           🔄 Yenile
         </button>
       </div>
@@ -53,7 +53,7 @@
         <span id="selectedDeviceTitleHeader">📦 Seçili Cihaz Verileri</span>
       </div>
       <div style="display:flex; align-items:center; gap:10px;">
-        <input type="text" id="vegawinDeviceSearchInput" placeholder="🔍 Gelen verilerde ara..." oninput="filterDeviceDataTable(this.value)" style="background:#0b1329; border:1px solid rgba(255,255,255,0.1); padding:6px 12px; border-radius:6px; color:#fff; font-size:12px; width:220px;">
+        <input type="text" id="kasa_aktarimDeviceSearchInput" placeholder="🔍 Gelen verilerde ara..." oninput="filterDeviceDataTable(this.value)" style="background:#0b1329; border:1px solid rgba(255,255,255,0.1); padding:6px 12px; border-radius:6px; color:#fff; font-size:12px; width:220px;">
         <span class="badge badge-secondary" id="selectedDeviceCountBadge" style="font-size:11px;">Cihaz Seçilmedi</span>
       </div>
     </div>

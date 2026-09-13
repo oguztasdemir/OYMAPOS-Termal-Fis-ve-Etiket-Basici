@@ -933,11 +933,19 @@
         <span>Kapat</span>
       </button>
 
-      <!-- Fener (Flashlight) Butonu -->
-      <button type="button" id="btn-fs-torch" class="fs-btn-tool" style="display: none;" onclick="toggleFlashlight()">
-        <span style="font-size: 16px;">⚡</span>
-        <span id="txt-fs-torch">Fener</span>
-      </button>
+      <div style="display: flex; gap: 6px; align-items: center;">
+        <!-- Parlama & Eğri Yüzey Filtresi Butonu -->
+        <button type="button" id="btn-fs-glare" class="fs-btn-tool" onclick="toggleGlareMode()">
+          <span>🛡️</span>
+          <span id="txt-fs-glare">Parlama & Eğri: KAPALI</span>
+        </button>
+
+        <!-- Fener (Flashlight) Butonu -->
+        <button type="button" id="btn-fs-torch" class="fs-btn-tool" style="display: none;" onclick="toggleFlashlight()">
+          <span style="font-size: 16px;">⚡</span>
+          <span id="txt-fs-torch">Fener</span>
+        </button>
+      </div>
     </div>
 
     <!-- Zoom Düğmeleri (1.0x, 1.5x, 2.0x, 3.0x) -->

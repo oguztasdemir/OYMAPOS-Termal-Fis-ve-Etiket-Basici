@@ -20,5 +20,6 @@ from backend.services.db.history_repo import (
 )
 from backend.services.db.sync_repo import (
     get_sync_history_list, rollback_sync_batch, preview_from_source_db,
-    import_all_from_source_db, update_products_by_clipboard_data
+    import_all_from_source_db, update_products_by_clipboard_data, preview_clipboard_price_update
 )
+

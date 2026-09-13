@@ -1,12 +1,12 @@
 // ==========================================================================
-// OYMAPOS - VEGAWIN DOSYA AKTARIMI, DEĞİŞİKLİK VE CİHAZ VERİ MASASI
+// OYMAPOS - kasa_aktarim DOSYA AKTARIMI, DEĞİŞİKLİK VE CİHAZ VERİ MASASI
 // ==========================================================================
 
 let cachedConnectedDevicesList = [];
 let activeSelectedDeviceId = '';
 let cachedSelectedDeviceData = null;
 
-function initVegaWinDropzone() {
+function initkasa_aktarimDropzone() {
   const dz = document.getElementById('vegaDropzone');
   if (!dz) return;
 
@@ -19,26 +19,26 @@ function initVegaWinDropzone() {
 
   dz.addEventListener('drop', e => {
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      uploadVegaWinFile(e.dataTransfer.files[0]);
+      uploadkasa_aktarimFile(e.dataTransfer.files[0]);
     }
   });
 }
 
 function handleVegaFileSelect(files) {
   if (files && files.length > 0) {
-    uploadVegaWinFile(files[0]);
+    uploadkasa_aktarimFile(files[0]);
   }
 }
 
-async function uploadVegaWinFile(file) {
+async function uploadkasa_aktarimFile(file) {
   const progress = document.getElementById('vegaUploadProgress');
   const statusTxt = document.getElementById('vegaUploadStatus');
 
   if (progress) progress.style.display = 'block';
-  if (statusTxt) statusTxt.textContent = 'VegaWin dosyası yükleniyor ve işleniyor...';
+  if (statusTxt) statusTxt.textContent = 'kasa_aktarim dosyası yükleniyor ve işleniyor...';
 
   try {
-    const res = await API.uploadVegawin(file);
+    const res = await API.uploadkasa_aktarim(file);
     const data = res.data || res;
     if (progress) progress.style.display = 'none';
 
@@ -228,7 +228,7 @@ async function loadSyncHistory() {
       tbody.innerHTML = `
         <tr>
           <td colspan="9" style="text-align:center; padding:24px; color:var(--text-muted);">
-            Henüz VegaWin aktarımı yapılmadı.
+            Henüz kasa_aktarim aktarımı yapılmadı.
           </td>
         </tr>
       `;
@@ -253,7 +253,7 @@ async function loadSyncHistory() {
           <td style="font-family:'JetBrains Mono', monospace; font-weight:800; color:#818cf8; font-size:12px;">#${item.id}</td>
           <td style="font-size:12px; color:#fff; font-weight:600;">${item.timestamp || '-'}</td>
           <td style="font-size:12px; color:#38bdf8; font-weight:700;">📄 ${item.source_file || '-'}</td>
-          <td style="font-size:12px; color:#94a3b8;">${item.device_name || 'VegaWin PC'}</td>
+          <td style="font-size:12px; color:#94a3b8;">${item.device_name || 'Kasa Bilgisayarı'}</td>
           <td style="text-align:center; font-weight:800; color:#fff;">${item.total_products || 0}</td>
           <td style="text-align:center; font-weight:800; color:#fbbf24;">${item.price_changes_count || 0}</td>
           <td style="text-align:center; font-weight:800; color:#34d399;">${item.new_products || 0}</td>
@@ -297,7 +297,7 @@ async function clearAllSyncHistoryConfirm() {
 
   showToast('Tüm aktarım geçmişi temizleniyor...', 'info');
   try {
-    const res = await fetch('/api/vegawin/clear-all-history', { method: 'POST' });
+    const res = await fetch('/api/kasa_aktarim/clear-all-history', { method: 'POST' });
     const json = await res.json();
     if (json.status === 'success') {
       showToast('Tüm aktarım geçmişi başarıyla temizlendi!', 'success');
@@ -312,8 +312,8 @@ async function clearAllSyncHistoryConfirm() {
   }
 }
 
-async function loadVegawinDevicesAndData() {
-  const select = document.getElementById('vegawinDeviceSelect');
+async function loadkasa_aktarimDevicesAndData() {
+  const select = document.getElementById('kasa_aktarimDeviceSelect');
   if (!select) return;
 
   try {
@@ -355,7 +355,7 @@ async function loadVegawinDevicesAndData() {
   }
 }
 
-async function onSelectVegawinDevice(deviceId) {
+async function onSelectkasa_aktarimDevice(deviceId) {
   activeSelectedDeviceId = deviceId;
   if (!deviceId) {
     showDeviceEmptyState('Cihaz Seçilmedi', 'Verilerini ve gönderdiği güncel fiyatları incelemek için yukarıdan bir dükkan veya kasa bilgisayarı seçin.');
@@ -503,8 +503,8 @@ function renderDeviceDataRows(items) {
 
 // Otomatik Canlı Yoklama
 setInterval(() => {
-  const devSelect = document.getElementById('vegawinDeviceSelect');
-  if (devSelect && document.getElementById('tab-vegawin')?.classList.contains('active')) {
-    loadVegawinDevicesAndData();
+  const devSelect = document.getElementById('kasa_aktarimDeviceSelect');
+  if (devSelect && document.getElementById('tab-kasa_aktarim')?.classList.contains('active')) {
+    loadkasa_aktarimDevicesAndData();
   }
 }, 5000);

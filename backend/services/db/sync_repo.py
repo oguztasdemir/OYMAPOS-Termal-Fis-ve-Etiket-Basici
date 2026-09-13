@@ -436,7 +436,93 @@ def import_all_from_source_db(source_db_path: str = None, device_name: str = "D�
         "message": f"Dükkan bilgisayarından {len(src_rows)} ürün başarıyla aktarıldı ({price_change_count} fiyat değişimi, {new_count} yeni ürün)."
     }
 
-def update_products_by_clipboard_data(items: list, device_name: str = "Ana PC - Fiyat Güncelleme Masası") -> dict:
+def preview_clipboard_price_update(items: list, blacklisted_items: list = None, device_name: str = "Ana PC - Fiyat Güncelleme Masası") -> dict:
+    """Veritabanına yazmadan önce önizleme ve hesaplama yapar."""
+    if not items and not blacklisted_items:
+        return {"success": False, "message": "Hesaplanacak ürün listesi boş."}
+
+    init_db()
+    blacklisted_items = blacklisted_items or []
+
+    existing_map = {}
+    with db_session() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT barcode, title, raw_system_title, price, brand, stock_code, label_price FROM urunler;")
+        for r in cursor.fetchall():
+            existing_map[r["barcode"]] = dict(r)
+
+    new_count = 0
+    price_change_count = 0
+    title_change_count = 0
+    unchanged_count = 0
+    price_changes = []
+    new_products_list = []
+
+    for item in items:
+        b = clean_barcode_text(item.get("barcode", ""))
+        if not b:
+            continue
+
+        raw_t = str(item.get("title") or item.get("raw_system_title") or "").strip()
+        clean_t = clean_product_title(raw_t)
+        has_incoming_price = item.get("has_price", True) and item.get("price") is not None
+        p = parse_price(item.get("price")) if has_incoming_price else None
+
+        if b in existing_map:
+            old = existing_map[b]
+            old_p = parse_price(old.get("price"))
+            old_t = str(old.get("title") or "")
+
+            has_price_diff = has_incoming_price and (abs(old_p - p) > 0.001)
+            has_title_diff = (old_t != clean_t) or (raw_t and raw_t != str(old.get("raw_system_title") or ""))
+
+            if has_price_diff:
+                price_change_count += 1
+                diff_amt = round(p - old_p, 2)
+                diff_pct = round((diff_amt / old_p * 100) if old_p > 0 else 0, 1)
+
+                price_changes.append({
+                    "barcode": b,
+                    "title": clean_t or old_t,
+                    "raw_system_title": raw_t,
+                    "old_price": old_p,
+                    "new_price": p,
+                    "diff_amount": diff_amt,
+                    "diff_percent": diff_pct
+                })
+            elif has_title_diff:
+                title_change_count += 1
+            else:
+                unchanged_count += 1
+        else:
+            new_count += 1
+            new_products_list.append({
+                "barcode": b,
+                "title": clean_t or raw_t,
+                "price": p or 0.0,
+                "unit": item.get("unit") or "ADET"
+            })
+
+    total_valid = len(items)
+    total_blacklisted = len(blacklisted_items)
+    total_raw = total_valid + total_blacklisted
+
+    return {
+        "success": True,
+        "total_items": total_raw,
+        "valid_items": total_valid,
+        "new_products": new_count,
+        "new_products_list": new_products_list,
+        "price_changes_count": price_change_count,
+        "title_changes_count": title_change_count,
+        "unchanged_count": unchanged_count,
+        "blacklisted_count": total_blacklisted,
+        "blacklisted_items": blacklisted_items,
+        "price_changes": price_changes,
+        "message": f"Hesaplama Tamamlandı: {total_raw} satırdan {price_change_count} fiyat değişimi, {new_count} yeni ürün, {total_blacklisted} kara listede ürün tespit edildi."
+    }
+
+def update_products_by_clipboard_data(items: list, device_name: str = "Ana PC - Fiyat Güncelleme Masası", blacklisted_count: int = 0) -> dict:
     """Barkod numarasına göre ürünlerin fiyatını ve orijinal sistem adını günceller."""
     if not items:
         return {"success": False, "message": "Güncellenecek ürün listesi boş."}
@@ -472,25 +558,27 @@ def update_products_by_clipboard_data(items: list, device_name: str = "Ana PC - 
 
             raw_t = str(item.get("title") or item.get("raw_system_title") or "").strip()
             clean_t = clean_product_title(raw_t)
-            p = parse_price(item.get("price"))
+            has_incoming_price = item.get("has_price", True) and item.get("price") is not None
+            p = parse_price(item.get("price")) if has_incoming_price else None
             sc = str(item.get("stock_code") or "").strip()
             brand = fix_turkish_corrupted_chars(str(item.get("brand") or "").strip())
             unit = str(item.get("unit") or "ADET").strip()
 
-            if is_invalid_or_blacklisted_product(b, clean_t, p) or is_invalid_or_blacklisted_product(b, raw_t, p):
+            if is_invalid_or_blacklisted_product(b, clean_t, p or 0.0) or is_invalid_or_blacklisted_product(b, raw_t, p or 0.0):
                 continue
 
             if b in existing_map:
                 old = existing_map[b]
                 old_p = parse_price(old.get("price"))
                 old_t = str(old.get("title") or "")
+                actual_p = p if has_incoming_price else old_p
 
-                has_price_diff = abs(old_p - p) > 0.001
+                has_price_diff = has_incoming_price and (abs(old_p - actual_p) > 0.001)
                 has_title_diff = (old_t != clean_t) or (raw_t and raw_t != str(old.get("raw_system_title") or ""))
 
                 if has_price_diff:
                     price_change_count += 1
-                    diff_amt = round(p - old_p, 2)
+                    diff_amt = round(actual_p - old_p, 2)
                     diff_pct = round((diff_amt / old_p * 100) if old_p > 0 else 0, 1)
 
                     price_changes.append({
@@ -499,7 +587,7 @@ def update_products_by_clipboard_data(items: list, device_name: str = "Ana PC - 
                         "title": clean_t or old_t,
                         "raw_system_title": raw_t,
                         "old_price": old_p,
-                        "new_price": p,
+                        "new_price": actual_p,
                         "diff_amount": diff_amt,
                         "diff_percent": diff_pct,
                         "changed_at": now_str
@@ -508,15 +596,15 @@ def update_products_by_clipboard_data(items: list, device_name: str = "Ana PC - 
                     cursor.execute("""
                     INSERT INTO vegawin_price_changes (sync_id, barcode, title, old_price, new_price, diff_amount, diff_percent, changed_at, source_device)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-                    """, (sync_id, b, clean_t or old_t, old_p, p, diff_amt, diff_pct, now_str, device_name))
+                    """, (sync_id, b, clean_t or old_t, old_p, actual_p, diff_amt, diff_pct, now_str, device_name))
 
                     cursor.execute("""
                     UPDATE urunler 
-                    SET title = ?, raw_system_title = ?, price = ?, stock_code = COALESCE(NULLIF(?, ''), stock_code), 
-                        brand = COALESCE(NULLIF(?, ''), brand), updated_at = ?, price_updated_at = ?, 
+                    SET title = ?, raw_system_title = ?, price = ?, price_num = ?, stock_code = COALESCE(NULLIF(?, ''), stock_code), 
+                        brand = COALESCE(NULLIF(?, ''), brand), unit = COALESCE(NULLIF(?, ''), unit), updated_at = ?, price_updated_at = ?, 
                         label_price = COALESCE(label_price, ?)
                     WHERE barcode = ?;
-                    """, (clean_t or old_t, raw_t or clean_t or old_t, p, sc, brand, now_str, now_str, old_p, b))
+                    """, (clean_t or old_t, raw_t or clean_t or old_t, str(actual_p), actual_p, sc, brand, unit, now_str, now_str, old_p, b))
 
                     record_product_history(
                         conn,
@@ -525,12 +613,12 @@ def update_products_by_clipboard_data(items: list, device_name: str = "Ana PC - 
                         old_title=old_t,
                         new_title=clean_t or old_t,
                         old_price=old_p,
-                        new_price=p,
+                        new_price=actual_p,
                         diff_amount=diff_amt,
                         diff_percent=diff_pct,
                         source="Fiyat Güncelleme Masası",
                         device_name=device_name,
-                        details=f"Fiyat güncellendi ({old_p:.2f} TL -> {p:.2f} TL)",
+                        details=f"Fiyat güncellendi ({old_p:.2f} TL -> {actual_p:.2f} TL)",
                         sync_id=sync_id,
                         timestamp=now_str
                     )
@@ -539,9 +627,9 @@ def update_products_by_clipboard_data(items: list, device_name: str = "Ana PC - 
                     cursor.execute("""
                     UPDATE urunler 
                     SET title = ?, raw_system_title = ?, stock_code = COALESCE(NULLIF(?, ''), stock_code), 
-                        brand = COALESCE(NULLIF(?, ''), brand), updated_at = ?
+                        brand = COALESCE(NULLIF(?, ''), brand), unit = COALESCE(NULLIF(?, ''), unit), updated_at = ?
                     WHERE barcode = ?;
-                    """, (clean_t or old_t, raw_t or clean_t or old_t, sc, brand, now_str, b))
+                    """, (clean_t or old_t, raw_t or clean_t or old_t, sc, brand, unit, now_str, b))
 
                     record_product_history(
                         conn,
@@ -560,9 +648,9 @@ def update_products_by_clipboard_data(items: list, device_name: str = "Ana PC - 
             else:
                 new_count += 1
                 cursor.execute("""
-                INSERT INTO urunler (barcode, stock_code, title, raw_system_title, price, label_price, brand, unit, is_new, created_at, updated_at, price_updated_at)
-                VALUES (?, ?, ?, ?, ?, NULL, ?, ?, 1, ?, ?, ?);
-                """, (b, sc, clean_t, raw_t or clean_t, p, brand, unit, now_str, now_str, now_str))
+                INSERT INTO urunler (barcode, stock_code, title, raw_system_title, price, price_num, label_price, brand, unit, is_new, created_at, updated_at, price_updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, 1, ?, ?, ?);
+                """, (b, sc, clean_t, raw_t or clean_t, str(p or 0.0), p or 0.0, brand, unit, now_str, now_str, now_str))
 
                 # Tekrarlayan barkodların aynı batch içinde çökmesini engelle
                 existing_map[b] = {
@@ -607,6 +695,8 @@ def update_products_by_clipboard_data(items: list, device_name: str = "Ana PC - 
         "price_changes_count": price_change_count,
         "title_changes_count": title_change_count,
         "unchanged_count": unchanged_count,
+        "blacklisted_count": blacklisted_count,
         "price_changes": price_changes[:100],
-        "message": f"Toplam {len(items)} ürün işlendi ({price_change_count} fiyat değişimi, {new_count} yeni ürün)."
+        "message": f"Toplam {len(items)} ürün işlendi ({price_change_count} fiyat değişimi, {new_count} yeni ürün, {blacklisted_count} kara listede ürün)."
     }
+

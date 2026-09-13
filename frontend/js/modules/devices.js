@@ -80,8 +80,8 @@ async function loadNetworkInfo() {
       const mobileUrl = document.getElementById('mobileUrlText');
       const syncUrl = document.getElementById('syncUrlText');
       const qrImg = document.getElementById('qrImage');
-      const vegawinSyncUrlCode = document.getElementById('vegawinSyncUrlCode');
-      const vegawinSyncUrlLink = document.getElementById('vegawinSyncUrlLink');
+      const kasa_aktarimSyncUrlCode = document.getElementById('kasa_aktarimSyncUrlCode');
+      const kasa_aktarimSyncUrlLink = document.getElementById('kasa_aktarimSyncUrlLink');
 
       const url = data.sync_url || `http://${data.ip || window.location.hostname}:8000/sync`;
 
@@ -89,8 +89,8 @@ async function loadNetworkInfo() {
       if (mobileUrl) mobileUrl.textContent = data.mobile_url;
       if (syncUrl) syncUrl.textContent = url;
       if (qrImg) qrImg.src = data.qr_image;
-      if (vegawinSyncUrlCode) vegawinSyncUrlCode.textContent = url;
-      if (vegawinSyncUrlLink) vegawinSyncUrlLink.href = url;
+      if (kasa_aktarimSyncUrlCode) kasa_aktarimSyncUrlCode.textContent = url;
+      if (kasa_aktarimSyncUrlLink) kasa_aktarimSyncUrlLink.href = url;
     }
   } catch (err) {
     console.error('Ağ bilgisi yüklenemedi:', err);
@@ -98,7 +98,7 @@ async function loadNetworkInfo() {
 }
 
 function copySyncLinkToClipboard() {
-  const codeEl = document.getElementById('vegawinSyncUrlCode');
+  const codeEl = document.getElementById('kasa_aktarimSyncUrlCode');
   const text = codeEl ? codeEl.textContent.trim() : (window.location.origin + '/sync');
   navigator.clipboard.writeText(text).then(() => {
     showToast(`Bağlantı adresi kopyalandı:\n${text}`, 'success');

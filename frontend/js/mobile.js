@@ -7,6 +7,7 @@
 
 // Paylaşılan Global Değişkenler
 let isScanningLive = false;
+let isGlareModeActive = false;
 let currentBarcode = "";
 let currentProduct = null;
 let isNewProduct = false;
@@ -18,7 +19,9 @@ let zxingReader = null;
 let activeVideoTrack = null;
 let isTorchOn = false;
 let currentZoomLevel = 1.0;
-let barcodeCandidateBuffer = { text: '', count: 0, lastTime: 0 };
+let isDecodingServerFrame = false;
+const roiCanvas = document.createElement('canvas');
+const roiCtx = roiCanvas.getContext('2d');
 
 /**
  * 🔊 Bip ve Titreşim Sinyali
@@ -47,8 +50,9 @@ function playBeepSound() {
  * Hatalı kamera okumalarını %100 oranında engeller.
  */
 function validateBarcodeChecksum(barcode) {
-  if (!barcode || typeof barcode !== 'string') return false;
-  const b = barcode.trim();
+  if (!barcode) return false;
+  const b = String(barcode).trim();
+  if (b.length < 1) return false;
   
   // EAN-13 (13 hane) Modulo-10 Kontrolü
   if (/^\d{13}$/.test(b)) {
@@ -57,7 +61,10 @@ function validateBarcodeChecksum(barcode) {
       sum += parseInt(b[i], 10) * (i % 2 === 0 ? 1 : 3);
     }
     const check = (10 - (sum % 10)) % 10;
-    return check === parseInt(b[12], 10);
+    if (check === parseInt(b[12], 10)) return true;
+    // 20-29 serisi terazi ve mağaza barkodlarında esneklik sağla
+    if (/^2[0-9]/.test(b)) return true;
+    return false;
   }
   
   // EAN-8 (8 hane) Modulo-10 Kontrolü
@@ -78,6 +85,11 @@ function validateBarcodeChecksum(barcode) {
     }
     const check = (10 - (sum % 10)) % 10;
     return check === parseInt(b[11], 10);
+  }
+
+  // Kısa mağaza / PLU barkodları (1 - 7 hane)
+  if (/^\d{1,7}$/.test(b)) {
+    return true;
   }
   
   // Code-128 / Code-39 / ITF (en az 3 karakterli alfa-sayısal)
@@ -100,6 +112,24 @@ function showToast(msg, type = "info") {
   setTimeout(() => {
     toast.style.display = "none";
   }, 3500);
+}
+
+/**
+ * 🛡️ Parlama & Yuvarlak Yüzey Filtresi Aç / Kapa
+ */
+function toggleGlareMode() {
+  isGlareModeActive = !isGlareModeActive;
+  const btn = document.getElementById('btn-fs-glare');
+  const txt = document.getElementById('txt-fs-glare');
+  if (btn && txt) {
+    if (isGlareModeActive) {
+      btn.classList.add('active');
+      txt.textContent = 'Parlama & Eğri: AÇIK';
+    } else {
+      btn.classList.remove('active');
+      txt.textContent = 'Parlama & Eğri: KAPALI';
+    }
+  }
 }
 
 /**
@@ -172,84 +202,37 @@ async function toggleFlashlight() {
 }
 
 /**
- * 📷 Tam Ekran Canlı Kamerayı Aç (OYMAPOS 1-1 Birebir Akış)
+ * 📷 Tam Ekran Canlı Kamerayı Aç (Hibrit ZXing + BarcodeDetector + OpenCV Backend)
  */
 async function openFullscreenCamera() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    if (location.protocol === 'http:') {
+      const ok = confirm("🔒 Canlı video kamera için mobil güvenlik kuralı gereği HTTPS bağlantısı gereklidir.\n\nHTTPS canlı kamera sayfasına geçmek istiyor musunuz?");
+      if (ok) {
+        location.href = `https://${location.hostname}:8001/mobile`;
+      }
+      return;
+    }
+  }
+
   const modal = document.getElementById('fullscreen-camera-overlay');
   const videoElem = document.getElementById('fullscreen-video');
-  const readerDiv = document.getElementById('fullscreen-reader');
   const btnTorch = document.getElementById('btn-fs-torch');
 
-  // Varsa önceki hata kutusunu temizle
-  const existingErr = document.getElementById('fs-camera-error-banner');
-  if (existingErr) existingErr.remove();
-
   if (modal) modal.style.display = 'flex';
-  if (videoElem) {
-    videoElem.style.display = 'block';
-    videoElem.muted = true;
-    videoElem.setAttribute('playsinline', 'true');
-    videoElem.setAttribute('webkit-playsinline', 'true');
-    videoElem.setAttribute('autoplay', 'true');
-  }
-  if (readerDiv) readerDiv.style.display = 'none';
+  if (videoElem) videoElem.style.display = 'block';
+  const fsReader = document.getElementById('fullscreen-reader');
+  if (fsReader) fsReader.style.display = 'none';
 
   isScanningLive = true;
   isTorchOn = false;
   if (btnTorch) btnTorch.style.display = 'none';
   setCameraZoom(1.0);
 
-  // 1. Tarayıcı Güvenli Bağlam (Secure Context / HTTPS / Localhost) Kontrolü
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    // WebRTC engellendiğinde doğrudan mobil sistem kamerasını açma mekanizmasını tetikle
-    triggerNativeCaptureFallback();
-    return;
-  }
-
-  // 2. getUserMedia ile doğrudan native akışı al ve <video> içine bağla
-  let stream = null;
-  let lastCameraError = null;
-
-  const constraintList = [
-    { video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } } },
-    { video: { facingMode: "environment" } },
-    { video: { width: { ideal: 1280 }, height: { ideal: 720 } } },
-    { video: true }
-  ];
-
-  for (const cons of constraintList) {
-    try {
-      stream = await navigator.mediaDevices.getUserMedia(cons);
-      if (stream) break;
-    } catch (e) {
-      lastCameraError = e;
-      console.warn("Kamera kuralı deneniyor...", e);
-    }
-  }
-
-  if (stream) {
-    mediaStreamObj = stream;
-    if (videoElem) {
-      videoElem.srcObject = stream;
-      try {
-        await videoElem.play();
-      } catch (playErr) {
-        console.warn("video.play() uyarısı:", playErr);
-      }
-    }
-
-    const track = stream.getVideoTracks()[0];
-    if (track) {
-      activeVideoTrack = track;
-      const capabilities = (typeof track.getCapabilities === 'function') ? track.getCapabilities() : {};
-      if (capabilities.torch && btnTorch) {
-        btnTorch.style.display = 'flex';
-      }
-    }
-
-    // ZXing Reader örneğini hazırla
-    if (typeof ZXing !== 'undefined' && !zxingReader) {
-      try {
+  // 1. ZXING ENTERPRISE BARKOD MOTORU & MEDIADEVICES
+  try {
+    if (typeof ZXing !== 'undefined') {
+      if (!zxingReader) {
         const hints = new Map();
         const formats = [
           ZXing.BarcodeFormat.EAN_13,
@@ -264,222 +247,147 @@ async function openFullscreenCamera() {
         hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
         hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
         zxingReader = new ZXing.BrowserMultiFormatReader(hints, 50);
-      } catch(e) {
-        console.warn("ZXing init hatası:", e);
       }
-    }
 
-    startContinuousBarcodeEngine(videoElem);
-    return;
-  }
+      const videoInputDevices = await zxingReader.listVideoInputDevices().catch(() => []);
+      let selectedDeviceId = undefined;
+      if (videoInputDevices && videoInputDevices.length > 0) {
+        const backCam = videoInputDevices.find(d => 
+          d.label.toLowerCase().includes('back') || 
+          d.label.toLowerCase().includes('arka') || 
+          d.label.toLowerCase().includes('rear') ||
+          d.label.toLowerCase().includes('environment')
+        ) || videoInputDevices[videoInputDevices.length - 1];
+        selectedDeviceId = backCam.deviceId;
+      }
 
-  // 3. Fallback: Html5Qrcode Motoru
-  try {
-    if (videoElem) videoElem.style.display = 'none';
-    if (readerDiv) readerDiv.style.display = 'block';
+      // HD ve Sürekli Odak Kısıtlamaları
+      const constraints = {
+        video: selectedDeviceId ? {
+          deviceId: { exact: selectedDeviceId },
+          width: { ideal: 1920, min: 1280 },
+          height: { ideal: 1080, min: 720 },
+          focusMode: { ideal: "continuous" }
+        } : {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1920, min: 1280 },
+          height: { ideal: 1080, min: 720 },
+          focusMode: { ideal: "continuous" }
+        }
+      };
 
-    if (!html5QrCode && typeof Html5Qrcode !== 'undefined') {
-      html5QrCode = new Html5Qrcode("fullscreen-reader");
-    }
+      const stream = await navigator.mediaDevices.getUserMedia(constraints).catch(() => {
+        return navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      });
 
-    if (html5QrCode) {
-      await html5QrCode.start(
-        { facingMode: "environment" },
-        { fps: 25, qrbox: { width: 300, height: 180 }, aspectRatio: 1.77 },
-        (decodedText) => {
-          onLiveBarcodeDetected(decodedText);
-        },
-        () => {}
-      );
+      mediaStreamObj = stream;
+      if (videoElem) {
+        videoElem.srcObject = stream;
+        await videoElem.play().catch(() => {});
+      }
+
+      // Fener yeteneği var mı kontrol et
+      const track = stream.getVideoTracks()[0];
+      if (track) {
+        activeVideoTrack = track;
+        const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+        if (capabilities.torch && btnTorch) {
+          btnTorch.style.display = 'flex';
+        }
+      }
+
+      // ZXing Stream Çözücü Başlat (Doğrudan Video Akışından Canlı Çözüm)
+      try {
+        zxingReader.decodeFromVideoElement(videoElem, (result, err) => {
+          if (result && isScanningLive) {
+            const raw = result.getText ? result.getText().trim() : String(result).trim();
+            if (validateBarcodeChecksum(raw)) {
+              onLiveBarcodeDetected(raw);
+            }
+          }
+        });
+      } catch (zxStreamErr) {
+        console.warn("ZXing Stream reader başlatılamadı, frame motoruna geçiliyor:", zxStreamErr);
+      }
+
+      // Hibrit Ek Motorları Başlat (Donanım BarcodeDetector + OpenCV Sunucu)
+      startContinuousBarcodeEngine(videoElem);
       return;
     }
-  } catch (fallbackErr) {
-    lastCameraError = fallbackErr;
+  } catch (err) {
+    console.warn("ZXing başlatma hatası, fallback deneniyor:", err);
   }
 
-  // Eğer tüm yöntemler başarısız olduysa net bir bilgilendirme göster
-  let errDesc = "Kamera açılamadı.";
-  if (lastCameraError) {
-    if (lastCameraError.name === 'NotAllowedError' || lastCameraError.name === 'PermissionDeniedError') {
-      errDesc = "Tarayıcıda kamera izni reddedilmiş. Lütfen adres çubuğundaki kilit simgesinden 'Kamera İzni'ni açın.";
-    } else if (lastCameraError.name === 'NotFoundError' || lastCameraError.name === 'DevicesNotFoundError') {
-      errDesc = "Cihazda uygun bir arka kamera bulunamadı.";
-    } else if (lastCameraError.name === 'NotReadableError' || lastCameraError.name === 'TrackStartError') {
-      errDesc = "Kamera başka bir uygulama tarafından kullanılıyor olabilir.";
+  // 2. FALLBACK: Html5Qrcode Fullscreen
+  try {
+    if (!html5QrCode) {
+      html5QrCode = new Html5Qrcode("fullscreen-reader", {
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.ITF,
+          Html5QrcodeSupportedFormats.QR_CODE
+        ],
+        verbose: false
+      });
+    }
+
+    const fsReader = document.getElementById('fullscreen-reader');
+    if (fsReader) fsReader.style.display = 'block';
+    if (videoElem) videoElem.style.display = 'none';
+
+    await html5QrCode.start(
+      { facingMode: "environment" },
+      { fps: 30, qrbox: { width: 300, height: 180 } },
+      onLiveBarcodeDetected,
+      () => {}
+    );
+    isScanningLive = true;
+
+  } catch (err) {
+    console.error("Kamera açılamadı:", err);
+    closeFullscreenCamera();
+    
+    if (location.protocol === 'http:') {
+      const ok = confirm("🔒 Canlı video kamera için HTTPS bağlantısı gereklidir.\n\nHTTPS canlı kamera sayfasına geçmek istiyor musunuz?");
+      if (ok) {
+        location.href = `https://${location.hostname}:8001/mobile`;
+      }
     } else {
-      errDesc = "Hata: " + (lastCameraError.message || lastCameraError.name);
+      showToast("⚠️ Kamera izni verilmedi. Lütfen tarayıcı ayarlarından kamera iznini onaylayın veya Foto Çek butonunu kullanın.", "error");
     }
   }
-
-  showCameraError("⚠️ Kamera Açılamadı", errDesc);
 }
 
 /**
- * 📸 Mobil Sistem Kamerasını Tetikleme (WebRTC İznine / HTTPS'e İhtiyaç Duymaz)
- */
-function triggerNativeCaptureFallback() {
-  closeFullscreenCamera();
-  
-  let nativeInput = document.getElementById('native-camera-input');
-  if (!nativeInput) {
-    nativeInput = document.createElement('input');
-    nativeInput.id = 'native-camera-input';
-    nativeInput.type = 'file';
-    nativeInput.accept = 'image/*';
-    nativeInput.capture = 'environment';
-    nativeInput.style.display = 'none';
-    document.body.appendChild(nativeInput);
-
-    nativeInput.addEventListener('change', async (e) => {
-      const file = e.target.files && e.target.files[0];
-      if (!file) return;
-
-      showToast("⏳ Barkod taranıyor...", "info");
-      
-      try {
-        const imgBitmap = await createImageBitmap(file);
-        
-        // 1. BarcodeDetector ile dene
-        if ('BarcodeDetector' in window) {
-          try {
-            const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'qr_code', 'itf'] });
-            const barcodes = await detector.detect(imgBitmap);
-            if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
-              const raw = barcodes[0].rawValue.trim();
-              if (validateBarcodeChecksum(raw)) {
-                playBeepSound();
-                lookupBarcode(raw);
-                return;
-              }
-            }
-          } catch(detErr) {}
-        }
-
-        // 2. ZXing ile dene
-        if (typeof ZXing !== 'undefined') {
-          const canvas = document.createElement('canvas');
-          canvas.width = imgBitmap.width;
-          canvas.height = imgBitmap.height;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(imgBitmap, 0, 0);
-
-          if (!zxingReader) {
-            const hints = new Map();
-            const formats = [
-              ZXing.BarcodeFormat.EAN_13,
-              ZXing.BarcodeFormat.EAN_8,
-              ZXing.BarcodeFormat.CODE_128,
-              ZXing.BarcodeFormat.CODE_39,
-              ZXing.BarcodeFormat.UPC_A,
-              ZXing.BarcodeFormat.UPC_E,
-              ZXing.BarcodeFormat.ITF,
-              ZXing.BarcodeFormat.QR_CODE
-            ];
-            hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
-            hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-            zxingReader = new ZXing.BrowserMultiFormatReader(hints, 50);
-          }
-
-          const luminanceSource = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
-          const binaryBitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminanceSource));
-          const result = zxingReader.decode(binaryBitmap);
-          if (result && result.getText) {
-            const raw = result.getText().trim();
-            if (validateBarcodeChecksum(raw)) {
-              playBeepSound();
-              lookupBarcode(raw);
-              return;
-            }
-          }
-        }
-
-        showToast("⚠️ Fotoğrafta net bir barkod bulunamadı. Lütfen barkodu ortalayarak tekrar çekin.", "error");
-      } catch(procErr) {
-        console.warn("Fotoğraf barkod işleme hatası:", procErr);
-        showToast("Fotoğraftan barkod okunamadı. Lütfen barkodu düzgün tutarak tekrar çekin.", "error");
-      } finally {
-        nativeInput.value = '';
-      }
-    });
-  }
-
-  nativeInput.click();
-}
-
-/**
- * ⚠️ Kamera Hatası veya İzin Uyarısı Paneli
- */
-function showCameraError(title, desc) {
-  const modal = document.getElementById('fullscreen-camera-overlay');
-  if (!modal) return;
-
-  const existing = document.getElementById('fs-camera-error-banner');
-  if (existing) existing.remove();
-
-  const errBox = document.createElement('div');
-  errBox.id = 'fs-camera-error-banner';
-  errBox.style.cssText = `
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 90%;
-    max-width: 380px;
-    background: rgba(15, 23, 42, 0.96);
-    border: 1px solid #ef4444;
-    border-radius: 16px;
-    padding: 22px 18px;
-    text-align: center;
-    z-index: 999;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.8);
-    backdrop-filter: blur(16px);
-  `;
-
-  errBox.innerHTML = `
-    <div style="font-size: 38px; margin-bottom: 6px;">📷🔒</div>
-    <div style="font-size: 16px; font-weight: 800; color: #f87171; margin-bottom: 8px;">${title}</div>
-    <div style="font-size: 12.5px; color: #cbd5e1; line-height: 1.5; margin-bottom: 16px;">${desc}</div>
-    <div style="display: flex; flex-direction: column; gap: 8px;">
-      <button onclick="triggerNativeCaptureFallback()" style="width: 100%; background: #10b981; color: white; border: none; padding: 12px; border-radius: 10px; font-weight: 800; font-size: 13.5px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;">
-        <span>📸</span>
-        <span>Telefon Kamerasıyla Çek & Oku</span>
-      </button>
-      <div style="display: flex; gap: 8px;">
-        <button onclick="openFullscreenCamera()" style="flex: 1; background: #0284c7; color: white; border: none; padding: 10px; border-radius: 10px; font-weight: 800; font-size: 12.5px; cursor: pointer;">
-          Canlı Yeniden Dene
-        </button>
-        <button onclick="closeFullscreenCamera()" style="flex: 1; background: rgba(239,68,68,0.2); color: #f87171; border: 1px solid #ef4444; padding: 10px; border-radius: 10px; font-weight: 800; font-size: 12.5px; cursor: pointer;">
-          Kapat
-        </button>
-      </div>
-    </div>
-  `;
-
-  modal.appendChild(errBox);
-}
-
-/**
- * 🔴 30 FPS Canlı Donanım BarcodeDetector & ZXing Motoru
+ * 🔴 Ultra Hızlı Hibrit Canlı Barkod Algılama Motoru
+ * 1. Donanım BarcodeDetector (Android/iOS Safari)
+ * 2. OpenCV + PyZBar Sunucu CLAHE & Çok Açılı Çözücü
  */
 function startContinuousBarcodeEngine(videoElem) {
-  if (frameDetectionInterval) {
-    clearInterval(frameDetectionInterval);
-    frameDetectionInterval = null;
-  }
+  if (frameDetectionInterval) clearInterval(frameDetectionInterval);
   if (!videoElem) return;
 
-  // Görünür bir canvas ile zxing fallback
-  let hiddenCanvas = null;
-  let canvasCtx = null;
+  let detectorInstance = null;
+  if ('BarcodeDetector' in window) {
+    try {
+      detectorInstance = new BarcodeDetector({ 
+        formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'itf', 'qr_code'] 
+      });
+    } catch(e) {}
+  }
 
   frameDetectionInterval = setInterval(async () => {
     if (!isScanningLive || !videoElem || videoElem.readyState < 2) return;
 
-    // 1. Donanım Hızlandırmalı BarcodeDetector (Android Chrome / Edge / modern Webkit)
-    if ('BarcodeDetector' in window) {
+    // 1. İstemci Donanım BarcodeDetector (Tam Kare + Doğrudan Video, 0ms Gecikme)
+    if (detectorInstance) {
       try {
-        const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'qr_code', 'itf'] });
-        const barcodes = await detector.detect(videoElem);
+        const barcodes = await detectorInstance.detect(videoElem);
         if (barcodes && barcodes.length > 0 && barcodes[0].rawValue && isScanningLive) {
           const raw = barcodes[0].rawValue.trim();
           if (validateBarcodeChecksum(raw)) {
@@ -490,40 +398,42 @@ function startContinuousBarcodeEngine(videoElem) {
       } catch(e) {}
     }
 
-    // 2. ZXing Canvas Fallback (iOS Safari ve BarcodeDetector desteklemeyen tarayıcılar)
-    if (typeof ZXing !== 'undefined' && zxingReader && isScanningLive) {
+    // 2. OpenCV + PyZBar Sunucu Çözücü (Parlama bastırma, yüksek kontrast, CLAHE, eğik barkod)
+    if (!isDecodingServerFrame && isScanningLive) {
+      isDecodingServerFrame = true;
       try {
-        if (!hiddenCanvas) {
-          hiddenCanvas = document.createElement('canvas');
-          canvasCtx = hiddenCanvas.getContext('2d', { willReadFrequently: true });
-        }
-        const vw = videoElem.videoWidth || 640;
-        const vh = videoElem.videoHeight || 480;
-        if (vw > 0 && vh > 0) {
-          // Performans için ölçeklendir
-          const scale = Math.min(1.0, 640 / vw);
-          const targetW = Math.round(vw * scale);
-          const targetH = Math.round(vh * scale);
-          hiddenCanvas.width = targetW;
-          hiddenCanvas.height = targetH;
-          canvasCtx.drawImage(videoElem, 0, 0, targetW, targetH);
+        const vw = videoElem.videoWidth || 1280;
+        const vh = videoElem.videoHeight || 720;
+        
+        const zoomRatio = currentZoomLevel > 1.0 ? currentZoomLevel : 1.0;
+        const cropW = Math.min(vw, Math.floor((vw * 0.95) / zoomRatio));
+        const cropH = Math.min(vh, Math.floor((vh * 0.70) / zoomRatio));
+        const cropX = Math.floor((vw - cropW) / 2);
+        const cropY = Math.floor((vh - cropH) / 2);
 
-          const luminanceSource = new ZXing.HTMLCanvasElementLuminanceSource(hiddenCanvas);
-          const binaryBitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminanceSource));
-          const result = zxingReader.decode(binaryBitmap);
-          if (result && result.getText && isScanningLive) {
-            const raw = result.getText().trim();
-            if (validateBarcodeChecksum(raw)) {
-              onLiveBarcodeDetected(raw);
-              return;
-            }
+        roiCanvas.width = 640;
+        roiCanvas.height = 360;
+        roiCtx.drawImage(videoElem, cropX, cropY, cropW, cropH, 0, 0, 640, 360);
+
+        const b64 = roiCanvas.toDataURL('image/jpeg', 0.82);
+        const res = await fetch('/api/scanner/decode-frame', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: b64, glare_mode: isGlareModeActive, aggressive: true })
+        });
+        const data = await res.json();
+        if (data.status === 'success' && data.barcode && isScanningLive) {
+          const raw = data.barcode.trim();
+          if (validateBarcodeChecksum(raw)) {
+            onLiveBarcodeDetected(raw);
           }
         }
-      } catch(zxingErr) {
-        // ZXing okuyamadığında normal hata fırlatır, sessizce devam et
+      } catch(e) {
+      } finally {
+        isDecodingServerFrame = false;
       }
     }
-  }, 60);
+  }, 40);
 }
 
 /**
@@ -536,13 +446,13 @@ function closeFullscreenCamera() {
   }
 
   if (zxingReader) {
-    try { zxingReader.reset(); } catch(e) {}
+    try {
+      zxingReader.reset();
+    } catch(e) {}
   }
 
   if (mediaStreamObj) {
-    try {
-      mediaStreamObj.getTracks().forEach(track => track.stop());
-    } catch(e) {}
+    mediaStreamObj.getTracks().forEach(track => track.stop());
     mediaStreamObj = null;
   }
 
@@ -551,21 +461,14 @@ function closeFullscreenCamera() {
 
   const videoElem = document.getElementById('fullscreen-video');
   if (videoElem) {
-    try {
-      videoElem.pause();
-      videoElem.srcObject = null;
-      videoElem.style.transform = "none";
-    } catch(e) {}
+    videoElem.srcObject = null;
+    videoElem.style.transform = "none";
   }
 
-  const readerDiv = document.getElementById('fullscreen-reader');
-  if (html5QrCode) {
-    try { 
-      html5QrCode.stop().catch(() => {}); 
+  if (html5QrCode && isScanningLive) {
+    try {
+      html5QrCode.stop();
     } catch(e) {}
-  }
-  if (readerDiv) {
-    readerDiv.style.display = 'none';
   }
 
   isScanningLive = false;
@@ -574,7 +477,7 @@ function closeFullscreenCamera() {
 }
 
 /**
- * 🔴 Barkod Algılandığında (Kırmızı Çizgiye Oturduğunda)
+ * 🔴 Barkod Algılandığında Tetiklenen Olay (Konsensüs & Yönlendirme)
  */
 function onLiveBarcodeDetected(decodedText) {
   if (!decodedText || !isScanningLive) return;
@@ -584,10 +487,124 @@ function onLiveBarcodeDetected(decodedText) {
     return;
   }
 
+  isScanningLive = false;
   playBeepSound();
+  if (navigator.vibrate) navigator.vibrate([100]);
+
   closeFullscreenCamera();
   lookupBarcode(raw);
 }
+
+/**
+ * 📸 Tek Çekimlik Kamera Çekimi Fallback'i
+ */
+function triggerNativeCaptureFallback() {
+  let fileInput = document.getElementById('inp-native-camera-fallback');
+  if (!fileInput) {
+    fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.id = 'inp-native-camera-fallback';
+    fileInput.accept = 'image/*';
+    fileInput.capture = 'environment';
+    fileInput.style.display = 'none';
+    fileInput.onchange = handleGalleryImage;
+    document.body.appendChild(fileInput);
+  }
+  fileInput.click();
+}
+
+/**
+ * 🖼️ Galeriden veya Anlık Fotoğraftan Barkod Çözme
+ */
+async function handleGalleryImage(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  showToast("⏳ Fotoğraftaki barkod taranıyor...", "info");
+
+  // 1. BarcodeDetector
+  if ('BarcodeDetector' in window) {
+    try {
+      const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'qr_code'] });
+      const bitmap = await createImageBitmap(file);
+      const barcodes = await detector.detect(bitmap);
+      if (barcodes && barcodes.length > 0) {
+        const raw = barcodes[0].rawValue.trim();
+        if (validateBarcodeChecksum(raw)) {
+          playBeepSound();
+          if (navigator.vibrate) navigator.vibrate([80]);
+          event.target.value = '';
+          lookupBarcode(raw);
+          return;
+        }
+      }
+    } catch (e) {}
+  }
+
+  // 2. ZXing Image Reader
+  try {
+    if (typeof ZXing !== 'undefined') {
+      const imgReader = new ZXing.BrowserMultiFormatReader();
+      const imgUrl = URL.createObjectURL(file);
+      const imgElem = new Image();
+      imgElem.src = imgUrl;
+      await new Promise(r => { imgElem.onload = r; });
+      try {
+        const result = await imgReader.decodeFromImageElement(imgElem);
+        URL.revokeObjectURL(imgUrl);
+        if (result && result.getText()) {
+          const raw = result.getText().trim();
+          if (validateBarcodeChecksum(raw)) {
+            playBeepSound();
+            if (navigator.vibrate) navigator.vibrate([80]);
+            lookupBarcode(raw);
+            return;
+          }
+        }
+      } catch (errZX) {
+        URL.revokeObjectURL(imgUrl);
+      }
+    }
+  } catch (err) {}
+
+  // 3. Fallback: Sunucu tarafı CLAHE & OpenCV ile fotoğraftan tara
+  try {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const b64 = reader.result;
+      const res = await fetch('/api/scanner/decode-frame', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: b64, aggressive: true })
+      });
+      const data = await res.json();
+      if (data.status === 'success' && data.barcode && validateBarcodeChecksum(data.barcode)) {
+        playBeepSound();
+        if (navigator.vibrate) navigator.vibrate([80]);
+        lookupBarcode(data.barcode);
+      } else {
+        showToast("❌ Fotoğrafta net bir barkod algılanamadı. Lütfen barkodu daha net ve yakından çekin.", "error");
+      }
+    };
+    reader.readAsDataURL(file);
+  } catch (e) {
+    showToast("❌ Fotoğraf okuma hatası.", "error");
+  } finally {
+    event.target.value = '';
+  }
+}
+
+// Window Global Tanımlamaları
+window.toggleGlareMode = toggleGlareMode;
+window.setCameraZoom = setCameraZoom;
+window.toggleFlashlight = toggleFlashlight;
+window.openFullscreenCamera = openFullscreenCamera;
+window.closeFullscreenCamera = closeFullscreenCamera;
+window.startContinuousBarcodeEngine = startContinuousBarcodeEngine;
+window.onLiveBarcodeDetected = onLiveBarcodeDetected;
+window.triggerNativeCaptureFallback = triggerNativeCaptureFallback;
+window.handleGalleryImage = handleGalleryImage;
+
 
 /**
  * 🔎 Barkod Sorgulama & Ekrana Getirme (OYMAPOS Standart)

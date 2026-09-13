@@ -529,10 +529,12 @@ def apply_grocery_dictionary(text: str) -> str:
     return _GROCERY_PATTERN.sub(lambda m: _GROCERY_UPPER_MAP.get(m.group(0).upper(), m.group(0)), str(text))
 
 def clean_product_title(title: str) -> str:
-    """Bozuk karakterleri ve stok kodlarını temizleyip standartlaştırır."""
+    """Ürün adını orijinal haliyle korur, sadece bozuk unicode artıklarını ve çift boşlukları düzeltir."""
     if not title:
         return ""
-    return strip_supplier_stock_codes(title)
+    s = fix_turkish_corrupted_chars(str(title)).strip()
+    s = re.sub(r'\s+', ' ', s)
+    return s
 
 def unify_product_title(title: str, raw_system_title: str = None, brand: str = None) -> str:
     """
@@ -582,8 +584,8 @@ def unify_product_title(title: str, raw_system_title: str = None, brand: str = N
         deduped.append(w)
     result = ' '.join(deduped)
 
-    # 3. Marka adı başlıkta yoksa ve mantıklıysa ekle
-    if clean_b and clean_b.upper() not in ['DİĞER', 'DIGER', 'GENEL', 'YOK', '-', 'STANDART']:
+    # 3. Marka adı başlıkta yoksa ve mantıklıysa ekle (Market isimlerini ve YARENLER önekini ekleme)
+    if clean_b and clean_b.upper() not in ['DİĞER', 'DIGER', 'GENEL', 'YOK', '-', 'STANDART', 'YARENLER', 'MARKET']:
         clean_b_std = apply_grocery_dictionary(clean_b)
         b_folded = fold_turkish_text(clean_b_std)
         res_folded = fold_turkish_text(result)
@@ -651,12 +653,42 @@ def fold_turkish_text(text: str) -> str:
     return s.lower()
 
 def clean_barcode_text(val) -> str:
-    """Excel veya formlardan gelen barkoddaki .0 veya boşluk artıklarını temizler."""
+    """Barkodları daima temiz, sayısal ve standart formata dönüştürür (OYMAPOS motoruyla 1-1 aynı)."""
     if val is None:
         return ""
     s = str(val).strip()
-    if s.endswith('.0'):
+    if s.startswith("bc_") or s.startswith("BC_"):
+        s = s[3:]
+    
+    # Sondaki ,00 veya .00 veya ,0 veya .0 temizle
+    if s.endswith(',00') or s.endswith('.00'):
+        s = s[:-3]
+    elif s.endswith(',0') or s.endswith('.0'):
         s = s[:-2]
+    elif ',' in s:
+        parts = s.split(',')
+        if len(parts) == 2 and parts[1].isdigit() and int(parts[1]) == 0:
+            s = parts[0]
+    elif '.' in s:
+        parts = s.split('.')
+        if len(parts) == 2 and parts[1].isdigit() and int(parts[1]) == 0:
+            s = parts[0]
+
+    # Üstel / Bilimsel gösterim kontrolü (Örn: 8.69056E+12 veya 8,69056E+12)
+    s_norm = s.replace(',', '.')
+    if re.match(r'^[+-]?\d+(?:\.\d+)?[eE][+-]?\d+$', s_norm):
+        try:
+            f_val = float(s_norm)
+            s = f"{int(round(f_val))}"
+        except Exception:
+            pass
+
+    # Rakam ve tirelerden oluşan barkodlardaki tireleri temizle (Örn: 869-0504-114925 -> 8690504114925)
+    if '-' in s:
+        s_nodash = s.replace('-', '')
+        if s_nodash.isdigit():
+            s = s_nodash
+
     return s.strip()
 
 def parse_price(val) -> float:
@@ -666,13 +698,21 @@ def parse_price(val) -> float:
     if isinstance(val, (int, float)):
         return float(val)
     s = str(val).strip().replace('TL', '').replace('tl', '').replace('₺', '').strip()
-    if ',' in s and '.' in s:
+    if not s:
+        return 0.0
+    if '.' in s and ',' in s:
         last_comma = s.rfind(',')
         last_dot = s.rfind('.')
         if last_comma > last_dot:  # Örn: 1.250,50 (Türkçe format)
-            s = s.replace('.', '').replace(',', '.')
+            s = s[:last_comma].replace('.', '').replace(',', '') + '.' + s[last_comma+1:]
         else:  # Örn: 1,250.50 (Uluslararası format)
-            s = s.replace(',', '')
+            s = s[:last_dot].replace(',', '').replace('.', '') + '.' + s[last_dot+1:]
+    elif s.count(',') > 1:
+        last_comma = s.rfind(',')
+        s = s[:last_comma].replace(',', '') + '.' + s[last_comma+1:]
+    elif s.count('.') > 1:
+        last_dot = s.rfind('.')
+        s = s[:last_dot].replace('.', '') + '.' + s[last_dot+1:]
     elif ',' in s:
         s = s.replace(',', '.')
     try:
@@ -681,30 +721,58 @@ def parse_price(val) -> float:
         return 0.0
 
 def decode_scale_barcode(barcode: str) -> Optional[dict]:
-    """27, 28, 29 ile başlayan EAN-13 terazi / manav / şarküteri barkodlarını çözümler."""
-    if not barcode or len(barcode) != 13 or not barcode.isdigit():
+    """
+    20-29 serisi tüm terazi, manav, kasap ve şarküteri barkodlarını OYMAPOS algoritmasıyla akıllıca çözümler.
+    Prefixler: 27/20-26 (Gramajlı), 28/29 (Gömülü Fiyatlı/Tutarlı)
+    """
+    if not barcode:
         return None
-    prefix = barcode[:2]
-    if prefix not in ('27', '28', '29'):
+    raw_s = str(barcode).strip()
+    clean_bc = re.sub(r'[^0-9]', '', raw_s)
+    
+    if len(clean_bc) < 12 or len(clean_bc) > 14:
         return None
-    
-    plu_raw = barcode[2:7]
-    plu_clean = plu_raw.lstrip('0') or '0'
-    val_int = int(barcode[7:12])
-    
-    is_weight = prefix == '27'
-    weight_kg = round(val_int / 1000.0, 3) if is_weight else None
-    embedded_price = round(val_int / 100.0, 2) if not is_weight else None
+
+    prefix = clean_bc[:2]
+    if prefix not in ("20", "21", "22", "23", "24", "25", "26", "27", "28", "29"):
+        return None
+
+    plu_candidates = []
+    try:
+        p1 = int(clean_bc[2:7].lstrip("0") or "0")
+        if p1 > 0: plu_candidates.append(p1)
+    except Exception:
+        pass
+
+    try:
+        p2 = int(clean_bc[4:7].lstrip("0") or "0")
+        if p2 > 0 and p2 not in plu_candidates: plu_candidates.append(p2)
+    except Exception:
+        pass
+
+    try:
+        p3 = int(clean_bc[2:6].lstrip("0") or "0")
+        if p3 > 0 and p3 not in plu_candidates: plu_candidates.append(p3)
+    except Exception:
+        pass
+
+    plu_clean = str(plu_candidates[0]) if plu_candidates else "1"
+    num_block = int(clean_bc[7:12]) if len(clean_bc) >= 12 else 0
+
+    is_weight = prefix in ("27", "20", "21", "22", "23", "24", "25", "26")
+    weight_kg = round(num_block / 1000.0, 3) if is_weight else None
+    embedded_price = round(num_block / 100.0, 2) if not is_weight else None
 
     return {
         "is_scale": True,
         "prefix": prefix,
-        "plu_raw": plu_raw,
+        "plu_raw": clean_bc[2:7],
         "plu_clean": plu_clean,
+        "plu_candidates": plu_candidates,
         "is_weight": is_weight,
         "weight_kg": weight_kg,
         "embedded_price": embedded_price,
-        "full_barcode": barcode
+        "full_barcode": clean_bc
     }
 
 def format_product_dict(row: dict) -> dict:
@@ -803,11 +871,9 @@ def check_blacklist_with_reason(barcode: str, title: str = "", price: float = 0.
         return True, "Test/Sıfır Serisi Barkod"
 
     # Terazi / Manav
-    if cfg.get("block_scale_products", True):
+    if cfg.get("block_scale_products", False):
         if (len(b) == 13 or len(b) == 7) and b.startswith(('27', '28', '29')) and b.isdigit():
             return True, "Terazi/Gramaj Barkodu (27-29)"
-        if t.startswith('MNV ') or 'MANAV' in t or 'GRAMAJ' in t:
-            return True, "Manav/Gramajlı Ürün"
 
     # Sigara
     if cfg.get("block_cigarettes", True):
@@ -830,11 +896,16 @@ def check_blacklist_with_reason(barcode: str, title: str = "", price: float = 0.
         r'^[0-9]+(?:\.[0-9]+)?\s*(?:TL|₺)$',
         r'^F[İI]YAT\s*FARKI', r'^KASA\s*ARTI', r'^KASA\s*EKSI', r'^IPTAL', r'^S[İI]L[İI]ND[İI]',
         r'^DUMMY', r'^ORNEK', r'^ÖRNEK', r'^TEMP', r'^GEÇİCİ', r'^GECICI',
+        r'BO[ŞS]\s*STOK(?:\s*KARTI)?',
+        r'TERAZ[İI]\s*BO[ŞS]',
+        r'BARKODSUZ\s*BO[ŞS]',
+        r'\bMNV\b',
+        r'^MNV\s+',
         r'^(?:10|12|19|24)[\s\-_]*(?:LU|LI|Lİ|LUK|LÜK)?[\s\-_]*SU'
     ]
     for pat in blacklist_patterns:
         if re.search(pat, t, re.IGNORECASE):
-            return True, "Test / Kasa İptal / Deneme Kaydı"
+            return True, "Kara Liste / Boş Stok / Manav / Test Kaydı"
 
     for w in cfg.get("words", []):
         w_clean = str(w).strip().upper()

@@ -17,6 +17,20 @@
   <link rel="stylesheet" href="/frontend/stiller/masaustu/style.css?v={{ cache_bust }}">
   <link rel="stylesheet" href="/frontend/css/style.css?v={{ cache_bust }}">
   <link rel="stylesheet" href="/frontend/css/components.css?v={{ cache_bust }}">
+  <script>
+    // F5 Yenilemelerinde sekme çakışması veya FOUC (flash) oluşmaması için kaydedilen sekmeyi önceden uygula
+    (function() {
+      try {
+        var savedTab = localStorage.getItem('active_tab');
+        if (savedTab && savedTab !== 'tab-home') {
+          var style = document.createElement('style');
+          style.id = 'pre-tab-style';
+          style.innerHTML = '#tab-home { display: none !important; } #' + savedTab + ' { display: block !important; }';
+          document.head.appendChild(style);
+        }
+      } catch(e) {}
+    })();
+  </script>
 </head>
 <body class="app-layout" data-is-guest="{{ is_guest }}" data-client-ip="{{ client_ip }}">
 
@@ -48,13 +62,17 @@
         <span class="nav-icon">⚡</span>
         <span class="nav-label">Fiyat Güncelleme (Ctrl+V)</span>
       </button>
+      <button class="nav-item tab-btn" data-tab="tab-price-reports" style="color:#10b981;">
+        <span class="nav-icon">📊</span>
+        <span class="nav-label">Fiyat Değişim Raporları</span>
+      </button>
       <button class="nav-item tab-btn" data-tab="tab-design">
         <span class="nav-icon">🎨</span>
         <span class="nav-label">Etiket Düzenle & Şablonlar</span>
       </button>
-      <button class="nav-item tab-btn" data-tab="tab-vegawin">
+      <button class="nav-item tab-btn" data-tab="tab-kasa_aktarim">
         <span class="nav-icon">🔄</span>
-        <span class="nav-label">VegaWin & Cihaz Aktarımı</span>
+        <span class="nav-label">Dükkan & Kasa Veri Aktarımı</span>
       </button>
       <button class="nav-item tab-btn" data-tab="tab-devices">
         <span class="nav-icon">📱</span>
@@ -73,7 +91,7 @@
     <div class="sidebar-footer" style="padding:14px 16px; border-top:1px solid var(--border-color); margin-top:auto;">
       <div style="font-size:11px; color:var(--text-muted); display:flex; align-items:center; gap:6px;">
         <span class="status-dot" style="width:8px; height:8px; background:#10b981; border-radius:50%; display:inline-block;"></span>
-        <span>VegaWin DB Aktif</span>
+        <span>Stok Veritabanı Aktif</span>
       </div>
     </div>
   </aside>
@@ -100,15 +118,10 @@
       </div>
 
       <div class="topbar-actions" style="display:flex; align-items:center; gap:8px;">
-        <!-- CİHAZ MODU ROZETİ (ANA PC / MİSAFİR PC) -->
-        <div id="deviceRoleBadge" class="status-pill" style="font-weight:700; border-radius: 8px;">
-          <!-- JS tarafında doldurulur -->
-        </div>
-
         <!-- CANLI YAZICI SEÇİCİ & DURUM GÖSTERGESİ -->
         <div style="display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:2px 8px;">
           <span style="font-size:14px;">🖨️</span>
-          <select id="topbarPrinterSelect" onchange="handleTopbarPrinterChange(this.value)" style="background:transparent; border:none; color:#f8fafc; font-size:12px; font-weight:700; outline:none; cursor:pointer; max-width:170px;">
+          <select id="topbarPrinterSelect" onchange="handleTopbarPrinterChange(this.value)" style="background:transparent; border:none; color:#f8fafc; font-size:12px; font-weight:700; outline:none; cursor:pointer; max-width:160px;">
             <option value="" disabled selected>Yazıcı taranıyor...</option>
           </select>
           <div class="status-pill" id="topbarPrinterPill" onclick="switchTab('tab-print-history')" style="cursor:pointer; padding:3px 8px; font-size:11.5px; border-radius:6px; margin:0;" title="Yazıcı Durumu (Detaylar ve geçmiş için tıklayın)">
@@ -117,20 +130,16 @@
           </div>
         </div>
 
-        <div class="status-pill" title="Sunucu IP Adresi">
-          <span class="dot"></span>
-          <span>Ana PC: <strong id="topbarIp">{{ local_ip }}</strong></span>
-        </div>
+        <!-- OYMAPOS 1-1 Fiyat Gör [F2] Butonu -->
+        <button class="btn btn-secondary btn-sm" id="btnTopbarPriceCheck" onclick="openPosPriceCheckModal()" title="Ürün Fiyat & Stok Sorgula [F2]" style="display:flex; align-items:center; gap:6px; font-weight:800; color:#38bdf8; border-color:rgba(56,189,248,0.4); background:rgba(56,189,248,0.12); padding:6px 12px;">
+          <span>🔍</span>
+          <span class="btn-text">Fiyat Gör <kbd style="font-size:10px; padding:1px 4px; background:rgba(0,0,0,0.3); border-radius:3px; margin-left:2px;">F2</kbd></span>
+        </button>
 
         <a href="/mobile" target="_blank" class="btn btn-secondary btn-sm" title="Mobil Barkod Terminalini Aç">
-          📱 <span class="btn-label-responsive">Mobil Terminal</span>
+          📱 <span class="btn-label-responsive">Mobil</span>
         </a>
         
-        <!-- DİĞER BİLGİSAYARLAR İÇİN PROGRAM İNDİRME BUTONU -->
-        <a href="/api/system/download-installer" download="OYMAPOS_Etiket_Kurulum.zip" class="btn btn-primary btn-sm" title="Bu programı bu bilgisayara kurmak için hazır paketi indir (Çift tıkla çalıştır)" style="background: linear-gradient(135deg, #10b981, #059669); border: none; font-weight: 700; display: flex; align-items: center; gap: 5px; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);">
-          <span>📥</span> <span class="btn-label-responsive">Programı İndir (.ZIP / BAT)</span>
-        </a>
-
         <!-- Açık / Koyu Tema Değiştirici -->
         <button class="btn btn-secondary btn-sm" id="themeToggleBtn" onclick="toggleThemeMode()" title="Açık / Koyu Tema Değiştir" style="padding:6px 10px; font-size:13px;">
           <span id="themeToggleIcon">🌙</span>
@@ -148,8 +157,9 @@
       {{ include "partials/tabs/tab_home.html" }}
       {{ include "partials/tabs/tab_products.html" }}
       {{ include "partials/tabs/tab_price_update.html" }}
+      {{ include "partials/tabs/tab_price_reports.html" }}
       {{ include "partials/tabs/tab_studio.html" }}
-      {{ include "partials/tabs/tab_vegawin.html" }}
+      {{ include "partials/tabs/tab_kasa_aktarim.html" }}
       {{ include "partials/tabs/tab_devices.html" }}
       {{ include "partials/tabs/tab_print_history.html" }}
       {{ include "partials/tabs/tab_settings.html" }}
@@ -157,11 +167,14 @@
   </div>
 
   <!-- Modallar (Partials) -->
+  {{ include "partials/modals/modal_price_check.html" }}
   {{ include "partials/modals/modal_label_preview.html" }}
   {{ include "partials/modals/modal_a4_sheet.html" }}
   {{ include "partials/modals/modal_product_history.html" }}
   {{ include "partials/modals/modal_product_edit.html" }}
   {{ include "partials/modals/modal_blacklist.html" }}
+  {{ include "partials/modals/modal_quick_update_confirm.html" }}
+
 
   <!-- JS Modülleri -->
   <script src="/frontend/js/api.js?v={{ cache_bust }}"></script>
@@ -170,11 +183,12 @@
   <!-- Parçalanmış Fonksiyon Modülleri -->
   <script src="/frontend/js/modules/products.js?v={{ cache_bust }}"></script>
   <script src="/frontend/js/modules/quick_update.js?v={{ cache_bust }}"></script>
+  <script src="/frontend/js/modules/price_reports.js?v={{ cache_bust }}"></script>
   <script src="/frontend/js/modules/studio.js?v={{ cache_bust }}"></script>
   <script src="/frontend/js/modules/studio_drag.js?v={{ cache_bust }}"></script>
   <script src="/frontend/js/modules/print.js?v={{ cache_bust }}"></script>
   <script src="/frontend/js/modules/devices.js?v={{ cache_bust }}"></script>
-  <script src="/frontend/js/modules/vegawin.js?v={{ cache_bust }}"></script>
+  <script src="/frontend/js/modules/kasa_aktarim.js?v={{ cache_bust }}"></script>
   <script src="/frontend/js/modules/settings.js?v={{ cache_bust }}"></script>
   <script src="/frontend/js/modules/product_modals.js?v={{ cache_bust }}"></script>
   

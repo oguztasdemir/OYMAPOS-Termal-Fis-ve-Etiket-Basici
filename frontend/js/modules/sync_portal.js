@@ -529,7 +529,7 @@ async function processClipboardData() {
 
     updateSyncProgress(Math.floor(gridRows.length * 0.5), gridRows.length, 'Ana PC fiyatları ve isimleri karşılaştırıyor...');
 
-    const res = await fetch('/api/vegawin/preview-clipboard', {
+    const res = await fetch('/api/kasa_aktarim/preview-clipboard', {
       method: 'POST',
       body: formData
     });
@@ -784,7 +784,7 @@ async function commitSync() {
     await new Promise(r => setTimeout(r, 100));
     updateSyncProgress(Math.floor(totalItems * 0.4), totalItems, `${Math.floor(totalItems * 0.4).toLocaleString('tr-TR')} / ${totalItems.toLocaleString('tr-TR')} ürün ana PC'ye gönderildi...`);
 
-    const res = await API.confirmVegawinSync(
+    const res = await API.confirmkasa_aktarimSync(
       comparisonData.parsed_items,
       comparisonData.source_filename || 'Kopyalanan Tablo',
       comparisonData.device_name || 'Dükkan PC'

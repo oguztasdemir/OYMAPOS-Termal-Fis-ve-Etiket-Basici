@@ -11,26 +11,36 @@ from backend.utils.text_utils import (
     fold_turkish_text, clean_barcode_text, decode_scale_barcode, format_product_dict
 )
 
-def get_all_products(limit=None, offset=0, only_new=False, only_diff=False):
+def get_all_products(limit=None, offset=0, only_new=False, only_diff=False, only_blacklist=False, blacklist_barcodes=None):
     with db_session() as conn:
         cursor = conn.cursor()
         clauses = []
+        params = []
         if only_new:
             clauses.append("is_new = 1")
         if only_diff:
             clauses.append("(label_price IS NOT NULL AND ABS(parse_price(price) - parse_price(label_price)) > 0.001)")
+        if only_blacklist:
+            bl_list = list(blacklist_barcodes or [])
+            if bl_list:
+                placeholders = ",".join("?" for _ in bl_list)
+                clauses.append(f"barcode IN ({placeholders})")
+                params.extend(bl_list)
+            else:
+                clauses.append("1 = 0")
         
         where_clause = ("WHERE " + " AND ".join(clauses)) if clauses else ""
         if limit is not None and limit > 0:
-            cursor.execute(f"SELECT * FROM urunler {where_clause} ORDER BY title ASC LIMIT ? OFFSET ?;", (limit, offset))
+            params.extend([limit, offset])
+            cursor.execute(f"SELECT * FROM urunler {where_clause} ORDER BY title ASC LIMIT ? OFFSET ?;", tuple(params))
         else:
-            cursor.execute(f"SELECT * FROM urunler {where_clause} ORDER BY title ASC;")
+            cursor.execute(f"SELECT * FROM urunler {where_clause} ORDER BY title ASC;", tuple(params))
         return [format_product_dict(r) for r in cursor.fetchall()]
 
-def search_products(query: str, limit=None, only_new=False, only_diff=False):
+def search_products(query: str, limit=None, only_new=False, only_diff=False, only_blacklist=False, blacklist_barcodes=None):
     cleaned_query = query.strip()
     if not cleaned_query:
-        return get_all_products(limit=limit, only_new=only_new, only_diff=only_diff)
+        return get_all_products(limit=limit, only_new=only_new, only_diff=only_diff, only_blacklist=only_blacklist, blacklist_barcodes=blacklist_barcodes)
         
     tokens = [t for t in re.split(r'[\s\-_.,/]+', cleaned_query) if t]
     
@@ -43,6 +53,14 @@ def search_products(query: str, limit=None, only_new=False, only_diff=False):
             clauses.append("is_new = 1")
         if only_diff:
             clauses.append("(label_price IS NOT NULL AND ABS(parse_price(price) - parse_price(label_price)) > 0.001)")
+        if only_blacklist:
+            bl_list = list(blacklist_barcodes or [])
+            if bl_list:
+                placeholders = ",".join("?" for _ in bl_list)
+                clauses.append(f"barcode IN ({placeholders})")
+                params.extend(bl_list)
+            else:
+                clauses.append("1 = 0")
             
         # Her bir arama kelimesi için şart ekle (AND mantığı)
         for token in tokens:
@@ -68,43 +86,128 @@ def search_products(query: str, limit=None, only_new=False, only_diff=False):
         return [format_product_dict(r) for r in cursor.fetchall()]
 
 def get_product_by_barcode(barcode: str):
+    """
+    Barkod veya ürün koduna göre anında arama yapar (OYMAPOS motoruyla 1-1 aynı).
+    1. Tam barkod eşleşmesi (barcode = ?)
+    2. Baştaki sıfırları atarak arama (ltrim 0)
+    3. Stok kodu eşleşmesi (stock_code = ?)
+    4. 20-29 serisi tüm terazi / şarküteri / manav barkodu ayrıştırma (PLU adayları)
+    """
     if not barcode:
         return None
     b = clean_barcode_text(barcode)
+    if not b:
+        return None
+
+    b_clean = b.lstrip('0') if b.isdigit() else b
+
     with db_session() as conn:
         cursor = conn.cursor()
+
+        # 1. Aşama: Doğrudan Barkod Eşleşmesi
         cursor.execute("SELECT * FROM urunler WHERE barcode = ? LIMIT 1;", (b,))
         row = cursor.fetchone()
         if row:
             return format_product_dict(row)
-        
-        # Direkt bulunamadıysa, terazi barkodu mu kontrol et
+
+        # 2. Aşama: Baştaki Sıfırları Atarak Arama (Örn: 0869... veya okuyucu varyasyonları)
+        if b_clean and b_clean != b:
+            cursor.execute("SELECT * FROM urunler WHERE barcode = ? OR ltrim(barcode, '0') = ? LIMIT 1;", (b_clean, b_clean))
+            row = cursor.fetchone()
+            if row:
+                return format_product_dict(row)
+
+        # 3. Aşama: Stok Kodu Eşleşmesi
+        cursor.execute("SELECT * FROM urunler WHERE stock_code = ? OR ltrim(stock_code, '0') = ? LIMIT 1;", (b, b_clean))
+        row = cursor.fetchone()
+        if row:
+            return format_product_dict(row)
+
+        # 4. Aşama: Terazi / Manav Barkodu Kontrolü (20-29 serisi)
         scale_info = decode_scale_barcode(b)
         if scale_info:
-            plu_raw = scale_info["plu_raw"]
-            plu_clean = scale_info["plu_clean"]
-            
-            cursor.execute("""
-                SELECT * FROM urunler 
-                WHERE barcode = ? OR barcode = ? OR barcode = ? OR stock_code = ? OR stock_code = ?
-                LIMIT 1;
-            """, (plu_raw, plu_clean, f"27{plu_raw}", plu_raw, plu_clean))
-            base_row = cursor.fetchone()
-            if base_row:
-                p = format_product_dict(base_row)
-                p["is_scale_product"] = True
-                p["scanned_barcode"] = b
-                p["plu_code"] = plu_clean
-                
-                if scale_info["is_weight"] and scale_info["weight_kg"] is not None:
-                    p["unit_price"] = p["price"]
-                    p["weight_kg"] = scale_info["weight_kg"]
-                    p["price"] = round(p["unit_price"] * scale_info["weight_kg"], 2)
-                    p["scale_summary"] = f"{scale_info['weight_kg']} KG x {p['unit_price']:.2f} TL"
-                elif scale_info["embedded_price"] is not None:
-                    p["price"] = scale_info["embedded_price"]
-                    p["scale_summary"] = f"Terazi Tutarı: {scale_info['embedded_price']:.2f} TL"
-                return p
+            candidates = scale_info.get("plu_candidates", [])
+            if not candidates and scale_info.get("plu_clean"):
+                try:
+                    candidates = [int(scale_info["plu_clean"])]
+                except Exception:
+                    pass
+
+            # 4.a: manav_urunleri tablosu kontrolü
+            for cand_plu in candidates:
+                try:
+                    cursor.execute("SELECT * FROM manav_urunleri WHERE plu = ? LIMIT 1;", (cand_plu,))
+                    m_row = cursor.fetchone()
+                    if m_row:
+                        m_dict = dict(m_row)
+                        u_price = parse_price(m_dict.get("price") or m_dict.get("scale_price") or 0.0)
+                        title_val = m_dict.get("title") or m_dict.get("name") or f"Manav Ürünü (PLU: {cand_plu})"
+                        weight_kg = scale_info.get("weight_kg")
+                        embedded_price = scale_info.get("embedded_price")
+
+                        final_price = u_price
+                        summary_txt = f"{u_price:.2f} TL"
+                        if scale_info.get("is_weight") and weight_kg is not None:
+                            final_price = round(u_price * weight_kg, 2)
+                            summary_txt = f"{weight_kg} KG x {u_price:.2f} TL"
+                        elif embedded_price is not None:
+                            final_price = embedded_price
+                            summary_txt = f"Terazi Tutarı: {embedded_price:.2f} TL"
+
+                        return {
+                            "barcode": b,
+                            "stock_code": str(cand_plu),
+                            "title": title_val,
+                            "raw_system_title": title_val,
+                            "price": final_price,
+                            "unit_price": u_price,
+                            "label_price": None,
+                            "price_updated_at": "",
+                            "brand": "MANAV",
+                            "unit": m_dict.get("unit", "KG"),
+                            "is_scale_product": True,
+                            "scanned_barcode": b,
+                            "plu_code": str(cand_plu),
+                            "weight_kg": weight_kg,
+                            "scale_summary": summary_txt,
+                            "is_new": False,
+                            "last_printed_at": ""
+                        }
+                except Exception:
+                    pass
+
+            # 4.b: Genel katalog urunler tablosunda PLU eşleşmesi
+            for cand_plu in candidates:
+                cursor.execute("""
+                    SELECT * FROM urunler 
+                    WHERE barcode = ? OR barcode = ? OR stock_code = ? OR barcode = ?
+                    LIMIT 1;
+                """, (str(cand_plu), f"27{cand_plu:05d}", str(cand_plu), f"{cand_plu:05d}"))
+                base_row = cursor.fetchone()
+                if base_row:
+                    p = format_product_dict(base_row)
+                    p["is_scale_product"] = True
+                    p["scanned_barcode"] = b
+                    p["plu_code"] = str(cand_plu)
+                    
+                    if scale_info.get("is_weight") and scale_info.get("weight_kg") is not None:
+                        p["unit_price"] = p["price"]
+                        p["weight_kg"] = scale_info["weight_kg"]
+                        p["price"] = round(p["unit_price"] * scale_info["weight_kg"], 2)
+                        p["scale_summary"] = f"{scale_info['weight_kg']} KG x {p['unit_price']:.2f} TL"
+                    elif scale_info.get("embedded_price") is not None:
+                        p["unit_price"] = p["price"]
+                        p["price"] = scale_info["embedded_price"]
+                        p["scale_summary"] = f"Terazi Tutarı: {scale_info['embedded_price']:.2f} TL"
+                    return p
+
+        # 5. Aşama: Tire/boşluk arındırılmış barkod eşleşmesi
+        b_digits = re.sub(r'[^0-9A-Za-z]', '', b)
+        if b_digits and b_digits != b:
+            cursor.execute("SELECT * FROM urunler WHERE barcode = ? LIMIT 1;", (b_digits,))
+            row = cursor.fetchone()
+            if row:
+                return format_product_dict(row)
 
         return None
 
@@ -124,16 +227,25 @@ def get_product_price_history(barcode: str, limit: int = 50) -> list:
         """, (b, limit))
         return [dict(r) for r in cursor.fetchall()]
 
-def get_products_count(only_new=False, only_diff=False):
+def get_products_count(only_new=False, only_diff=False, only_blacklist=False, blacklist_barcodes=None):
     with db_session() as conn:
         cursor = conn.cursor()
         clauses = []
+        params = []
         if only_new:
             clauses.append("is_new = 1")
         if only_diff:
             clauses.append("(label_price IS NOT NULL AND ABS(parse_price(price) - parse_price(label_price)) > 0.001)")
+        if only_blacklist:
+            bl_list = list(blacklist_barcodes or [])
+            if bl_list:
+                placeholders = ",".join("?" for _ in bl_list)
+                clauses.append(f"barcode IN ({placeholders})")
+                params.extend(bl_list)
+            else:
+                clauses.append("1 = 0")
         where_clause = ("WHERE " + " AND ".join(clauses)) if clauses else ""
-        cursor.execute(f"SELECT COUNT(*) as total FROM urunler {where_clause};")
+        cursor.execute(f"SELECT COUNT(*) as total FROM urunler {where_clause};", tuple(params))
         row = cursor.fetchone()
         return row["total"] if row else 0
 

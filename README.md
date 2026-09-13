@@ -1,19 +1,7 @@
+
 # 🏷️ OYMAPOS - Kurumsal Etiket & Fiş Otomasyon Merkezi
 
 <div align="center">
-
-![Python](https://img.shields.io/badge/Python-3.8%2B-blue?logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.95%2B-009688?logo=fastapi&logoColor=white)
-![SQLite](https://img.shields.io/badge/SQLite3-WAL_Mode-003B57?logo=sqlite&logoColor=white)
-![Printer](https://img.shields.io/badge/Printer-ZPL_%26_TSPL--II_RAW-orange)
-![License](https://img.shields.io/badge/License-MIT-green)
-![Platform](https://img.shields.io/badge/Windows-7%20%7C%208%20%7C%2010%20%7C%2011%20(32%2F64--bit)-lightgrey?logo=windows)
-
-**Otomatik Barkod Algılamalı, Kablosuz Mobil Terminal Destekli, ZPL/TSPL Çift Motorlu Profesyonel Raf Etiketi ve Fiş Otomasyonu**
-
-[Özellikler](#-özellikler--yetenekler) • [Hızlı Başlatma](#-hızlı-başlatma-tüm-windows-sürümleri) • [Ağ ve Modüller](#-ağ-ve-cihaz-erişimi) • [Proje Mimarisi](#-proje-mimarisi) • [Kısayollar](#-klavye-kısayolları) • [Sorun Giderme](#-sorun-giderme)
-
-</div>
 
 ---
 
@@ -28,6 +16,7 @@ Herhangi bir özel POS veya ERP yazılımına bağımlı kalmadan; panodan kopya
 ## ✨ Özellikler & Yetenekler
 
 ### 🔍 Akıllı Barkod Algılama & Hızlı Veri Aktarımı
+
 - **Otomatik Barkod ve Fiyat Ayrıştırma:** Panodan yapıştırılan veya yüklenen metinlerde barkod (EAN-13, EAN-8, Code-128) ve fiyat bilgisi format bağımsız olarak anında tespit edilir.
 - **Panodan Doğrudan Aktarım (Ctrl + V):** Herhangi bir programdan veya tablodan kopyalanan ürün listesini ekrana yapıştırarak saniyeler içinde içeri alma.
 - **Esnek Dosya Yükleme:** Excel (`.xlsx`), CSV, metin dosyaları (`.txt`) veya veritabanı yedeklerini sürükle-bırak yöntemiyle sisteme aktarma.
@@ -35,6 +24,7 @@ Herhangi bir özel POS veya ERP yazılımına bağımlı kalmadan; panodan kopya
 - **Tek Tıkla Geri Alma (Rollback / Undo):** Hatalı veya istenmeyen aktarımlarda tek tıkla önceki fiyatlara anında geri dönebilme güvencesi.
 
 ### 🖨️ Hibrit Termal Baskı Motoru (ZPL + TSPL-II & A4 Grid)
+
 - **Doğrudan Windows RAW Spooler:** Yazıcı sürücüsü gecikmesi olmaksızın milisaniyeler içinde doğrudan termal donanıma ham komut iletimi.
 - **Çift Protokol Desteği (ZPL & TSPL-II):** Zebra, Xprinter, Argox, HPRT, Bixolon vb. piyasadaki tüm termal yazıcılarla tak-çalıştır uyumluluk.
 - **Dinamik Raf Etiketi Standartları:** Birim fiyat kutusu, gramaj/miktar rozeti, resmi Yerli Üretim logosu, reyon kodları ve kampanya alanları.
@@ -43,14 +33,17 @@ Herhangi bir özel POS veya ERP yazılımına bağımlı kalmadan; panodan kopya
 - **Canlı Baskı Geçmişi:** Yapılan tüm baskı işlemlerinin anlık loglanması ve arayüzdeki "Baskı Geçmişi" sekmesinden izlenebilmesi.
 
 ### 📱 Mobil Barkod Terminali (Reyon Asistanı)
+
 - Herhangi bir uygulama yüklemeden, aynı Wi-Fi ağına bağlı akıllı telefon kamerasından barkod okutma.
 - Reyonda gezerken raf fiyatı ile güncel fiyatı denetleme ve tek tıkla kasadaki yazıcıya etiket gönderme.
 
 ### ⚖️ Terazi / Manav Barkod Çözücü
+
 - `27`, `28` ve `29` prefixli terazi barkodlarını (`27[PLU][Gramaj/Tutar][C]`) otomatik ayrıştırma.
 - Gramajlı ürünlerin birim fiyatını ve paket tutarını otomatik hesaplama.
 
 ### 🛡️ Kararlı ve Çökme Önleyici Mimari
+
 - **SQLite WAL (Write-Ahead Logging):** Eşzamanlı okuma/yazma kilitlenmelerini önleyen yüksek hızlı veritabanı motoru.
 - **Türkçe Karakter Katlaması (`fold_tr`):** `I/ı`, `İ/i`, `Ş/ş`, `Ğ/ğ`, `Ü/ü`, `Ö/ö`, `Ç/ç` harflerinde %100 arama doğruluğu.
 - **Zaman Damgalı Tek Tıkla Yedekleme:** Veritabanı ve ayarları `.zip` formatında yedekleme ve geri yükleme.
@@ -62,15 +55,18 @@ Herhangi bir özel POS veya ERP yazılımına bağımlı kalmadan; panodan kopya
 Windows 7, 8, 10 veya 11 (32-bit / 64-bit) fark etmeksizin sistemi çalıştırmak için:
 
 ### 1. Tek Tıkla Başlatma (Tavsiye Edilen)
+
 Proje ana dizinindeki **`BASLAT.bat`** dosyasına çift tıklayın.
 
 > **Ne Yapar?**
+>
 > * Bilgisayarınızda Python olup olmadığını otomatik kontrol eder.
 > * Eğer Python yoksa; Windows sürümünüze ve mimarinize (32/64-bit) uygun Python motorunu resmi kaynaktan arka planda sessizce kurar.
 > * Gerekli kütüphaneleri [requirements.txt](requirements.txt) üzerinden otomatik tamamlar.
 > * Web sunucusunu başlatır ve tarayıcınızı otomatik olarak açar.
 
 ### 2. Geliştirici Modu (Manuel Kurulum)
+
 ```bash
 # 1. Proje dizinine girin
 cd "Etiket Yazdirici"
@@ -88,11 +84,11 @@ Tarayıcınızda arayüz otomatik olarak `http://localhost:8000` adresinde açı
 
 ## 🌐 Ağ ve Cihaz Erişimi
 
-| Modül | Yerel Adres | Açıklama |
-|---|---|---|
-| 🖥️ **Ana Yönetim & Etiket Masası** | `http://localhost:8000/` | Stok arama, tekli/toplu etiket basımı, baskı geçmişi. |
-| 💻 **Veri Aktarım & Karşılaştırma Portalı** | `http://[IP_ADRESI]:8000/sync` | Panodan yapıştırma (Ctrl+V) veya dosya yükleme ile hızlı veri aktarım masası. |
-| 📱 **Reyon Mobil Terminali** | `http://[IP_ADRESI]:8000/mobile` | Telefon kamerası ile kablosuz reyon etiket denetimi. |
+| Modül                                                 | Yerel Adres                        | Açıklama                                                                            |
+| ------------------------------------------------------ | ---------------------------------- | ------------------------------------------------------------------------------------- |
+| 🖥️**Ana Yönetim & Etiket Masası**            | `http://localhost:8000/`         | Stok arama, tekli/toplu etiket basımı, baskı geçmişi.                            |
+| 💻**Veri Aktarım & Karşılaştırma Portalı** | `http://[IP_ADRESI]:8000/sync`   | Panodan yapıştırma (Ctrl+V) veya dosya yükleme ile hızlı veri aktarım masası. |
+| 📱**Reyon Mobil Terminali**                      | `http://[IP_ADRESI]:8000/mobile` | Telefon kamerası ile kablosuz reyon etiket denetimi.                                 |
 
 ---
 
@@ -151,13 +147,13 @@ Etiket Yazdırıcı/
 
 ## ⌨️ Klavye Kısayolları
 
-| Kısayol | İşlev |
-|---|---|
-| `Ctrl + K` veya `/` | Ürün arama kutusuna anında odaklan |
-| `Ctrl + S` | Yazıcı ve kalibrasyon ayarlarını kaydet |
-| `F2` | Hızlı test etiketi yazdır |
-| `Enter` | Önizleme modalı açıkken doğrudan yazdır |
-| `Escape` | Modalı kapat veya arama kutusunu temizle |
+| Kısayol                | İşlev                                       |
+| ----------------------- | --------------------------------------------- |
+| `Ctrl + K` veya `/` | Ürün arama kutusuna anında odaklan         |
+| `Ctrl + S`            | Yazıcı ve kalibrasyon ayarlarını kaydet   |
+| `F2`                  | Hızlı test etiketi yazdır                  |
+| `Enter`               | Önizleme modalı açıkken doğrudan yazdır |
+| `Escape`              | Modalı kapat veya arama kutusunu temizle     |
 
 ---
 

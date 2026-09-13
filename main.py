@@ -84,27 +84,70 @@ if __name__ == "__main__":
     print("=" * 60)
     print(" [Sunucu kesintisiz modda çalışıyor. Web panelindeki 'Sunucuyu Kapat' ile kapatabilirsiniz]\n")
 
-    # CTRL+C ile yanlışlıkla sunucunun kapatılmasını engelle (Arka planda kesintisiz çalışır)
+    # CTRL+C veya beklenmeyen sinyallerle sunucunun aniden kapanmasını engelle
     try:
         signal.signal(signal.SIGINT, signal.SIG_IGN)
+        if hasattr(signal, "SIGBREAK"):
+            signal.signal(signal.SIGBREAK, signal.SIG_IGN)
     except Exception:
         pass
 
     open_browser_delayed("127.0.0.1", port)
 
-    try:
-        is_frozen = getattr(sys, 'frozen', False)
-        from backend.app import app
-        uvicorn.run(
-            app,
-            host="0.0.0.0",
-            port=port,
-            log_level="warning",
-            access_log=False
-        )
-    except (KeyboardInterrupt, SystemExit):
-        pass
-    except Exception as e:
-        safe_print(f"\n[⚠️ Bilgi] {e}")
+    # Uvicorn Server yapılandırması (Sinyal yakalaması uvicorn tarafından iptal edilip sunucunun ayakta kalması garanti edilir)
+    import contextlib
+    @contextlib.contextmanager
+    def _ignore_signals():
+        yield
+
+    # 4. HTTPS Canlı Mobil Kamera Servisi için SSL Hazırlığı
+    cert_path = os.path.join(BASE_DIR, "data", "sertifikalar", "cert.pem")
+    key_path = os.path.join(BASE_DIR, "data", "sertifikalar", "key.pem")
+    has_ssl = os.path.exists(cert_path) and os.path.exists(key_path)
+
+    if has_ssl:
+        https_port = port + 1
+        print(f" 🔒  Canlı Mobil Kamera (HTTPS): https://{local_ip}:{https_port}/mobile")
+        print("=" * 60)
+
+        def run_https_server():
+            try:
+                from backend.app import app as https_app
+                https_config = uvicorn.Config(
+                    https_app,
+                    host="0.0.0.0",
+                    port=https_port,
+                    ssl_certfile=cert_path,
+                    ssl_keyfile=key_path,
+                    log_level="warning",
+                    access_log=False
+                )
+                https_server = uvicorn.Server(https_config)
+                https_server.capture_signals = _ignore_signals
+                https_server.run()
+            except Exception as e:
+                safe_print(f"[⚠️ HTTPS Kamera Sunucusu Hatası]: {e}")
+
+        threading.Thread(target=run_https_server, daemon=True).start()
+
+    while True:
+        try:
+            from backend.app import app
+            config = uvicorn.Config(
+                app,
+                host="0.0.0.0",
+                port=port,
+                log_level="warning",
+                access_log=False
+            )
+            server = uvicorn.Server(config)
+            server.capture_signals = _ignore_signals
+            server.run()
+            time.sleep(1)
+        except (KeyboardInterrupt, SystemExit):
+            break
+        except Exception as e:
+            safe_print(f"\n[⚠️ Sunucu Beklenmeyen Durum] Yeniden başlatılıyor: {e}")
+            time.sleep(1)
 
 

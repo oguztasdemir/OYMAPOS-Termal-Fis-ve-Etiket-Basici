@@ -5,13 +5,14 @@ Excel (.xlsx, .xls), SQLite (.db, .sqlite), CSV, metin ve ikili SonSatisHareket 
 """
 import os
 import csv
+import re
 import openpyxl
 from backend.utils.text_utils import clean_barcode_text, clean_product_title, parse_price, fix_turkish_corrupted_chars, is_invalid_or_blacklisted_product
 
 def normalize_text(text: str) -> str:
     return str(text).strip() if text is not None else ""
 
-def parse_vegawin_file(file_path: str) -> list:
+def parse_vegawin_file(file_path: str, collect_blacklisted: bool = False):
     """
     Herhangi bir VegaWin/FasterPOS veritabanı (.db, .sqlite), Excel, CSV veya metin dosyasını okur.
     Tüm olası tablo ve kolon yapılarını (STOKKART, TBLSTOK, MALZEME, URUNLER vb.) dinamik olarak çözümler.
@@ -149,67 +150,102 @@ def parse_vegawin_file(file_path: str) -> list:
             if not rows:
                 return []
             
+            def clean_h(val):
+                from backend.utils.text_utils import fold_turkish_text
+                return re.sub(r'[^a-z0-9]', '', fold_turkish_text(str(val or '')).lower())
+
             header_idx = -1
             col_map = {}
             for idx, r in enumerate(rows[:10]):
                 if not r: continue
-                r_lower = [str(c).lower().strip() if c is not None else '' for c in r]
-                b_found = any(x in r_lower for x in ['barcode', 'barkod', 'barkod1', 'ean', 'stok_kodu', 'stokkodu', 'kod'])
-                t_found = any(x in r_lower for x in ['title', 'urun_adi', 'malincinsi', 'stokadi', 'stok_adi', 'malin_cinsi', 'aciklama'])
-                if b_found and t_found:
+                cleaned_row = [clean_h(c) for c in r]
+                b_found = any(any(k in x for k in ['barkod', 'barcode', 'ean', 'stokkodu', 'kod']) for x in cleaned_row)
+                t_found = any(any(k in x for k in ['malincinsi', 'malin', 'cinsi', 'urunadi', 'urun', 'title', 'name', 'aciklama', 'stokadi']) for x in cleaned_row)
+                p_found = any(any(k in x for k in ['satisfiyati', 'fiyat', 'price', 'satis', 'tutar']) for x in cleaned_row)
+                if (b_found and t_found) or (b_found and p_found) or (b_found and len(cleaned_row) >= 3):
                     header_idx = idx
-                    for col_i, col_name in enumerate(r_lower):
+                    for col_i, col_name in enumerate(cleaned_row):
                         col_map[col_name] = col_i
                     break
 
             if header_idx == -1:
                 header_idx = 0
-                r_lower = [str(c).lower().strip() if c is not None else '' for c in rows[0]]
-                for col_i, col_name in enumerate(r_lower):
+                cleaned_row = [clean_h(c) for c in rows[0]]
+                for col_i, col_name in enumerate(cleaned_row):
                     col_map[col_name] = col_i
 
             b_idx = None
-            for cand in ['barcode', 'barkod', 'barkod1', 'ean', 'stok_kodu', 'stokkodu', 'kod']:
-                if cand in col_map:
-                    b_idx = col_map[cand]
-                    break
+            for cand, col_i in col_map.items():
+                if b_idx is None and any(k in cand for k in ['barkod', 'barcode', 'ean']):
+                    b_idx = col_i
             
+            sc_idx = None
+            for cand, col_i in col_map.items():
+                if sc_idx is None and any(k in cand for k in ['stokkodu', 'kod', 'stokkod']):
+                    sc_idx = col_i
+
+            if b_idx is None and sc_idx is not None:
+                b_idx = sc_idx
+                sc_idx = None
+
             t_idx = None
-            for cand in ['title', 'urun_adi', 'malincinsi', 'stokadi', 'stok_adi', 'malin_cinsi', 'aciklama']:
-                if cand in col_map:
-                    t_idx = col_map[cand]
-                    break
+            for cand, col_i in col_map.items():
+                if t_idx is None and any(k in cand for k in ['malincinsi', 'malin', 'cinsi', 'urunadi', 'urun', 'title', 'name', 'aciklama', 'stokadi']):
+                    t_idx = col_i
 
             p_idx = None
-            for cand in ['price', 'satis_fiyati', 'satisfiyati1', 'fiyat', 'satisfiyati', 'fiyat1', 'sfiyat']:
-                if cand in col_map:
-                    p_idx = col_map[cand]
-                    break
+            for cand, col_i in col_map.items():
+                if p_idx is None and any(k in cand for k in ['satisfiyati', 'fiyat', 'price', 'satis', 'tutar']):
+                    p_idx = col_i
+
+            u_idx = None
+            for cand, col_i in col_map.items():
+                if u_idx is None and any(k in cand for k in ['birim', 'unit']):
+                    u_idx = col_i
 
             items = []
+            blacklisted_items = []
             for r in rows[header_idx + 1:]:
                 if not r: continue
                 b = clean_barcode_text(r[b_idx]) if b_idx is not None and b_idx < len(r) and r[b_idx] is not None else ""
                 if not b:
                     continue
                 t_raw = normalize_text(r[t_idx]) if t_idx is not None and t_idx < len(r) and r[t_idx] is not None else f"Ürün {b}"
-                p = parse_price(r[p_idx]) if p_idx is not None and p_idx < len(r) and r[p_idx] is not None else 0.0
+                has_price = (p_idx is not None and p_idx < len(r) and r[p_idx] is not None and str(r[p_idx]).strip() != '')
+                p = parse_price(r[p_idx]) if has_price else None
+                unit = normalize_text(r[u_idx]) if u_idx is not None and u_idx < len(r) and r[u_idx] is not None else "ADET"
+                sc = normalize_text(r[sc_idx]) if sc_idx is not None and sc_idx < len(r) and r[sc_idx] is not None else ""
 
                 clean_t = clean_product_title(t_raw)
-                if is_invalid_or_blacklisted_product(b, clean_t, p):
+                from backend.utils.text_utils import check_blacklist_with_reason
+                is_blocked, block_reason = check_blacklist_with_reason(b, clean_t, p or 0.0)
+                if not is_blocked and t_raw != clean_t:
+                    is_blocked, block_reason = check_blacklist_with_reason(b, t_raw, p or 0.0)
+
+                if is_blocked:
+                    blacklisted_items.append({
+                        "barcode": b,
+                        "title": clean_t or t_raw,
+                        "price": p or 0.0,
+                        "reason": block_reason or "Kara Liste / Boş Stok / Manav / Test Kaydı"
+                    })
                     continue
 
                 items.append({
                     "barcode": b,
-                    "stock_code": "",
+                    "stock_code": sc,
                     "title": clean_t,
+                    "raw_system_title": t_raw,
                     "price": p,
+                    "has_price": has_price,
                     "brand": "",
-                    "unit": "ADET"
+                    "unit": unit
                 })
+            if collect_blacklisted:
+                return items, blacklisted_items
             return items
         except Exception:
-            return []
+            return ([], []) if collect_blacklisted else []
 
     elif ext in ['.csv', '.txt']:
         try:
@@ -269,7 +305,8 @@ def parse_raw_text_products(raw_text: str, collect_blacklisted: bool = False):
         t_found = any(any(k in h for k in ['urun', 'malin', 'cinsi', 'title', 'name', 'aciklama', 'stokadi']) for h in cleaned_headers)
         p_found = any(any(k in h for k in ['fiyat', 'price', 'satis', 'tutar']) for h in cleaned_headers)
 
-        if (b_found and t_found) or (b_found and p_found) or (t_found and p_found):
+        # Başlık satırında barkod, ürün adı veya fiyat herhangi ikisi veya en az biri + başka sütun varsa başlık kabul et
+        if (b_found and t_found) or (b_found and p_found) or (t_found and p_found) or (b_found and len(cleaned_headers) >= 3):
             header_idx = idx
             for col_i, h in enumerate(cleaned_headers):
                 col_map[h] = col_i
@@ -281,9 +318,9 @@ def parse_raw_text_products(raw_text: str, collect_blacklisted: bool = False):
         for h, col_i in col_map.items():
             if b_idx is None and any(k in h for k in ['barkod', 'barcode', 'ean']):
                 b_idx = col_i
-            elif t_idx is None and any(k in h for k in ['urun', 'malin', 'cinsi', 'title', 'name', 'aciklama', 'stokadi']):
+            elif t_idx is None and any(k in h for k in ['malincinsi', 'malin', 'cinsi', 'urunadi', 'urun', 'title', 'name', 'aciklama', 'stokadi']):
                 t_idx = col_i
-            elif p_idx is None and any(k in h for k in ['fiyat', 'price', 'satis', 'tutar']):
+            elif p_idx is None and any(k in h for k in ['satisfiyati', 'fiyat', 'price', 'satis', 'tutar']):
                 p_idx = col_i
             elif sc_idx is None and any(k in h for k in ['stokkodu', 'kod', 'stokkod']):
                 sc_idx = col_i
@@ -349,22 +386,23 @@ def parse_raw_text_products(raw_text: str, collect_blacklisted: bool = False):
         if not b:
             continue
         t_raw = normalize_text(r[t_idx]) if t_idx is not None and t_idx < len(r) else f"Ürün {b}"
-        p = parse_price(r[p_idx]) if p_idx is not None and p_idx < len(r) else 0.0
+        has_price_col = (p_idx is not None and p_idx < len(r) and str(r[p_idx]).strip() != '')
+        p = parse_price(r[p_idx]) if has_price_col else None
         sc = normalize_text(r[sc_idx]) if sc_idx is not None and sc_idx < len(r) else ""
         brand = normalize_text(r[br_idx]) if br_idx is not None and br_idx < len(r) else ""
         unit = normalize_text(r[u_idx]) if u_idx is not None and u_idx < len(r) else "ADET"
 
         clean_t = clean_product_title(t_raw)
         from backend.utils.text_utils import check_blacklist_with_reason
-        is_blocked, block_reason = check_blacklist_with_reason(b, clean_t, p)
+        is_blocked, block_reason = check_blacklist_with_reason(b, clean_t, p or 0.0)
         if not is_blocked and t_raw != clean_t:
-            is_blocked, block_reason = check_blacklist_with_reason(b, t_raw, p)
+            is_blocked, block_reason = check_blacklist_with_reason(b, t_raw, p or 0.0)
 
         if is_blocked:
             blacklisted_items.append({
                 "barcode": b,
                 "title": clean_t or t_raw,
-                "price": p,
+                "price": p or 0.0,
                 "reason": block_reason or "Kara Liste / Test Kaydı"
             })
             continue
@@ -375,6 +413,7 @@ def parse_raw_text_products(raw_text: str, collect_blacklisted: bool = False):
             "title": clean_t,
             "raw_system_title": t_raw,
             "price": p,
+            "has_price": has_price_col,
             "brand": brand,
             "unit": unit
         })

@@ -1,5 +1,5 @@
 <!-- SEKME 1: ÜRÜNLER & ETİKET MASASI (EXCEL TABLO GRİDİ) -->
-<section id="tab-search" class="tab-pane active">
+<section id="tab-search" class="tab-pane">
   <div class="card" style="padding: 16px 20px;">
     <div class="card-header" style="margin-bottom: 12px; gap: 12px; flex-wrap: wrap;">
       <div class="card-title" style="font-size: 15px;">
@@ -16,12 +16,18 @@
           <button id="filterNewBtn" class="btn btn-secondary btn-sm" style="border-radius:0; border:none; border-left:1px solid var(--border-subtle); padding:6px 12px; font-size:12px;" onclick="toggleFilter('new')">
             ✨ Yeni Eklenenler ( <span id="newProductsCount">0</span> )
           </button>
+          <button id="filterBlacklistBtn" class="btn btn-secondary btn-sm" style="border-radius:0; border:none; border-left:1px solid var(--border-subtle); padding:6px 12px; font-size:12px; color:#f87171;" onclick="toggleFilter('blacklist')">
+            🚫 Kara Liste ( <span id="blacklistTabCount">0</span> )
+          </button>
         </div>
         <button class="btn btn-secondary btn-sm" onclick="copyTableToClipboard('productsTable')" style="padding:6px 12px; font-size:12px;">
           📋 Kopyala
         </button>
-        <a href="/api/export/products/csv" class="btn btn-secondary btn-sm" style="padding:6px 12px; font-size:12px;">
-          📊 Excel (.csv)
+        <a href="/api/export/products/excel" class="btn btn-secondary btn-sm" style="background:linear-gradient(135deg, #10b981, #059669); color:#fff; border:none; padding:6px 12px; font-size:12px; font-weight:700; box-shadow:0 2px 8px rgba(16,185,129,0.3);" title="Doğrudan Microsoft Excel (.xlsx) formatında indir">
+          📗 Excel (.xlsx)
+        </a>
+        <a href="/api/export/products/csv" class="btn btn-secondary btn-sm" style="padding:6px 12px; font-size:12px;" title="Noktalı virgül ayrılmış CSV formatında indir">
+          📊 CSV (.csv)
         </a>
         <a href="/api/export/products/json" class="btn btn-secondary btn-sm" style="padding:6px 12px; font-size:12px;">
           💾 JSON

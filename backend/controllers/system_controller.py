@@ -202,9 +202,9 @@ async def shutdown_server():
 async def get_clipboard_content():
     """İstemci tarayıcı panosuna erişemediğinde sistem panosunu okur."""
     text = ""
+    # 1. Önce Windows ctypes API ile hızlıca dene
     try:
         import ctypes
-        from ctypes import wintypes
         user32 = ctypes.windll.user32
         kernel32 = ctypes.windll.kernel32
 
@@ -221,7 +221,25 @@ async def get_clipboard_content():
             finally:
                 user32.CloseClipboard()
     except Exception as e:
-        safe_log(f"Pano okuma hatası: {e}")
+        safe_log(f"Ctypes pano okuma hatası: {e}")
 
-    return success_response(data={"clipboard_text": text})
+    # 2. Eğer ctypes boş döndüyse Windows PowerShell Get-Clipboard ile dene
+    if not text or not text.strip():
+        try:
+            import subprocess
+            res = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Get-Clipboard -Raw"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=2
+            )
+            if res.returncode == 0 and res.stdout:
+                text = res.stdout
+        except Exception as ps_err:
+            safe_log(f"PowerShell pano okuma hatası: {ps_err}")
+
+    return success_response(data={"clipboard_text": text or ""})
+
 

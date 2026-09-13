@@ -241,6 +241,10 @@ function updateGridStats() {
 }
 
 async function clearAndPasteFromClipboard() {
+  // Kullanıcı butona basar basmaz sürecin (process) başladığını anında hissettir
+  showQuickUpdateProgress('Pano Okunuyor...', 'Pano içeriği taranıyor ve yapıştırma hazırlanıyor...', '📋');
+  updateQuickUpdateProgress(0, 100, 'Pano erişimi sağlanıyor...');
+
   try {
     let clipboardText = '';
 
@@ -255,6 +259,7 @@ async function clearAndPasteFromClipboard() {
 
     // 2. Eğer tarayıcı engellediyse veya boşsa sunucu üzerinden Windows panosunu oku
     if (!clipboardText || !clipboardText.trim()) {
+      updateQuickUpdateProgress(20, 100, 'Sistem panosundan veri okunuyor...');
       try {
         const res = await fetch('/api/system/get-clipboard');
         const json = await res.json();
@@ -267,16 +272,26 @@ async function clearAndPasteFromClipboard() {
     }
 
     if (!clipboardText || !clipboardText.trim()) {
-      showToast('Panoda kopyalanmış herhangi bir metin veya Excel tablosu bulunamadı. Lütfen önce Excel veya başka bir yerden veri kopyalayın (Ctrl+C).', 'warning');
+      hideQuickUpdateProgress();
+      // Tarayıcı ve sistem API erişimi güvenlik nedeniyle bloklandıysa kullanıcıdan doğrudan yapıştırmasını iste
+      const manualText = prompt("Tarayıcı panonuzu otomatik okuyamadı.\nLütfen kopyaladığınız veriyi (Ctrl+V) buraya yapıştırıp 'Tamam' butonuna basınız:");
+      if (manualText && manualText.trim()) {
+        showQuickUpdateProgress('Veri İşleniyor...', 'Girdiğiniz liste ayrıştırılıyor...', '📋');
+        await parseAndApplyTextToGrid(manualText, true);
+        return;
+      }
+      showToast('Panoda kopyalanmış veri bulunamadı. Excel veya metin belgenizden satırları kopyalayıp (Ctrl+C) doğrudan tabloya Ctrl+V yapabilirsiniz.', 'warning');
       return;
     }
 
-    showToast('Pano içeriği okunuyor ve tabloya aktarılıyor...', 'info');
+    updateQuickUpdateProgress(50, 100, 'Pano verisi alındı, tabloya aktarılıyor...');
+    await new Promise(r => setTimeout(r, 60));
 
     // Panoyu temizle ve yapıştır (sıfırdan yapıştır)
     await parseAndApplyTextToGrid(clipboardText, true);
 
   } catch (err) {
+    hideQuickUpdateProgress();
     showToast('Pano yapıştırma hatası: ' + err.message, 'error');
   }
 }
@@ -428,25 +443,182 @@ function handleGridPaste(e) {
 }
 
 
-function insertSampleToGrid() {
-  const sample = [
-    ['8690577018120', 'SOKE UN 1 KG GELENEKSEL', '52,00 TL', 'UN001', 'SÖKE', 'ADET', '', ''],
-    ['8691375640100', 'BIZIM CORBA EZOGELIN 80 GR', '35,00 TL', 'CRB002', 'BİZİM', 'ADET', '', ''],
-    ['8690504034016', 'ULKER COKOKREM 400 GR KAKAOLU FINDIK KREMASI', '82,50 TL', 'KRM003', 'ÜLKER', 'ADET', '', ''],
-    ['8690637012345', 'DOGUS CAY FILIZ 1000 GR KARADENIZ', '175,00 TL', 'CY004', 'DOĞUŞ', 'ADET', '', ''],
-    ['8690555112233', 'PINAR SUT 1 LT TAM YAGLI UHT', '45,00 TL', 'ST005', 'PINAR', 'ADET', '', ''],
-    ['8690777889900', 'YUDUM AYCICEK YAGI 1 LT SAF', '99,50 TL', 'YG006', 'YUDUM', 'ADET', '', ''],
-    ['8001480021822', 'ACE 1 LT KLASIK CAMASIR SUYU', '79,00 TL', 'ACE01', 'ACE', 'ADET', '', '']
-  ];
+let lastCalculatedRawText = '';
+let currentPreviewSubTab = 'changes';
+let isStep2Unlocked = false;
+let currentQuickStep = 1;
 
-  gridData = sample;
-  while (gridData.length < 100) {
-    gridData.push(new Array(numCols).fill(''));
+function switchQuickUpdateStep(step) {
+  if (step === 2 && !isStep2Unlocked) {
+    showToast('Lütfen önce "Verileri Kontrol Et" butonuna tıklayarak verileri doğrulayın.', 'warning');
+    return;
   }
 
-  renderExcelGrid();
-  updateGridStats();
-  showToast('Örnek veri eklendi.', 'success');
+  currentQuickStep = step;
+  const viewStep1 = document.getElementById('quickUpdateStep1View');
+  const viewStep2 = document.getElementById('quickUpdateStep2View');
+  const btnNav1 = document.getElementById('btnStep1Nav');
+  const btnNav2 = document.getElementById('btnStep2Nav');
+  const actions1 = document.getElementById('quickStep1Actions');
+  const actions2 = document.getElementById('quickStep2Actions');
+  const descText = document.getElementById('quickStepDescText');
+
+  if (step === 1) {
+    if (viewStep1) viewStep1.style.display = 'flex';
+    if (viewStep2) viewStep2.style.display = 'none';
+    if (actions1) actions1.style.display = 'flex';
+    if (actions2) actions2.style.display = 'none';
+    if (descText) descText.textContent = 'Adım 1: Excel yükleyin veya hücrelere yapıştırıp kontrol edin';
+
+    if (btnNav1) {
+      btnNav1.style.border = '1.5px solid #38bdf8';
+      btnNav1.style.background = '#1e293b';
+      btnNav1.style.color = '#38bdf8';
+    }
+    if (btnNav2) {
+      btnNav2.style.border = '1.5px solid transparent';
+      btnNav2.style.background = 'transparent';
+      btnNav2.style.color = isStep2Unlocked ? '#94a3b8' : '#64748b';
+    }
+  } else if (step === 2) {
+    if (viewStep1) viewStep1.style.display = 'none';
+    if (viewStep2) viewStep2.style.display = 'flex';
+    if (actions1) actions1.style.display = 'none';
+    if (actions2) actions2.style.display = 'flex';
+    if (descText) descText.textContent = 'Adım 2: Fiyat değişimlerini ve yeni ürünleri inceleyin, ardından Veri Gönder ile onaylayın';
+
+    if (btnNav2) {
+      btnNav2.style.border = '1.5px solid #10b981';
+      btnNav2.style.background = '#1e293b';
+      btnNav2.style.color = '#34d399';
+    }
+    if (btnNav1) {
+      btnNav1.style.border = '1.5px solid transparent';
+      btnNav1.style.background = 'transparent';
+      btnNav1.style.color = '#94a3b8';
+    }
+  }
+}
+
+function unlockStep2() {
+  isStep2Unlocked = true;
+  const btnNav2 = document.getElementById('btnStep2Nav');
+  const badgeIcon = document.getElementById('step2BadgeIcon');
+  if (btnNav2) {
+    btnNav2.disabled = false;
+    btnNav2.style.cursor = 'pointer';
+    btnNav2.style.opacity = '1';
+    btnNav2.style.color = '#34d399';
+  }
+  if (badgeIcon) {
+    badgeIcon.textContent = '✓';
+    badgeIcon.style.background = '#10b981';
+    badgeIcon.style.color = '#fff';
+  }
+}
+
+async function handleExcelFileUpload(event) {
+  const file = event?.target?.files?.[0];
+  if (!file) return;
+
+  // Dosya girişini sıfırla ki aynı dosya tekrar seçilebilsin
+  event.target.value = '';
+
+  showQuickUpdateProgress('Excel Dosyası Okunuyor...', `${file.name} taranıyor ve ürünler ayrıştırılıyor...`, '📁');
+  updateQuickUpdateProgress(10, 100, 'Excel sunucuya yükleniyor...');
+
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('device_name', 'Ana PC - Excel Masası');
+    formData.append('preview_only', 'true');
+
+    const res = await fetch('/api/products/quick-update-excel', {
+      method: 'POST',
+      body: formData
+    });
+
+    const result = await res.json();
+
+    if (result.status !== 'success' || !result.data) {
+      hideQuickUpdateProgress();
+      showToast('Excel Okuma Hatası: ' + (result.message || 'Dosya okunamadı.'), 'error');
+      return;
+    }
+
+    const d = result.data;
+    lastCalculatedRawText = d.raw_text || '';
+
+    // Tabloya (Grid) aktar
+    if (d.raw_text) {
+      updateQuickUpdateProgress(70, 100, `${d.total_items} ürün canlı tabloya aktarılıyor...`);
+      // Grid'e yapıştırmış gibi uygula
+      await parseAndApplyTextToGrid(d.raw_text, false);
+    }
+
+    updateQuickUpdateProgress(100, 100, 'Hesaplama raporu hazırlandı!');
+    await new Promise(r => setTimeout(r, 200));
+    hideQuickUpdateProgress();
+
+    // 2. Kilidi aç ve doğrudan Adım 2 (Veri Gönder & Rapor) ekranına geç
+    unlockStep2();
+    renderCalculationDataToStep2(d);
+    switchQuickUpdateStep(2);
+
+    showToast(`✓ Excel yüklendi! Toplam ${d.total_items} ürün kontrol edildi. Raporu inceleyip onaylayabilirsiniz.`, 'success');
+  } catch (err) {
+    hideQuickUpdateProgress();
+    showToast('Excel yükleme hatası: ' + err.message, 'error');
+  }
+}
+
+function closeQuickUpdateConfirmModal() {
+  switchQuickUpdateStep(1);
+}
+
+function switchPreviewSubTab(tabName) {
+  currentPreviewSubTab = tabName;
+  const btnChanges = document.getElementById('tabBtnPreviewChanges');
+  const btnNew = document.getElementById('tabBtnPreviewNew');
+  const btnBlacklist = document.getElementById('tabBtnPreviewBlacklist');
+  const secChanges = document.getElementById('previewChangesContainer');
+  const secNew = document.getElementById('previewNewContainer');
+  const secBlacklist = document.getElementById('previewBlacklistContainer');
+
+  // Hepsini sıfırla
+  [btnChanges, btnNew, btnBlacklist].forEach(b => {
+    if (b) {
+      b.style.background = 'transparent';
+      b.style.color = '#94a3b8';
+      b.style.borderColor = 'transparent';
+    }
+  });
+  if (secChanges) secChanges.style.display = 'none';
+  if (secNew) secNew.style.display = 'none';
+  if (secBlacklist) secBlacklist.style.display = 'none';
+
+  if (tabName === 'changes') {
+    if (btnChanges) {
+      btnChanges.style.background = '#1e293b';
+      btnChanges.style.color = '#38bdf8';
+      btnChanges.style.borderColor = '#38bdf8';
+    }
+    if (secChanges) secChanges.style.display = 'block';
+  } else if (tabName === 'new') {
+    if (btnNew) {
+      btnNew.style.background = '#1e293b';
+      btnNew.style.color = '#34d399';
+      btnNew.style.borderColor = '#34d399';
+    }
+    if (secNew) secNew.style.display = 'block';
+  } else {
+    if (btnBlacklist) {
+      btnBlacklist.style.background = '#1e293b';
+      btnBlacklist.style.color = '#f87171';
+      btnBlacklist.style.borderColor = '#f87171';
+    }
+    if (secBlacklist) secBlacklist.style.display = 'block';
+  }
 }
 
 async function executeQuickPriceUpdate() {
@@ -454,29 +626,29 @@ async function executeQuickPriceUpdate() {
   const btn = document.getElementById('btnExecuteQuickPriceUpdate');
 
   if (filledRows.length === 0) {
-    showToast('Lütfen tablodaki hücrelere veri girin veya Excel\'den yapıştırın.', 'error');
+    showToast('Lütfen tablodaki hücrelere veri girin veya Excel\'den yükleyin.', 'error');
     return;
   }
 
-  // TSV biçiminde arka plandaki otomatik ayrıştırıcıya gönder (parse_raw_text_products otomatik algılar)
+  // TSV biçiminde arka plandaki otomatik ayrıştırıcıya gönder
   const tsvLines = filledRows.map(row => row.join('\t'));
   const rawText = tsvLines.join('\n');
+  lastCalculatedRawText = rawText;
 
   const originalHtml = btn ? btn.innerHTML : '';
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = '<span>⏳</span> Fiyatlar Güncelleniyor...';
+    btn.innerHTML = '<span>⏳</span> Analiz & Kontrol Yapılıyor...';
   }
 
-  showQuickUpdateProgress('Fiyatlar & Ürünler Güncelleniyor...', `${filledRows.length} ürün veritabanına aktarılıyor...`, '🚀');
-  updateQuickUpdateProgress(0, filledRows.length, 'Sunucuya aktarılıyor...');
+  showQuickUpdateProgress('Hesaplamalar Yapılıyor...', `${filledRows.length} satır analiz ediliyor...`, '🔍');
+  updateQuickUpdateProgress(Math.floor(filledRows.length * 0.4), filledRows.length, 'Fiyat farkları, yeni ürünler ve kara liste kontrol ediliyor...');
 
   try {
     const formData = new FormData();
     formData.append('raw_text', rawText);
     formData.append('device_name', 'Ana PC - Excel Güncelleme Masası');
-
-    updateQuickUpdateProgress(Math.floor(filledRows.length * 0.5), filledRows.length, 'Veritabanı kayıtları ve fiyat değişimleri işleniyor...');
+    formData.append('preview_only', 'true');
 
     const res = await fetch('/api/products/quick-update-clipboard', {
       method: 'POST',
@@ -484,8 +656,8 @@ async function executeQuickPriceUpdate() {
     });
     const result = await res.json();
 
-    updateQuickUpdateProgress(filledRows.length, filledRows.length, 'İşlem tamamlandı!');
-    await new Promise(r => setTimeout(r, 250));
+    updateQuickUpdateProgress(filledRows.length, filledRows.length, 'Hesaplama tamamlandı!');
+    await new Promise(r => setTimeout(r, 200));
     hideQuickUpdateProgress();
 
     if (btn) {
@@ -495,17 +667,183 @@ async function executeQuickPriceUpdate() {
 
     if (result.status === 'success' && result.data) {
       const d = result.data;
+      // 2. Kilidi aç ve doğrudan Adım 2 (Veri Gönder & Rapor) ekranına aktar
+      unlockStep2();
+      renderCalculationDataToStep2(d);
+      switchQuickUpdateStep(2);
+      showToast('✓ Veri kontrolü tamamlandı! Sonuçlar ekrana yüklendi.', 'success');
+    } else {
+      showToast('Hesaplama Hatası: ' + (result.message || 'İşlem gerçekleştirilemedi.'), 'error');
+    }
+  } catch (err) {
+    hideQuickUpdateProgress();
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+    }
+    showToast('Sunucu bağlantı hatası: ' + err.message, 'error');
+  }
+}
+
+function renderCalculationDataToStep2(data) {
+  const elTotal = document.getElementById('previewTotalCount');
+  const elPriceChange = document.getElementById('previewPriceChangeCount');
+  const elNew = document.getElementById('previewNewCount');
+  const elBlacklist = document.getElementById('previewBlacklistCount');
+  const elBanner = document.getElementById('previewSummaryBanner');
+  const badgeChanges = document.getElementById('badgeChangesCount');
+  const badgeNew = document.getElementById('badgeNewCount');
+  const badgeBlacklist = document.getElementById('badgeBlacklistCount');
+
+  const total = data.total_items || 0;
+  const priceChangesCount = data.price_changes_count || 0;
+  const newProductsCount = data.new_products || 0;
+  const blacklistCount = data.blacklisted_count || 0;
+
+  if (elTotal) elTotal.textContent = total;
+  if (elPriceChange) elPriceChange.textContent = priceChangesCount;
+  if (elNew) elNew.textContent = newProductsCount;
+  if (elBlacklist) elBlacklist.textContent = blacklistCount;
+
+  if (badgeChanges) badgeChanges.textContent = priceChangesCount;
+  if (badgeNew) badgeNew.textContent = newProductsCount;
+  if (badgeBlacklist) badgeBlacklist.textContent = blacklistCount;
+
+  if (elBanner) {
+    elBanner.innerHTML = `
+      <strong>Analiz Raporu:</strong> Toplam <strong>${total}</strong> kayıt incelendi. 
+      <strong style="color:#facc15;">${priceChangesCount}</strong> adet ürünün fiyatı değişti, 
+      <strong style="color:#34d399;">${newProductsCount}</strong> adet yeni ürün tespit edildi, 
+      <strong style="color:#f87171;">${blacklistCount}</strong> adet ürün kara listede olduğu için elendi.
+    `;
+  }
+
+  // Fiyat değişimleri tablosunu doldur
+  const changesTbody = document.getElementById('previewChangesTableBody');
+  if (changesTbody) {
+    const changes = data.price_changes || [];
+    if (changes.length === 0) {
+      changesTbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 18px; color:#64748b;">Fiyatı değişen ürün bulunmadı.</td></tr>`;
+    } else {
+      changesTbody.innerHTML = changes.map(c => {
+        const diffAmt = c.diff_amount || 0;
+        const diffSign = diffAmt > 0 ? '+' : '';
+        const diffColor = diffAmt > 0 ? '#f87171' : '#34d399';
+        return `
+          <tr style="border-bottom: 1px solid #1e293b;">
+            <td style="padding: 8px 12px; font-family:'JetBrains Mono', monospace; color:#38bdf8; font-weight:700;">${escapeHtml(c.barcode)}</td>
+            <td style="padding: 8px 12px; max-width: 300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(c.title || c.raw_system_title)}</td>
+            <td style="padding: 8px 12px; text-align: right; color:#94a3b8;">${Number(c.old_price || 0).toFixed(2)} ₺</td>
+            <td style="padding: 8px 12px; text-align: right; font-weight:800; color:#fff;">${Number(c.new_price || 0).toFixed(2)} ₺</td>
+            <td style="padding: 8px 12px; text-align: right; font-weight:800; color:${diffColor};">${diffSign}${diffAmt.toFixed(2)} ₺ (${diffSign}${c.diff_percent || 0}%)</td>
+          </tr>
+        `;
+      }).join('');
+    }
+  }
+
+  // Yeni ürünler tablosunu doldur
+  const newTbody = document.getElementById('previewNewTableBody');
+  if (newTbody) {
+    const newItems = data.new_products_list || [];
+    if (newItems.length === 0) {
+      newTbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 18px; color:#64748b;">Yeni eklenecek ürün yok.</td></tr>`;
+    } else {
+      newTbody.innerHTML = newItems.map(n => {
+        return `
+          <tr style="border-bottom: 1px solid #1e293b;">
+            <td style="padding: 8px 12px; font-family:'JetBrains Mono', monospace; color:#34d399; font-weight:700;">${escapeHtml(n.barcode)}</td>
+            <td style="padding: 8px 12px; max-width: 300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(n.title)}</td>
+            <td style="padding: 8px 12px; text-align: right; font-weight:800; color:#fff;">${Number(n.price || 0).toFixed(2)} ₺</td>
+            <td style="padding: 8px 12px; color:#94a3b8;">${escapeHtml(n.unit || 'ADET')}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+  }
+
+  // Kara liste tablosunu doldur
+  const blacklistTbody = document.getElementById('previewBlacklistTableBody');
+  if (blacklistTbody) {
+    const blacklisted = data.blacklisted_items || [];
+    if (blacklisted.length === 0) {
+      blacklistTbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 18px; color:#64748b;">Kara listede ürün tespit edilmedi.</td></tr>`;
+    } else {
+      blacklistTbody.innerHTML = blacklisted.map(b => {
+        return `
+          <tr style="border-bottom: 1px solid #1e293b;">
+            <td style="padding: 8px 12px; font-family:'JetBrains Mono', monospace; color:#f87171; font-weight:700;">${escapeHtml(b.barcode || '—')}</td>
+            <td style="padding: 8px 12px; max-width: 300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(b.title)}</td>
+            <td style="padding: 8px 12px; text-align: right;">${Number(b.price || 0).toFixed(2)} ₺</td>
+            <td style="padding: 8px 12px; color:#fbbf24; font-size:12px;">${escapeHtml(b.reason || 'Kara Liste')}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+  }
+
+  switchPreviewSubTab('changes');
+}
+
+// Eski uyumluluk için alias
+function showCalculationPreviewModal(data) {
+  unlockStep2();
+  renderCalculationDataToStep2(data);
+  switchQuickUpdateStep(2);
+}
+
+async function confirmAndApplyQuickUpdate() {
+  if (!lastCalculatedRawText || !lastCalculatedRawText.trim()) {
+    showToast('Güncellenecek veri bulunamadı.', 'error');
+    return;
+  }
+
+  const btnConfirm = document.getElementById('btnConfirmQuickUpdateApply');
+  const originalHtml = btnConfirm ? btnConfirm.innerHTML : '';
+  if (btnConfirm) {
+    btnConfirm.disabled = true;
+    btnConfirm.innerHTML = '<span>⏳</span> Veriler Yazılıyor...';
+  }
+
+  closeQuickUpdateConfirmModal();
+  showQuickUpdateProgress('Veriler Sisteme Yazılıyor...', 'Ürünler ve fiyatlar veritabanına kaydediliyor...', '💾');
+  updateQuickUpdateProgress(50, 100, 'Veritabanına uygulanıyor...');
+
+  try {
+    const formData = new FormData();
+    formData.append('raw_text', lastCalculatedRawText);
+    formData.append('device_name', 'Ana PC - Excel Güncelleme Masası');
+    formData.append('preview_only', 'false');
+
+    const res = await fetch('/api/products/quick-update-clipboard', {
+      method: 'POST',
+      body: formData
+    });
+    const result = await res.json();
+
+    updateQuickUpdateProgress(100, 100, 'Güncelleme başarıyla tamamlandı!');
+    await new Promise(r => setTimeout(r, 250));
+    hideQuickUpdateProgress();
+
+    if (btnConfirm) {
+      btnConfirm.disabled = false;
+      btnConfirm.innerHTML = originalHtml;
+    }
+
+    if (result.status === 'success' && result.data) {
+      const d = result.data;
       showToast(
-        `✓ ${d.total_items} ürün işlendi! (${d.price_changes_count} fiyat değişimi, ${d.new_products} yeni ürün).`,
+        `✓ ${d.total_items} ürün güncellendi! (${d.price_changes_count} fiyat değişimi, ${d.new_products} yeni ürün, ${d.blacklisted_count || 0} kara liste).`,
         'success'
       );
+
       if (typeof searchProducts === 'function') {
         searchProducts(document.getElementById('productSearchInput')?.value || '');
       }
       if (typeof loadPriceChanges === 'function') {
         loadPriceChanges();
       }
-      
+
       setTimeout(() => {
         if (typeof switchTab === 'function') {
           switchTab('tab-search');
@@ -515,13 +853,15 @@ async function executeQuickPriceUpdate() {
       showToast('Güncelleme Hatası: ' + (result.message || 'İşlem gerçekleştirilemedi.'), 'error');
     }
   } catch (err) {
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = originalHtml;
+    hideQuickUpdateProgress();
+    if (btnConfirm) {
+      btnConfirm.disabled = false;
+      btnConfirm.innerHTML = originalHtml;
     }
     showToast('Sunucu bağlantı hatası: ' + err.message, 'error');
   }
 }
+
 
 function escapeHtml(text) {
   if (!text) return '';
