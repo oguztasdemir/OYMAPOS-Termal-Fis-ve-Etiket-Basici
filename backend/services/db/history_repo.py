@@ -128,17 +128,66 @@ def revert_product_history(history_id: int) -> dict:
         }
 
 def update_product_details(barcode: str, title: str = None, price: float = None, brand: str = None, unit: str = None, device_name: str = "Ana PC") -> dict:
-    """Ürün adı veya fiyatını el ile günceller ve her değişikliği audit geçmişine kaydeder."""
+    """Ürün adı veya fiyatını el ile günceller / yeni ürünse ekler ve her değişikliği audit geçmişine kaydeder."""
     b = clean_barcode_text(barcode)
+    if not b:
+        return {"success": False, "message": "Geçersiz barkod."}
+
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     with db_session() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM urunler WHERE barcode = ?;", (b,))
         current = cursor.fetchone()
+        
+        # 1. Durum: Ürün veritabanında henüz kayıtlı DEĞİLSE -> Yeni Ürün Olarak Ekle ve 0 -> Yeni Fiyat Kaydı At
         if not current:
-            return {"success": False, "message": "Ürün bulunamadı."}
+            new_t = title.strip() if title and title.strip() else f"Yeni Ürün ({b})"
+            new_p = float(price) if price is not None else 0.0
+            new_b = brand.strip() if brand is not None else ""
+            new_u = unit.strip() if unit is not None else "ADET"
 
+            cursor.execute("""
+                INSERT INTO urunler (
+                    barcode, stock_code, title, raw_system_title, price, label_price,
+                    brand, unit, source_device, is_new, is_blacklisted,
+                    created_at, updated_at, price_updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            """, (
+                b, b, new_t, new_t, new_p, 0.0,
+                new_b, new_u, device_name, 1, 0,
+                now_str, now_str, now_str
+            ))
+
+            diff_amt = new_p
+            diff_pct = 100.0 if new_p > 0 else 0.0
+            dev_lower = (device_name or "").lower()
+            source_label = "Mobil Reyon Terminali" if ("mobil" in dev_lower or "qr" in dev_lower or "kamera" in dev_lower) else "Masaüstü Yeni Kayıt"
+
+            record_product_history(
+                conn,
+                barcode=b,
+                event_type="new_product",
+                old_title="",
+                new_title=new_t,
+                old_price=0.0,
+                new_price=new_p,
+                diff_amount=diff_amt,
+                diff_percent=diff_pct,
+                source=source_label,
+                device_name=device_name,
+                details=f"Yeni ürün kaydedildi. (Fiyat: 0.00 TL -> {new_p:.2f} TL)",
+                timestamp=now_str
+            )
+
+            cursor.execute("SELECT * FROM urunler WHERE barcode = ?;", (b,))
+            return {
+                "success": True,
+                "product": format_product_dict(cursor.fetchone()),
+                "message": "Yeni ürün başarıyla kaydedildi ve fiyat değişim geçmişine eklendi."
+            }
+
+        # 2. Durum: Mevcut Ürün Güncelleme
         curr_dict = dict(current)
         old_title = curr_dict["title"]
         old_price = float(curr_dict["price"] or 0)
@@ -161,7 +210,10 @@ def update_product_details(barcode: str, title: str = None, price: float = None,
         if has_title_change or has_price_change:
             event_type = "price_change" if has_price_change and not has_title_change else ("title_change" if has_title_change and not has_price_change else "manual_edit")
             diff_amt = round(new_p - old_price, 2)
-            diff_pct = round((diff_amt / old_price * 100) if old_price > 0 else 0, 1)
+            diff_pct = round((diff_amt / old_price * 100) if old_price > 0 else (100.0 if new_p > 0 else 0.0), 1)
+
+            dev_lower = (device_name or "").lower()
+            source_label = "Mobil Reyon Terminali" if ("mobil" in dev_lower or "qr" in dev_lower or "kamera" in dev_lower) else "Kullanıcı Düzenleme"
 
             record_product_history(
                 conn,
@@ -173,7 +225,7 @@ def update_product_details(barcode: str, title: str = None, price: float = None,
                 new_price=new_p if has_price_change else None,
                 diff_amount=diff_amt,
                 diff_percent=diff_pct,
-                source="Kullanıcı Düzenleme",
+                source=source_label,
                 device_name=device_name,
                 details="Kullanıcı tarafından el ile güncellendi.",
                 timestamp=now_str

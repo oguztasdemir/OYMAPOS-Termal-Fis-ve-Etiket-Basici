@@ -1276,7 +1276,7 @@ async function loadMobilePriceChanges(targetDate, targetSource) {
             <div class="report-item-prices">
               <div class="price-col">
                 <span class="price-label">Eski Fiyat</span>
-                <span class="price-val-old">${oldP.toFixed(2)} TL</span>
+                <span class="price-val-old">${oldP > 0 ? oldP.toFixed(2) + ' TL' : '0.00 TL <small style="font-size:10px; color:#38bdf8; font-weight:800;">(Yeni)</small>'}</span>
               </div>
               <div class="price-col" style="text-align:center;">
                 <span class="price-label">Fark</span>

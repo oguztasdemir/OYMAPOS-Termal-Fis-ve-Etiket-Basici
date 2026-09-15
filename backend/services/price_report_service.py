@@ -60,8 +60,8 @@ def get_available_price_change_dates(source_filter: str = "all") -> List[str]:
             FROM product_history 
             WHERE sync_id IS NULL
               AND (
-                  (old_price IS NOT NULL AND new_price IS NOT NULL AND abs(new_price - old_price) > 0.001)
-                  OR event_type IN ('price_change', 'manual_edit', 'price_increase', 'price_decrease')
+                  (COALESCE(new_price, 0) != COALESCE(old_price, 0) AND (COALESCE(new_price, 0) > 0 OR COALESCE(old_price, 0) > 0))
+                  OR event_type IN ('price_change', 'manual_edit', 'price_increase', 'price_decrease', 'new_product')
               );
         """
         c.execute(query)
@@ -93,7 +93,7 @@ def get_price_changes_by_date(target_date: str = None, source_filter: str = "all
     with db_session() as conn:
         c = conn.cursor()
         
-        # Sadece sync_id IS NULL (tekil düzenlemeler ve mobil QR fiyat güncellemeleri)
+        # Sadece sync_id IS NULL (tekil düzenlemeler, yeni ürünler ve mobil QR fiyat güncellemeleri)
         c.execute("""
             SELECT id, barcode, COALESCE(new_title, old_title) as title,
                    old_price, new_price, diff_amount, diff_percent,
@@ -102,8 +102,8 @@ def get_price_changes_by_date(target_date: str = None, source_filter: str = "all
             WHERE substr(created_at, 1, 10) = ?
               AND sync_id IS NULL
               AND (
-                  (old_price IS NOT NULL AND new_price IS NOT NULL AND abs(new_price - old_price) > 0.001)
-                  OR event_type IN ('price_change', 'manual_edit', 'price_increase', 'price_decrease')
+                  (COALESCE(new_price, 0) != COALESCE(old_price, 0) AND (COALESCE(new_price, 0) > 0 OR COALESCE(old_price, 0) > 0))
+                  OR event_type IN ('price_change', 'manual_edit', 'price_increase', 'price_decrease', 'new_product')
               )
             ORDER BY id ASC;
         """, (target_date,))
@@ -143,7 +143,7 @@ def get_price_changes_by_date(target_date: str = None, source_filter: str = "all
                     "old_price": old_p,
                     "new_price": new_p,
                     "diff_amount": diff,
-                    "diff_percent": round((diff / old_p * 100) if old_p > 0 else 0, 1),
+                    "diff_percent": round((diff / old_p * 100) if old_p > 0 else (100.0 if new_p > 0 else 0), 1),
                     "source": source_val,
                     "device": device_val,
                     "source_type": source_type,
@@ -328,7 +328,7 @@ def generate_daily_report_pdf(target_date: str = None, source_filter: str = "all
             [
                 Paragraph(f"<b>#{idx}</b>", item_title_style),
                 Paragraph(f"<b>{item['title']}</b>", item_title_style),
-                Paragraph(f"<font size=7 color='#64748b'>ÖNCEKİ SATIŞ</font><br/><b>{old_p:.2f} TL</b>", price_old_style),
+                Paragraph(f"<font size=7 color='#64748b'>ÖNCEKİ SATIŞ</font><br/><b>{'0.00 TL (Yeni)' if old_p == 0 else f'{old_p:.2f} TL'}</b>", price_old_style),
                 Paragraph(f"<font size=7 color='#1e3a8a'>YENİ SATIŞ</font><br/><b>{new_p:.2f} TL</b>", price_new_style),
                 Paragraph(f"<font size=7 color='{diff_color}'>FARK / ARTIŞ</font><br/><font color='{diff_color}'><b>{diff_str}</b></font>", price_diff_style),
             ],
