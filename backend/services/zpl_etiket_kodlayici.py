@@ -247,31 +247,29 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
         # -------------------------------------------------------------
         # 3. BÖLÜM (ALT KATMAN): EAN-13 Barkod | Satış Fiyatı | BÜYÜK FİYAT
         # -------------------------------------------------------------
-        # Barkod sağa doğru 0.6mm (5 dot) daha uzatıldı (yükseklik: 70 dot, oran: 2.7)
-        bc_start_y = start_y + 20
+        # Barkod sağa doğru maksimum okunabilir genişlikte uzatıldı (BY3 ile ~250 dot alan kaplar, bitiş: ~340 dot)
+        bc_start_y = start_y + 12
         clean_bc = re.sub(r'[^0-9A-Za-z]', '', barcode)
         if len(clean_bc) == 13 and clean_bc.isdigit():
-            zpl.append(f"^FO{ox + 31},{bc_start_y}^BY2,2.7,70^BER,70,Y,N^FD{clean_bc}^FS")
+            zpl.append(f"^FO{ox + 30},{bc_start_y}^BY3,3,72^BER,72,Y,N^FD{clean_bc}^FS")
         elif len(clean_bc) == 8 and clean_bc.isdigit():
-            zpl.append(f"^FO{ox + 31},{bc_start_y}^BY2,2.7,70^BER,70,Y,N^FD{clean_bc}^FS")
+            zpl.append(f"^FO{ox + 30},{bc_start_y}^BY3,3,72^BER,72,Y,N^FD{clean_bc}^FS")
         else:
-            zpl.append(f"^FO{ox + 31},{bc_start_y}^BY2,2.7,70^BCR,70,Y,N,N^FD{clean_bc or '00000000'}^FS")
+            zpl.append(f"^FO{ox + 30},{bc_start_y}^BY3,3,72^BCR,72,Y,N,N^FD{clean_bc or '00000000'}^FS")
 
-        # Satış Fiyatı Dikey Ayracı (Kutu ve yazı) - Konumu korundu
-        div_y = oy + int(line_w * 0.58)
-        # div_y'nin 352 dot civarında kalmasını garantiye al
-        div_y = oy + 320
+        # Satış Fiyatı Dikey Ayracı (Kutu ve yazı) - Barkod ile çakışmayacak şekilde 368 dot konumuna güvenle hizalandı
+        div_y = oy + 336 # ~368 dot (Barkod bittikten sonra güvenli 28 dot boşluk)
         zpl.extend([
             f"^FO{ox + 16},{div_y}^GB82,54,2^FS",
             f"^FO{ox + 48},{div_y + 8}^A0R,16,14^FDSatis^FS",
             f"^FO{ox + 20},{div_y + 8}^A0R,16,14^FDFiyati^FS",
         ])
 
-        # SATIŞ FİYATI (Sağ Alt - Örn: 1.250,00 TL veya 10,00 TL) - Konumu korundu
+        # SATIŞ FİYATI (Büyük Fiyat) - Satış Fiyatı kutusundan sonra güvenli 432 dot konumunda
         price_clean = str(price).strip()
         price_len = len(price_clean)
 
-        price_y = oy + 386 # ~418 dot civarı sabit korundu
+        price_y = div_y + 64 # ~432 dot
         if price_len >= 11:
             f_h, f_w = 70, 56
         elif price_len >= 9:
