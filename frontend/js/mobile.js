@@ -1008,7 +1008,10 @@ async function submitQueueBatchPrint() {
   const progTitle = document.getElementById('batch-progress-title');
   const progDesc = document.getElementById('batch-progress-desc');
   const progIcon = document.getElementById('batch-progress-icon');
-  const btnFinish = document.getElementById('btn-batch-progress-finish');
+  const progActions = document.getElementById('batch-progress-actions');
+  const progInfoBox = document.getElementById('batch-changes-info-box');
+  const progInfoText = document.getElementById('batch-changes-info-text');
+  const btnErrClose = document.getElementById('btn-batch-error-close');
 
   if (progModal) {
     progModal.style.display = 'flex';
@@ -1018,7 +1021,9 @@ async function submitQueueBatchPrint() {
     if (progTitle) progTitle.textContent = 'Etiketler Yazdırılıyor...';
     if (progDesc) progDesc.textContent = `${totalCount} adet etiket yazıcıya gönderiliyor.`;
     if (progIcon) progIcon.textContent = '🖨️';
-    if (btnFinish) btnFinish.style.display = 'none';
+    if (progActions) progActions.style.display = 'none';
+    if (progInfoBox) progInfoBox.style.display = 'none';
+    if (btnErrClose) btnErrClose.style.display = 'none';
   }
 
   try {
@@ -1058,10 +1063,29 @@ async function submitQueueBatchPrint() {
       if (progFill) progFill.style.width = '100%';
       if (progCount) progCount.textContent = `${printedCount} / ${totalCount}`;
       if (progStatus) progStatus.textContent = 'Baskı Tamamlandı! ✅';
-      if (progTitle) progTitle.textContent = 'Tüm Etiketler İletildi!';
+      if (progTitle) progTitle.textContent = `${printedCount} Adet Etiket Yazdırıldı! ✅`;
       if (progDesc) progDesc.innerHTML = `<strong>${printedCount} adet</strong> ürün etiketi başarıyla yazıcıya aktarıldı.`;
       if (progIcon) progIcon.textContent = '🎉';
-      if (btnFinish) btnFinish.style.display = 'block';
+
+      // Bugün fiyatı değişen ürün sayısını arka planda çekip bilgi kutusuna yaz
+      let todayChangesCount = 0;
+      try {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const repRes = await fetch(`/api/reports/price-changes?date=${todayStr}&source_filter=all`);
+        const repData = await repRes.json();
+        todayChangesCount = repData.data?.total_count || 0;
+      } catch(e) {
+        console.warn('Değişen ürün sayısı alınamadı:', e);
+      }
+
+      if (progInfoBox && progInfoText) {
+        progInfoText.innerHTML = `ℹ️ Bugün fiyatı değişen <strong>${todayChangesCount} adet</strong> ürününüz bulunmaktadır.`;
+        progInfoBox.style.display = 'block';
+      }
+
+      // 2 Butonlu yönlendirme panelini göster
+      if (progActions) progActions.style.display = 'flex';
+      if (btnErrClose) btnErrClose.style.display = 'none';
 
       mobileQueue = [];
       saveQueueToStorage();
@@ -1073,25 +1097,23 @@ async function submitQueueBatchPrint() {
       if (progTitle) progTitle.textContent = 'Yazdırma Hatası!';
       if (progDesc) progDesc.textContent = data.message || 'Yazıcıya ulaşılamadı.';
       if (progIcon) progIcon.textContent = '⚠️';
-      if (btnFinish) {
-        btnFinish.textContent = 'Kapat';
-        btnFinish.style.display = 'block';
-      }
+      if (progInfoBox) progInfoBox.style.display = 'none';
+      if (progActions) progActions.style.display = 'none';
+      if (btnErrClose) btnErrClose.style.display = 'block';
     }
   } catch(e) {
     if (progTitle) progTitle.textContent = 'Bağlantı Hatası!';
     if (progDesc) progDesc.textContent = e.message;
-    if (btnFinish) {
-      btnFinish.textContent = 'Kapat';
-      btnFinish.style.display = 'block';
-    }
+    if (progInfoBox) progInfoBox.style.display = 'none';
+    if (progActions) progActions.style.display = 'none';
+    if (btnErrClose) btnErrClose.style.display = 'block';
   }
 }
 
 /**
- * 🏁 İlerleme Modalını Kapatıp Onay ve Değişenler Raporuna Geçiş
+ * 🏁 İlerleme Modalından İstenen Ekrana Geçiş (Değişenler veya Fiyat Gör)
  */
-async function closeBatchProgressModal() {
+function handleBatchNavigation(targetTab) {
   isSubmittingBatch = false;
   const btnBatch = document.querySelector('.btn-batch-print-mobile');
   if (btnBatch) {
@@ -1103,29 +1125,18 @@ async function closeBatchProgressModal() {
   const progModal = document.getElementById('batch-progress-modal');
   if (progModal) progModal.style.display = 'none';
 
-  // Yazdırma sonrası onay ve fiyatı değişenler ekranına geçiş yönlendirmesi
-  try {
-    const todayStr = new Date().toISOString().split('T')[0];
-    const repRes = await fetch(`/api/reports/price-changes?date=${todayStr}&source_filter=all`);
-    const repData = await repRes.json();
-    const todayCount = repData.data?.total_count || 0;
-
-    const proceedChanges = confirm(
-      `🖨️ ${lastBatchPrintedCount} Adet Etiket Başarıyla Yazdırıldı!\n\n` +
-      `Bugün fiyatı güncellenen toplam ${todayCount} ürün bulunmaktadır.\n\n` +
-      `Fiyatı Değişen Ürünler sekmesine geçip listeyi görmek ister misiniz?`
-    );
-
-    if (proceedChanges) {
-      switchMobileTab('changes');
-    } else {
-      switchMobileTab('scan');
-    }
-  } catch(e) {
+  if (targetTab === 'changes') {
+    switchMobileTab('changes');
+  } else {
     switchMobileTab('scan');
   }
 }
 
+function closeBatchProgressModal() {
+  handleBatchNavigation('scan');
+}
+
+window.handleBatchNavigation = handleBatchNavigation;
 window.closeBatchProgressModal = closeBatchProgressModal;
 
 /**
