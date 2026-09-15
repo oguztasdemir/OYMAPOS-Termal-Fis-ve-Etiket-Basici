@@ -1297,6 +1297,18 @@
         <span id="modal-barcode-old-price" style="font-size: 13.5px; font-weight: 800; color: #dc2626; text-decoration: line-through; font-family:'JetBrains Mono', monospace;">-</span>
       </div>
 
+      <!-- Son Fiyat Değişme ve Son Basılma Tarihleri -->
+      <div style="width:100%; display:grid; grid-template-columns: 1fr 1fr; gap:6px; background:#f8fafc; padding:8px 10px; border-radius:8px; border:1px solid #e2e8f0; text-align:left;">
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <span style="font-size:10px; color:#64748b; font-weight:700;">📅 Son Fiyat Değişme:</span>
+          <span id="modal-barcode-price-date" style="font-family:'JetBrains Mono', monospace; font-size:11px; font-weight:800; color:#d97706;">-</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <span style="font-size:10px; color:#64748b; font-weight:700;">🖨️ Son Basılma:</span>
+          <span id="modal-barcode-print-date" style="font-family:'JetBrains Mono', monospace; font-size:11px; font-weight:800; color:#0284c7;">-</span>
+        </div>
+      </div>
+
       <!-- Barkod Çizgisi -->
       <div class="barcode-modal-svg-wrap">
         <svg id="modal-barcode-svg"></svg>

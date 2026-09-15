@@ -1492,11 +1492,43 @@ function openBarcodeDisplayModal(barcode, title, oldPrice, newPrice) {
     oldPriceRow.style.display = 'none';
   }
 
-  // 2. Modalı hemen görünür yap
+  // 2. Tarih Alanlarını Sıfırla ve API'den Bilgileri Getir
+  const priceDateEl = document.getElementById('modal-barcode-price-date');
+  const printDateEl = document.getElementById('modal-barcode-print-date');
+  if (priceDateEl) priceDateEl.textContent = 'Yükleniyor...';
+  if (printDateEl) printDateEl.textContent = 'Yükleniyor...';
+
+  // API'den ürün detaylarını (fiyat değişme tarihi, son baskı tarihi vb.) çek
+  if (barcode) {
+    fetch(`/api/products/${encodeURIComponent(barcode)}`)
+      .then(res => res.json())
+      .then(res => {
+        if (res.status === 'success' && res.data && res.data.product) {
+          const p = res.data.product;
+          if (priceDateEl) {
+            const pDate = p.price_updated_at || p.updated_at || p.created_at;
+            priceDateEl.textContent = pDate ? formatDateTime(pDate) : 'Bilinmiyor';
+          }
+          if (printDateEl) {
+            const prDate = p.last_printed_at;
+            printDateEl.textContent = prDate ? formatDateTime(prDate) : 'Henüz Basılmadı';
+          }
+        } else {
+          if (priceDateEl) priceDateEl.textContent = '-';
+          if (printDateEl) printDateEl.textContent = '-';
+        }
+      })
+      .catch(() => {
+        if (priceDateEl) priceDateEl.textContent = '-';
+        if (printDateEl) printDateEl.textContent = '-';
+      });
+  }
+
+  // 3. Modalı hemen görünür yap
   modal.style.display = 'flex';
   modal.classList.add('active');
 
-  // 3. Barkod SVG'sini çiz
+  // 4. Barkod SVG'sini çiz
   if (svgEl) {
     try {
       const cleanCode = String(barcode || '').trim();
@@ -1539,6 +1571,36 @@ function openBarcodeDisplayModal(barcode, title, oldPrice, newPrice) {
   try {
     playBeepSound();
   } catch(e) {}
+}
+
+/**
+ * 📅 Tarih formatlayıcı (YYYY-MM-DD HH:MM -> DD.MM.YYYY HH:MM)
+ */
+function formatDateTime(dtStr) {
+  if (!dtStr) return '-';
+  try {
+    const d = new Date(dtStr);
+    if (isNaN(d.getTime())) {
+      // String formatında dönüştür (örn: "2026-09-15 14:30:00")
+      const parts = String(dtStr).split(' ');
+      if (parts[0]) {
+        const ymd = parts[0].split('-');
+        if (ymd.length === 3) {
+          const timePart = parts[1] ? parts[1].substring(0, 5) : '';
+          return `${ymd[2]}.${ymd[1]}.${ymd[0]} ${timePart}`.trim();
+        }
+      }
+      return String(dtStr).substring(0, 16);
+    }
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, '0');
+    const mins = String(d.getMinutes()).padStart(2, '0');
+    return `${day}.${month}.${year} ${hours}:${mins}`;
+  } catch(e) {
+    return String(dtStr).substring(0, 16);
+  }
 }
 
 /**
