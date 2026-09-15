@@ -485,7 +485,7 @@ def print_single_label(product: dict, copies=1, template_data=None, target_print
             copies=copies
         )
 
-        success, msg = print_raw_zpl(printer_name, zpl_code, f"Etiket: {t1[:20]}")
+        success, msg = print_raw_zpl(printer_name, zpl_code, f"Etiket: {full_title[:20]}")
         if not success:
             # Fallback to TSPL
             raw_tspl = generate_tspl_command(product, copies=copies, template_data=template_data)
