@@ -649,15 +649,24 @@ def print_batch_labels(products: list, copies=1, template_data=None, target_prin
             message=f"'{printer_name}' toplu baskı kuyruğuna iletildi."
         )
 
-    # 1. ZPL ile tek akışta gönder
-    combined_zpl = "\r\n".join(zpl_batch)
-    success, msg = print_raw_zpl(printer_name, combined_zpl, f"Toplu Etiket ({len(products)} Adet)")
+    printed_count = 0
+    last_err = ""
+    for i, z_code in enumerate(zpl_batch):
+        if i > 0:
+            time.sleep(0.35)  # Yazıcı motoru ve GAP sensörünün ara boşluğa kilitlenmesi için güvenli bekleme süresi
 
-    # 2. ZPL başarısız olursa TSPL ile tek akışta dene
-    if not success and tspl_batch:
-        combined_tspl = b"".join(tspl_batch)
-        success, msg = send_raw_to_printer(printer_name, combined_tspl)
+        t_code = tspl_batch[i] if i < len(tspl_batch) else None
+        success, msg = print_raw_zpl(printer_name, z_code, f"Etiket {i+1}/{len(products)}")
+        if not success and t_code:
+            success, msg = send_raw_to_printer(printer_name, t_code)
 
-    return success, msg
+        if success:
+            printed_count += 1
+        else:
+            last_err = msg
+
+    if printed_count > 0:
+        return True, f"{printed_count} adet etiket yazıcıya başarıyla iletildi."
+    return False, last_err or "Baskı gönderilemedi."
 
 
