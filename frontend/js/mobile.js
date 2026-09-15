@@ -18,129 +18,22 @@ let html5QrCode = null;
 let zxingReader = null;
 let activeVideoTrack = null;
 let isTorchOn = false;
-let currentZoomLevel = 1.0;
-let isDecodingServerFrame = false;
-const roiCanvas = document.createElement('canvas');
-const roiCtx = roiCanvas.getContext('2d');
+// Zoom seviyesini localStorage'dan yükle (Varsayılan 1.0)
+let currentZoomLevel = parseFloat(localStorage.getItem('oymapos_camera_zoom') || '1.0');
+if (isNaN(currentZoomLevel) || currentZoomLevel < 1.0) currentZoomLevel = 1.0;
 
 /**
- * 🔊 Bip ve Titreşim Sinyali
- */
-function playBeepSound() {
-  try {
-    if (navigator.vibrate) {
-      navigator.vibrate(90);
-    }
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(1400, audioCtx.currentTime);
-    gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.09);
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    osc.start();
-    osc.stop(audioCtx.currentTime + 0.09);
-  } catch(e) {}
-}
-
-/**
- * 🎯 MATEMATİKSEL BARKOD SAĞLAMA (CHECKSUM) DOĞRULAYICI
- * Hatalı kamera okumalarını %100 oranında engeller.
- */
-function validateBarcodeChecksum(barcode) {
-  if (!barcode) return false;
-  const b = String(barcode).trim();
-  if (b.length < 1) return false;
-  
-  // EAN-13 (13 hane) Modulo-10 Kontrolü
-  if (/^\d{13}$/.test(b)) {
-    let sum = 0;
-    for (let i = 0; i < 12; i++) {
-      sum += parseInt(b[i], 10) * (i % 2 === 0 ? 1 : 3);
-    }
-    const check = (10 - (sum % 10)) % 10;
-    if (check === parseInt(b[12], 10)) return true;
-    // 20-29 serisi terazi ve mağaza barkodlarında esneklik sağla
-    if (/^2[0-9]/.test(b)) return true;
-    return false;
-  }
-  
-  // EAN-8 (8 hane) Modulo-10 Kontrolü
-  if (/^\d{8}$/.test(b)) {
-    let sum = 0;
-    for (let i = 0; i < 7; i++) {
-      sum += parseInt(b[i], 10) * (i % 2 === 0 ? 3 : 1);
-    }
-    const check = (10 - (sum % 10)) % 10;
-    return check === parseInt(b[7], 10);
-  }
-  
-  // UPC-A (12 hane) Modulo-10 Kontrolü
-  if (/^\d{12}$/.test(b)) {
-    let sum = 0;
-    for (let i = 0; i < 11; i++) {
-      sum += parseInt(b[i], 10) * (i % 2 === 0 ? 3 : 1);
-    }
-    const check = (10 - (sum % 10)) % 10;
-    return check === parseInt(b[11], 10);
-  }
-
-  // Kısa mağaza / PLU barkodları (1 - 7 hane)
-  if (/^\d{1,7}$/.test(b)) {
-    return true;
-  }
-  
-  // Code-128 / Code-39 / ITF (en az 3 karakterli alfa-sayısal)
-  if (b.length >= 3 && /^[A-Za-z0-9\-\.\ \$\/\+\%]+$/.test(b)) {
-    return true;
-  }
-  
-  return false;
-}
-
-/**
- * 🍞 Toast Bildirim Gösterici
- */
-function showToast(msg, type = "info") {
-  const toast = document.getElementById('toast');
-  if (!toast) return;
-  toast.className = `toast-box toast-${type}`;
-  toast.innerText = msg;
-  toast.style.display = "block";
-  setTimeout(() => {
-    toast.style.display = "none";
-  }, 3500);
-}
-
-/**
- * 🛡️ Parlama & Yuvarlak Yüzey Filtresi Aç / Kapa
- */
-function toggleGlareMode() {
-  isGlareModeActive = !isGlareModeActive;
-  const btn = document.getElementById('btn-fs-glare');
-  const txt = document.getElementById('txt-fs-glare');
-  if (btn && txt) {
-    if (isGlareModeActive) {
-      btn.classList.add('active');
-      txt.textContent = 'Parlama & Eğri: AÇIK';
-    } else {
-      btn.classList.remove('active');
-      txt.textContent = 'Parlama & Eğri: KAPALI';
-    }
-  }
-}
-
-/**
- * 🔍 Kamera Zoom Kontrolü (Donanım Seviyesi + Fallback)
+ * 🔍 Kamera Zoom Kontrolü (Donanım Seviyesi + Fallback & Hafızada Tutma)
  */
 async function setCameraZoom(zoomVal) {
-  currentZoomLevel = zoomVal;
+  currentZoomLevel = parseFloat(zoomVal) || 1.0;
+  try {
+    localStorage.setItem('oymapos_camera_zoom', currentZoomLevel.toString());
+  } catch(e) {}
   
   // UI Butonlarını Güncelle
   document.querySelectorAll('.fs-btn-zoom').forEach(b => b.classList.remove('active'));
-  const activeBtnId = zoomVal === 1.0 ? 'btn-zoom-1x' : (zoomVal === 1.5 ? 'btn-zoom-15x' : (zoomVal === 2.0 ? 'btn-zoom-2x' : 'btn-zoom-3x'));
+  const activeBtnId = currentZoomLevel === 1.0 ? 'btn-zoom-1x' : (currentZoomLevel === 1.5 ? 'btn-zoom-15x' : (currentZoomLevel === 2.0 ? 'btn-zoom-2x' : 'btn-zoom-3x'));
   const activeBtn = document.getElementById(activeBtnId);
   if (activeBtn) activeBtn.classList.add('active');
 
@@ -153,7 +46,7 @@ async function setCameraZoom(zoomVal) {
       if (caps.zoom) {
         const minZ = caps.zoom.min || 1.0;
         const maxZ = caps.zoom.max || 5.0;
-        const targetZ = Math.min(Math.max(zoomVal, minZ), maxZ);
+        const targetZ = Math.min(Math.max(currentZoomLevel, minZ), maxZ);
         await activeVideoTrack.applyConstraints({
           advanced: [{ zoom: targetZ }]
         });
@@ -167,7 +60,7 @@ async function setCameraZoom(zoomVal) {
 
   // 2. Yazılımsal Dijital Zoom (Scale Fallback)
   if (videoElem) {
-    videoElem.style.transform = zoomVal > 1.0 ? `scale(${zoomVal})` : "none";
+    videoElem.style.transform = currentZoomLevel > 1.0 ? `scale(${currentZoomLevel})` : "none";
     videoElem.style.transformOrigin = "center center";
   }
 }
@@ -230,7 +123,7 @@ async function openFullscreenCamera() {
   isScanningLive = true;
   isTorchOn = false;
   if (btnTorch) btnTorch.style.display = 'none';
-  setCameraZoom(1.0);
+  setCameraZoom(currentZoomLevel);
 
   // 1. ZXING & MEDIADEVICES (OYMAPOS STANDART)
   try {
@@ -297,6 +190,8 @@ async function openFullscreenCamera() {
         if (capabilities.torch && btnTorch) {
           btnTorch.style.display = 'flex';
         }
+        // Kamera başladığında kullanıcının hafızadaki zoom seviyesini uygula
+        setCameraZoom(currentZoomLevel);
       }
 
       // Donanım BarcodeDetector ve Sunucu Hibrit Çözücüyü Başlat
