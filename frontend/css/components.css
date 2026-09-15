@@ -389,6 +389,25 @@ body::-webkit-scrollbar-thumb:hover {
   background: rgba(99, 102, 241, 0.08);
 }
 
+.table-excel tbody tr.row-selected {
+  background: rgba(56, 189, 248, 0.22) !important;
+  box-shadow: inset 3px 0 0 #38bdf8 !important;
+}
+
+.table-excel tbody tr.row-selected:hover {
+  background: rgba(56, 189, 248, 0.32) !important;
+}
+
+.table-excel tbody tr.row-selected td {
+  color: #f8fafc !important;
+}
+
+.table-excel tbody tr.row-selected .col-idx {
+  background: rgba(56, 189, 248, 0.35) !important;
+  color: #ffffff !important;
+  font-weight: 800;
+}
+
 .table-excel .col-idx {
   width: 32px;
   text-align: center;

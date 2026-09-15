@@ -14,12 +14,22 @@
         </p>
       </div>
 
-      <!-- Tarih Seçici ve PDF İndirme Butonu -->
+      <!-- Tarih Seçici, Kaynak Filtresi ve PDF İndirme Butonu -->
       <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
         <div style="display:flex; align-items:center; gap:6px; background:var(--card-inner); border:1px solid var(--border-color); padding:6px 12px; border-radius:10px;">
           <span style="font-size:14px;">📅</span>
           <label style="font-size:12px; font-weight:700; color:var(--text-muted);">Tarih Seç:</label>
           <input type="date" id="reportDatePicker" onchange="loadPriceReportByDate(this.value)" style="background:transparent; border:none; color:var(--text-main); font-weight:700; font-size:13px; outline:none; cursor:pointer;">
+        </div>
+
+        <div style="display:flex; align-items:center; gap:6px; background:var(--card-inner); border:1px solid var(--border-color); padding:6px 12px; border-radius:10px;">
+          <span style="font-size:14px;">🔍</span>
+          <label style="font-size:12px; font-weight:700; color:var(--text-muted);">Kapsam:</label>
+          <select id="desktopReportSourceSelect" onchange="handleDesktopReportSourceChange(this.value)" style="background:transparent; border:none; color:#38bdf8; font-weight:700; font-size:13px; outline:none; cursor:pointer;">
+            <option value="all" style="background:#0f172a; color:#fff;">🌐 Tümü (Mobil + Masaüstü)</option>
+            <option value="mobile" style="background:#0f172a; color:#38bdf8;">📱 Sadece Mobilden Değişenler (QR / Kamera)</option>
+            <option value="desktop" style="background:#0f172a; color:#a5b4fc;">💻 Sadece Masaüstünde Değişenler (Tekil)</option>
+          </select>
         </div>
 
         <button class="btn btn-primary" onclick="downloadSelectedDateReportPdf()" style="display:flex; align-items:center; gap:6px; font-weight:700; padding:8px 16px;">

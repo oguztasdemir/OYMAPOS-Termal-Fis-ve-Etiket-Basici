@@ -1,27 +1,37 @@
 # -*- coding: utf-8 -*-
 """
-Gelişmiş Parlama ve Yuvarlak/Bükük Yüzey Barkod Çözümleme Motoru
+Gelişmiş Parlama ve Yuvarlak/Bükük Yüzey Barkod Çözümleme Motoru (OYMAPOS 1-1 Birebir)
 - Parlama (Specular Glare / Reflection) Filtreleme (CLAHE, Blackhat, Gamma, Vurgu Bastırma)
 - Yuvarlak Yapılar (Yumurta çikolata, silindir, şişe, bükük ambalaj) Düzleştirme & Silindirik De-warp
 - Multi-Angle (Çok Açılı) Döndürme & Dilimleme
 - PyZBar + OpenCV BarcodeDetector Hibrit Motoru
 """
-import re
+import cv2
+import numpy as np
 
 try:
-    import cv2  # type: ignore
-except ImportError:
-    cv2 = None
-
-try:
-    import numpy as np  # type: ignore
-except ImportError:
-    np = None
-
-try:
-    from pyzbar import pyzbar  # type: ignore
+    from pyzbar import pyzbar
+    from pyzbar.pyzbar import ZBarSymbol
+    ALLOWED_SYMBOLS = [
+        ZBarSymbol.EAN13,
+        ZBarSymbol.EAN8,
+        ZBarSymbol.UPCA,
+        ZBarSymbol.UPCE,
+        ZBarSymbol.CODE128,
+        ZBarSymbol.CODE39,
+        ZBarSymbol.CODE93,
+        ZBarSymbol.I25,
+        ZBarSymbol.DATABAR,
+        ZBarSymbol.DATABAR_EXP,
+        ZBarSymbol.CODABAR,
+        ZBarSymbol.ISBN10,
+        ZBarSymbol.ISBN13,
+        ZBarSymbol.QRCODE,
+    ]
 except ImportError:
     pyzbar = None
+    ALLOWED_SYMBOLS = None
+
 
 def validate_barcode_checksum(barcode_str: str) -> bool:
     """EAN-13, EAN-8, UPC-A, Terazi veya alfa-sayısal barkod sağlama kontrolü."""
@@ -35,7 +45,6 @@ def validate_barcode_checksum(barcode_str: str) -> bool:
         checksum = (10 - (sum(digits[i] * (1 if i % 2 == 0 else 3) for i in range(12)) % 10)) % 10
         if digits[12] == checksum:
             return True
-        # 20-29 serisi terazi barkodlarında veya özel mağaza barkodlarında tolerans sağla
         if s[:2] in ("20", "21", "22", "23", "24", "25", "26", "27", "28", "29"):
             return True
         return False
@@ -52,20 +61,21 @@ def validate_barcode_checksum(barcode_str: str) -> bool:
         checksum = (10 - (sum(digits[i] * (3 if i % 2 == 0 else 1) for i in range(11)) % 10)) % 10
         return digits[11] == checksum
 
-    # Kısa mağaza stok kodları ve manav PLU kodları (1 - 7 hane)
+    # Kısa PLU ve manav kodları (1-7 hane)
     if 1 <= len(s) <= 7 and s.isdigit():
         return True
 
-    # Code-128 / Code-39 / ITF / Alfa-sayısal barkodlar
-    if len(s) >= 3 and re.match(r'^[A-Za-z0-9\-\.\ \$\/\+\%]+$', s):
+    # Code-128 / Code-39 / ITF
+    if len(s) >= 3 and s.isalnum():
         return True
 
     return False
 
+
 def unroll_cylinder(gray_img, curvature=0.35):
     """
-    Yuvarlak / yumurta / silindir urunlerdeki bukulmus barkodu duzlemsel hale acar.
-    Silindirik acma donusumu: x_out = R * arcsin(x / R)
+    Yuvarlak / yumurta / silindir ürünlerdeki bükülmüş barkodu düzlemsel hale açar.
+    Inverse cylindrical projection mapping: x' = R * arcsin(x / R)
     """
     h, w = gray_img.shape[:2]
     map_x = np.zeros((h, w), np.float32)
@@ -85,6 +95,7 @@ def unroll_cylinder(gray_img, curvature=0.35):
         
     return cv2.remap(gray_img, map_x, map_y, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
 
+
 def remove_glare_and_normalize(gray_img):
     """
     Parlama (parlak beyaz yansımalar ve gölgeler) bastırma ve yerel kontrast eşitleme.
@@ -96,11 +107,11 @@ def remove_glare_and_normalize(gray_img):
     # 2. Vurgu / Parlama Maskesi ve Bastırma
     _, glare_mask = cv2.threshold(gray_img, 235, 255, cv2.THRESH_BINARY)
     if cv2.countNonZero(glare_mask) > 30:
-        # Parlayan yerleri çevre piksellerin medyanı ile yumuşat
         blurred = cv2.medianBlur(enhanced, 5)
         enhanced = np.where(glare_mask == 255, blurred, enhanced)
 
     return enhanced
+
 
 def try_decode_variants(img_variants, cv_detector=None):
     """Farklı filtrelenmiş varyantlar üzerinde pyzbar ve opencv ile çözüm dener."""
@@ -113,13 +124,16 @@ def try_decode_variants(img_variants, cv_detector=None):
 
         # 1. PyZBar Motoru (Yüksek doğruluk ve hız)
         try:
-            barcodes = pyzbar.decode(var)
-            for bc in barcodes:
-                if bc.data:
-                    val = bc.data.decode('utf-8', errors='ignore').strip()
-                    if validate_barcode_checksum(val):
-                        b_type = str(bc.type) if hasattr(bc, 'type') else "BARCODE"
-                        return (val, b_type)
+            if pyzbar:
+                if ALLOWED_SYMBOLS:
+                    barcodes = pyzbar.decode(var, symbols=ALLOWED_SYMBOLS)
+                else:
+                    barcodes = pyzbar.decode(var)
+                for bc in barcodes:
+                    if bc.data:
+                        val = bc.data.decode('utf-8', errors='ignore').strip()
+                        if validate_barcode_checksum(val):
+                            return val
         except Exception:
             pass
 
@@ -129,20 +143,19 @@ def try_decode_variants(img_variants, cv_detector=None):
             if res and res[0]:
                 val = str(res[0]).strip()
                 if validate_barcode_checksum(val):
-                    b_type = str(res[1]) if len(res) > 1 and res[1] else "BARCODE"
-                    return (val, b_type)
+                    return val
         except Exception:
             pass
 
-    return (None, None)
+    return None
 
-def decode_advanced_barcode(img_bgr, aggressive=True, glare_mode=False, aggressive_mode=True):
+
+def decode_advanced_barcode(img_bgr, aggressive_mode=True):
     """
     Parlama, Yuvarlak Yapılar, Düşük Kontrast ve Bükük Barkodları Çok Aşamalı Çözer.
-    (barcode_result, barcode_type) döner.
     """
-    if img_bgr is None or cv2 is None or np is None:
-        return (None, None)
+    if img_bgr is None:
+        return None
 
     # Gri tonlamaya çevir
     if len(img_bgr.shape) == 3:
@@ -158,9 +171,9 @@ def decode_advanced_barcode(img_bgr, aggressive=True, glare_mode=False, aggressi
     clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
     gray_clahe = clahe.apply(gray)
     
-    quick_result, b_type = try_decode_variants([gray, gray_clahe], cv_detector)
+    quick_result = try_decode_variants([gray, gray_clahe], cv_detector)
     if quick_result:
-        return (quick_result, b_type)
+        return quick_result
 
     # -------------------------------------------------------------
     # 2. AŞAMA: PARLAMA BASTIRMA & MORFOLOJİK FİLTRELER (Glare / Reflection)
@@ -177,9 +190,9 @@ def decode_advanced_barcode(img_bgr, aggressive=True, glare_mode=False, aggressi
         glare_suppressed, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 21, 5
     )
 
-    stage2_result, b_type2 = try_decode_variants([glare_suppressed, blackhat_enhanced, adaptive_thresh], cv_detector)
+    stage2_result = try_decode_variants([glare_suppressed, blackhat_enhanced, adaptive_thresh], cv_detector)
     if stage2_result:
-        return (stage2_result, b_type2)
+        return stage2_result
 
     # -------------------------------------------------------------
     # 3. AŞAMA: YUVARLAK / BÜKÜK / YUMURTA ÇİKOLATA SİLİNDİRİK DÜZLEŞTİRME
@@ -193,12 +206,12 @@ def decode_advanced_barcode(img_bgr, aggressive=True, glare_mode=False, aggressi
     stretched_horiz = cv2.resize(glare_suppressed, (int(w * 1.35), h), interpolation=cv2.INTER_LINEAR)
     stretched_unroll = cv2.resize(unrolled_1, (int(w * 1.35), h), interpolation=cv2.INTER_LINEAR)
 
-    stage3_result, b_type3 = try_decode_variants([unrolled_1, unrolled_2, stretched_horiz, stretched_unroll], cv_detector)
+    stage3_result = try_decode_variants([unrolled_1, unrolled_2, stretched_horiz, stretched_unroll], cv_detector)
     if stage3_result:
-        return (stage3_result, b_type3)
+        return stage3_result
 
-    if not aggressive and not aggressive_mode:
-        return (None, None)
+    if not aggressive_mode:
+        return None
 
     # -------------------------------------------------------------
     # 4. AŞAMA: ÇOK AÇILI DÖNDÜRME & DİLİMLEME (Multi-Angle Rotation)
@@ -212,9 +225,9 @@ def decode_advanced_barcode(img_bgr, aggressive=True, glare_mode=False, aggressi
         rotated = cv2.warpAffine(glare_suppressed, rot_mat, (w, h), borderMode=cv2.BORDER_REPLICATE)
         rotated_variants.append(rotated)
 
-    stage4_result, b_type4 = try_decode_variants(rotated_variants, cv_detector)
+    stage4_result = try_decode_variants(rotated_variants, cv_detector)
     if stage4_result:
-        return (stage4_result, b_type4)
+        return stage4_result
 
     # -------------------------------------------------------------
     # 5. AŞAMA: KESKİNLEŞTİRME (Unsharp Mask) & NEGATİF (Invert)
@@ -226,8 +239,8 @@ def decode_advanced_barcode(img_bgr, aggressive=True, glare_mode=False, aggressi
     # Inverted (Siyah ambalaj üzerine beyaz barkodlar)
     inverted = cv2.bitwise_not(glare_suppressed)
 
-    stage5_result, b_type5 = try_decode_variants([sharpened, inverted], cv_detector)
+    stage5_result = try_decode_variants([sharpened, inverted], cv_detector)
     if stage5_result:
-        return (stage5_result, b_type5)
+        return stage5_result
 
-    return (None, None)
+    return None

@@ -14,6 +14,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@700;900&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/html5-qrcode"></script>
   <script src="https://unpkg.com/@zxing/library@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
 
   <style>
     :root {
@@ -755,6 +756,211 @@
       border: 1px solid var(--danger);
       color: #f87171;
     }
+
+    /* Fiyat Değişenler Sekmesi */
+    .report-date-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #1e293b;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+
+    .report-date-select {
+      flex: 1;
+      background: #0f172a;
+      border: 1px solid #38bdf8;
+      color: #f8fafc;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 13.5px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .btn-download-pdf-mobile {
+      background: linear-gradient(135deg, #059669 0%, #047857 100%);
+      color: white;
+      border: none;
+      padding: 9px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);
+      white-space: nowrap;
+    }
+
+    .report-items-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .report-item-card {
+      background: #1e293b;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .report-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .report-item-title {
+      font-size: 13.5px;
+      font-weight: 800;
+      color: #f8fafc;
+      flex: 1;
+    }
+
+    .report-item-barcode {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      background: #0f172a;
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #94a3b8;
+    }
+
+    .report-item-prices {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #0f172a;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .price-col {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .price-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #64748b;
+    }
+
+    .price-val-old {
+      font-size: 13px;
+      font-weight: 800;
+      color: #ef4444;
+      text-decoration: line-through;
+    }
+
+    .price-val-new {
+      font-size: 15px;
+      font-weight: 900;
+      color: #38bdf8;
+    }
+
+    .price-diff-badge {
+      font-size: 12px;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+
+    .diff-up {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .diff-down {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    /* Tekil Barkod Gösterim Modalı */
+    .barcode-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(8px);
+      z-index: 9999999 !important;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .barcode-modal-overlay.active {
+      display: flex !important;
+    }
+
+    .barcode-modal-card {
+      background: #ffffff;
+      color: #0f172a;
+      border-radius: 16px;
+      padding: 24px 20px;
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    }
+
+    .barcode-modal-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: #0f172a;
+      line-height: 1.3;
+    }
+
+    .barcode-modal-svg-wrap {
+      background: #ffffff;
+      padding: 14px 10px;
+      border-radius: 8px;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      border: 2px dashed #cbd5e1;
+    }
+
+    .barcode-modal-prices {
+      display: flex;
+      justify-content: space-around;
+      width: 100%;
+      background: #f8fafc;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+    }
+
+    .btn-barcode-modal-close {
+      background: #0f172a;
+      color: #ffffff;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 800;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 4px;
+    }
   </style>
 </head>
 <body>
@@ -780,12 +986,16 @@
   <nav class="mobile-nav-tabs">
     <button class="nav-tab-btn active" id="tab-btn-scan" onclick="switchMobileTab('scan')">
       <span style="font-size: 16px;">🏷️</span>
-      <span>Fiyat Gör & Tara</span>
+      <span>Fiyat Gör</span>
     </button>
     <button class="nav-tab-btn" id="tab-btn-queue" onclick="switchMobileTab('queue')">
       <span style="font-size: 16px;">📋</span>
       <span>Basım Listesi</span>
       <span class="queue-badge" id="badge-queue-count">0</span>
+    </button>
+    <button class="nav-tab-btn" id="tab-btn-changes" onclick="switchMobileTab('changes')">
+      <span style="font-size: 16px;">📊</span>
+      <span>Değişenler</span>
     </button>
   </nav>
 
@@ -812,19 +1022,19 @@
     <!-- Bildirim Kutusu (Toast) -->
     <div id="toast" class="toast-box"></div>
 
-    <!-- Son Eklenen Ürün Başarı Kartı -->
+    <!-- Son Eklenen Ürün Başarı Kartı (OYMAPOS 1-1) -->
     <div id="added-success-card" class="empty-state-card" style="display: none; border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.08); padding: 20px 16px;">
       <div class="empty-icon" style="font-size: 36px; margin-bottom: 2px;">✅</div>
       <div class="empty-title" id="added-success-title" style="color: #34d399; font-size: 15.5px; font-weight: 800;">Ürün başarıyla listeye eklendi!</div>
       <div class="empty-desc" id="added-success-desc" style="color: #e2e8f0; margin-top: 4px; font-size: 12.5px;"></div>
       <div style="margin-top: 14px; display: flex; gap: 8px; width: 100%;">
-        <button class="btn-action-camera" style="flex: 1.2; padding: 11px 6px; font-size: 12.5px;" onclick="openFullscreenCamera()">
+        <button class="btn-action-camera" style="flex: 1.2; padding: 12px 8px; font-size: 13px; font-weight: 800;" onclick="prepareForNextScan()">
           <span>📷</span>
           <span>Sıradaki Barkod</span>
         </button>
-        <button class="btn-action-gallery" style="flex: 1.1; padding: 11px 6px; font-size: 12.5px;" onclick="switchMobileTab('queue')">
+        <button class="btn-action-gallery" style="flex: 1.1; padding: 12px 8px; font-size: 13px; font-weight: 700;" onclick="switchMobileTab('queue')">
           <span>📋</span>
-          <span>Listeyi Gör</span>
+          <span id="added-badge-count-text">Listeyi Gör</span>
         </button>
       </div>
     </div>
@@ -833,7 +1043,7 @@
     <div id="empty-state" class="empty-state-card">
       <div class="empty-icon">🏷️</div>
       <div class="empty-title">Barkod Okutulması Bekleniyor</div>
-      <div class="empty-desc"><strong>"Barkod Okut / Tara"</strong> butonuna basın. Kamera açılınca barkodu kırmızı lazer çizgisine hizalayın.</div>
+      <div class="empty-desc"><strong>"BARKOD OKUT / TARA"</strong> butonuna basın. Kamera açılınca barkodu kırmızı lazer çizgisine hizalayın.</div>
     </div>
 
     <!-- Okunan Ürün Kartı -->
@@ -848,47 +1058,43 @@
         <input type="text" id="inp-title" class="inp-title-box" placeholder="Ürün adını girin...">
       </div>
 
-      <!-- Kasa Fiyatı vs Raf Etiketi Karşılaştırması -->
-      <div class="price-compare-grid">
-        <div class="price-box">
-          <span class="field-label" style="color: #34d399;">Kasa Satış Fiyatı</span>
-          <div class="price-val" id="val-pos-price" style="color: #34d399;">₺ 0,00</div>
+      <!-- Mevcut Fiyat (Üstüne basınca doğrudan değiştirilebilir) -->
+      <div class="field-group" style="margin-top: 2px;">
+        <label class="field-label" style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-weight: 800; color: #38bdf8; font-size: 12.5px;">💰 Mevcut Fiyat</span>
+          <span style="font-size: 11px; color: #94a3b8; font-weight: 600;">(Değiştirmek için dokunun)</span>
+        </label>
+        <div style="position: relative; display: flex; align-items: center;">
+          <span style="position: absolute; left: 14px; font-size: 20px; font-weight: 900; color: #38bdf8; font-family: 'JetBrains Mono', monospace;">₺</span>
+          <input type="number" step="0.01" id="inp-price" class="inp-title-box" placeholder="0.00" 
+                 style="width: 100%; padding-left: 36px; color: #38bdf8; font-size: 24px; font-weight: 900; font-family: 'JetBrains Mono', monospace; background: #0b1329; border: 1.5px solid rgba(56, 189, 248, 0.45); border-radius: 12px; box-shadow: inset 0 2px 6px rgba(0,0,0,0.4);"
+                 onclick="this.select()" onfocus="this.select()">
         </div>
-        <div class="price-box">
-          <span class="field-label" style="color: #38bdf8;">Basılı Raf Etiketi</span>
-          <div class="price-val" id="val-label-price" style="color: #38bdf8;">₺ 0,00</div>
+      </div>
+
+      <!-- En Son Fiyat Değişim ve En Son Yazdırma Tarihleri -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: #0b1120; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border);">
+        <div style="display: flex; flex-direction: column; gap: 3px;">
+          <span style="font-size: 11px; color: var(--text-muted); font-weight: 700; display: flex; align-items: center; gap: 4px;">
+            <span>📅</span> Fiyat Değişimi:
+          </span>
+          <span id="txt-price-updated-at" style="font-size: 11.5px; font-weight: 800; color: #fbbf24; font-family: 'JetBrains Mono', monospace;">-</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 3px;">
+          <span style="font-size: 11px; color: var(--text-muted); font-weight: 700; display: flex; align-items: center; gap: 4px;">
+            <span>🖨️</span> Son Yazdırma:
+          </span>
+          <span id="txt-last-printed-at" style="font-size: 11.5px; font-weight: 800; color: #38bdf8; font-family: 'JetBrains Mono', monospace;">-</span>
         </div>
       </div>
 
-      <div class="field-group">
-        <label class="field-label">Fiyat Düzenle</label>
-        <input type="text" id="inp-price" class="inp-title-box" placeholder="0,00" style="color: #fbbf24; font-size: 16px; font-weight: 800;">
-      </div>
+      <!-- LİSTEYE EKLE BUTONU (OYMAPOS 1-1) -->
+      <button id="btn-add-queue" class="btn-add-queue" onclick="addItemToQueue()" style="width: 100%; padding: 14px; font-size: 15px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px;">
+        <span style="font-size: 18px;">➕</span>
+        <span>LİSTEYE EKLE</span>
+      </button>
 
-      <!-- Aksiyon Butonları -->
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-        <button id="btn-update-price" class="btn-action-gallery" style="background: rgba(245, 158, 11, 0.18); color: #fbbf24; border-color: rgba(245, 158, 11, 0.4); font-weight: 800; padding: 12px 8px; font-size: 13px;" onclick="updatePriceFromMobile()">
-          <span>💾</span>
-          <span>Fiyatı Güncelle</span>
-        </button>
-        <button id="btn-print-direct" class="btn-print-now" style="padding: 12px 8px; font-size: 13px;" onclick="printCurrentProductNow()">
-          <span>🖨️</span>
-          <span>Etiket Yazdır</span>
-        </button>
-      </div>
-
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-        <button id="btn-confirm-printed" class="btn-action-gallery" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(16, 185, 129, 0.3); font-weight: 700; padding: 10px;" onclick="confirmPrintedOnly()">
-          <span>✓</span>
-          <span>Basıldı Onayla</span>
-        </button>
-        <button id="btn-add-queue" class="btn-add-queue" style="padding: 10px; font-size: 13px;" onclick="addItemToQueue()">
-          <span>➕</span>
-          <span>Listeye Ekle</span>
-        </button>
-      </div>
-
-      <button class="btn-next-scan" onclick="openFullscreenCamera()">
+      <button class="btn-next-scan" onclick="prepareForNextScan()">
         📷 Sıradaki Ürünü Okut
       </button>
     </div>
@@ -918,6 +1124,40 @@
         🗑️ Temizle
       </button>
     </div>
+  </main>
+
+  <!-- 5. GÜNLÜK FİYATI DEĞİŞEN ÜRÜNLER SEKMESİ -->
+  <main class="container" id="section-changes" style="display: none; padding-bottom: 20px;">
+    <div class="report-date-bar" style="display:flex; flex-direction:column; gap:8px;">
+      <div style="display:flex; gap:8px; width:100%;">
+        <select id="sel-report-date" class="report-date-select" style="flex:1;" onchange="handleMobileReportDateChange(this.value)">
+          <option value="">Tarih yükleniyor...</option>
+        </select>
+        <button class="btn-download-pdf-mobile" onclick="downloadMobileReportPdf()" style="padding:10px 14px; white-space:nowrap;">
+          <span>📄</span>
+          <span>PDF İndir</span>
+        </button>
+      </div>
+      <div style="display:flex; gap:8px; width:100%;">
+        <select id="sel-report-source" class="report-date-select" style="flex:1; background:#1e293b; color:#38bdf8; font-weight:800; border:1px solid rgba(56,189,248,0.35); font-size:12.5px;" onchange="handleMobileReportSourceChange(this.value)">
+          <option value="all" selected>🌐 Tümü (Mobil + Masaüstü)</option>
+          <option value="mobile">📱 Sadece Mobilden Değişenler (QR / Kamera)</option>
+          <option value="desktop">💻 Sadece Masaüstünde Değişenler (Tekil)</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="report-summary-text" style="font-size: 12px; font-weight: 700; color: #94a3b8; padding: 0 4px;">
+      Değişen ürünler yükleniyor...
+    </div>
+
+    <div id="report-empty-state" class="empty-state-card" style="display: none;">
+      <div class="empty-icon">📊</div>
+      <div class="empty-title">Fiyat Değişimi Bulunamadı</div>
+      <div class="empty-desc">Seçilen tarihte herhangi bir ürünün fiyatı değişmemiş.</div>
+    </div>
+
+    <div id="report-items-container" class="report-items-list"></div>
   </main>
 
   <!-- 5. 🎯 TAM EKRAN GELİŞMİŞ MOBİL KAMERA MODALI (OYMAPOS 1-1 BİREBİR) -->
@@ -964,14 +1204,7 @@
         <div class="reticle-corner tr"></div>
         <div class="reticle-corner bl"></div>
         <div class="reticle-corner br"></div>
-
-        <!-- KIRMIZI LAZER TARAMA ÇİZGİSİ -->
         <div class="fs-laser-line"></div>
-
-        <!-- Yuvarlak / Eğri Ambalaj Kılavuz İpucu -->
-        <div class="fs-guide-curve-hint">
-          <span>🥚 Barkodu Kırmızı Çizgiye Hizalayın</span>
-        </div>
       </div>
     </div>
 
@@ -979,6 +1212,56 @@
     <div class="fs-bottom-bar">
       <div class="fs-hint-banner">
         <span>💡 <strong>İpucu:</strong> Parlayan veya küçük barkodlarda telefonu <strong>20-30 cm geride</strong> tutup <strong>2.0x Zoom</strong> yapın.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. 📱 DETAYLI ÜRÜN DÜZENLEME & BARKOD MODALI -->
+  <div id="barcode-display-modal" class="barcode-modal-overlay" onclick="closeBarcodeDisplayModal()">
+    <div class="barcode-modal-card" onclick="event.stopPropagation()">
+      <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+        <span style="font-size: 11.5px; font-weight: 800; color: #0284c7; text-transform: uppercase; letter-spacing:0.5px;">✏️ Ürün Detayı & Düzenleme</span>
+        <button onclick="closeBarcodeDisplayModal()" style="background:transparent; border:none; color:#64748b; font-size:18px; font-weight:900; cursor:pointer; padding:2px 6px;">✕</button>
+      </div>
+
+      <!-- Barkod Bilgi Rozeti -->
+      <div style="width:100%; display:flex; justify-content:space-between; align-items:center; background:#f1f5f9; padding:6px 10px; border-radius:8px;">
+        <span style="font-size:11px; color:#64748b; font-weight:700;">Barkod No:</span>
+        <span id="modal-barcode-num" style="font-family:'JetBrains Mono', monospace; font-weight:800; color:#0f172a; font-size:13px;">-</span>
+      </div>
+
+      <!-- Ürün Adı Girişi -->
+      <div style="width:100%; text-align:left; display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:11px; font-weight:800; color:#475569;">Ürün Adı:</label>
+        <input type="text" id="modal-edit-title" style="width:100%; padding:10px 12px; font-size:14px; font-weight:700; color:#0f172a; background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:8px; outline:none; box-sizing:border-box;">
+      </div>
+
+      <!-- Fiyat Girişi -->
+      <div style="width:100%; text-align:left; display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:11px; font-weight:800; color:#475569;">Mevcut Satış Fiyatı (₺):</label>
+        <div style="position:relative; display:flex; align-items:center;">
+          <span style="position:absolute; left:12px; font-size:18px; font-weight:900; color:#0284c7; font-family:'JetBrains Mono', monospace;">₺</span>
+          <input type="number" step="0.01" id="modal-edit-price" style="width:100%; padding:10px 12px 10px 32px; font-size:20px; font-weight:900; color:#0284c7; background:#f8fafc; border:1.5px solid #0284c7; border-radius:8px; outline:none; font-family:'JetBrains Mono', monospace; box-sizing:border-box;" onclick="this.select()">
+        </div>
+      </div>
+      
+      <!-- Eski Fiyat Bilgisi (Değişenler için) -->
+      <div id="modal-barcode-old-price-row" style="display:none; width:100%; justify-content:space-between; align-items:center; background:#fef2f2; padding:6px 10px; border-radius:8px; border:1px solid #fee2e2;">
+        <span style="font-size: 11px; color: #dc2626; font-weight: 700;">Önceki Eski Fiyat:</span>
+        <span id="modal-barcode-old-price" style="font-size: 13.5px; font-weight: 800; color: #dc2626; text-decoration: line-through; font-family:'JetBrains Mono', monospace;">-</span>
+      </div>
+
+      <!-- Barkod Çizgisi -->
+      <div class="barcode-modal-svg-wrap">
+        <svg id="modal-barcode-svg"></svg>
+      </div>
+
+      <!-- İşlem Butonları -->
+      <div style="display:flex; gap:8px; width:100%; margin-top:2px;">
+        <button id="btn-modal-save-price" class="btn-action-camera" style="flex:1; padding:12px; font-size:13.5px; font-weight:800; border-radius:10px;" onclick="saveModalProductEdit()">
+          💾 Kaydet & Güncelle
+        </button>
+        <button class="btn-barcode-modal-close" style="flex:0.8; margin-top:0; padding:12px; font-size:13px; font-weight:700; background:#64748b;" onclick="closeBarcodeDisplayModal()">Kapat</button>
       </div>
     </div>
   </div>

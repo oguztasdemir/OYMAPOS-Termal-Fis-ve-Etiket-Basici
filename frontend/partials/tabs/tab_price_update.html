@@ -86,9 +86,9 @@
 
         <!-- Kaydırılabilir Excel Tablo Alanı (Yatay ve Dikey Sınırsız Scroll - Excel Gibi Sonsuz Satır) -->
         <div id="excelGridScrollContainer" style="height: calc(100vh - 250px); min-height: 520px; overflow: auto; position: relative; width: 100%; border-radius: 0 0 8px 8px;" tabindex="0" onpaste="handleGridPaste(event)">
-          <table id="excelSpreadsheetTable" style="border-collapse: collapse; min-width: 3680px; font-family: 'Inter', system-ui, sans-serif; font-size: 13px; color: #e2e8f0;">
+          <table id="excelSpreadsheetTable" style="border-collapse: collapse; width: 100%; font-family: 'Inter', system-ui, sans-serif; font-size: 13px; color: #e2e8f0;">
             <thead id="excelGridThead">
-              <!-- JavaScript ile A'dan Z'ye dinamik oluşturulur -->
+              <!-- JavaScript ile dinamik oluşturulur -->
             </thead>
             <tbody id="excelGridTbody">
               <!-- Satırlar JavaScript ile dinamik olarak basılır -->
@@ -255,6 +255,32 @@
           <span id="quickUpdateProgressCount" style="color: #38bdf8; font-weight: 700;">0 / 0 Ürün</span>
           <span id="quickUpdateProgressPercent" style="color: #34d399; font-weight: 800;">%0</span>
         </div>
+      </div>
+    </div>
+
+    <!-- Hızlı Yapıştırma Modalı (Tarayıcı Pano Engeli Aşma & Direkt Ctrl+V Yakalayıcı) -->
+    <div id="modalQuickPasteCatcher" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px); z-index: 9999; align-items: center; justify-content: center;">
+      <div class="card" style="width: 90%; max-width: 540px; background: #0f172a; border: 1.5px solid #38bdf8; border-radius: 14px; box-shadow: 0 16px 40px rgba(0,0,0,0.6); padding: 22px; display: flex; flex-direction: column; gap: 14px;">
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e293b; padding-bottom: 10px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 22px;">📋</span>
+            <h3 style="font-size: 16px; font-weight: 800; color: #f8fafc; margin: 0;">Kopyalanan Veriyi Yapıştırın</h3>
+          </div>
+          <button type="button" onclick="closeQuickPasteModal()" class="btn-close" style="background: none; border: none; color: #94a3b8; font-size: 20px; cursor: pointer;">✕</button>
+        </div>
+
+        <p style="font-size: 12.5px; color: #94a3b8; margin: 0; line-height: 1.5;">
+          Excel veya metin dosyanızdan kopyaladığınız satırları aşağıdaki alana <strong style="color: #38bdf8;">Ctrl + V</strong> yaparak yapıştırın:
+        </p>
+
+        <textarea id="quickPasteModalTextarea" rows="6" placeholder="Kopyaladığınız listeyi buraya yapıştırın (Ctrl + V)..." style="width: 100%; background: #090d16; border: 1.5px dashed #38bdf8; border-radius: 8px; color: #f8fafc; font-family: 'JetBrains Mono', monospace; font-size: 12px; padding: 12px; box-sizing: border-box; outline: none; resize: vertical;"></textarea>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+          <button type="button" onclick="closeQuickPasteModal()" class="btn btn-secondary btn-sm" style="padding: 8px 16px; font-weight: 700;">Vazgeç</button>
+          <button type="button" onclick="submitQuickPasteModal()" class="btn btn-primary btn-sm" style="padding: 8px 20px; font-weight: 800; background: linear-gradient(135deg, #0284c7, #0369a1); border: none; border-radius: 6px;">✓ Tabloya Aktar</button>
+        </div>
+
       </div>
     </div>
 

@@ -128,9 +128,71 @@ function closeModal(modalId) {
   }
 }
 
+/**
+ * Modern Uygulama İçi Onay Modalı (Browser confirm() yerine)
+ */
+function showAppConfirmModal({ title = 'İşlem Onayı', message, confirmText = 'Onayla', cancelText = 'İptal', type = 'warning', icon = '⚠️' }) {
+  return new Promise((resolve) => {
+    let existing = document.getElementById('appConfirmModalOverlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'appConfirmModalOverlay';
+    overlay.className = 'modal-overlay active';
+    overlay.style.cssText = 'position:fixed; inset:0; z-index:99999; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); background:rgba(0,0,0,0.75); transition:opacity 0.2s ease;';
+
+    const btnStyle = type === 'danger'
+      ? 'background:#dc2626; color:#fff; border:1px solid #b91c1c;'
+      : (type === 'success'
+        ? 'background:#10b981; color:#fff; border:1px solid #059669;'
+        : 'background:linear-gradient(135deg, #0284c7, #0369a1); color:#fff; border:1px solid #0284c7;');
+
+    overlay.innerHTML = `
+      <div class="modal" style="max-width: 440px; width: 92%; background: #111726; border: 1.5px solid rgba(255,255,255,0.15); border-radius: 14px; padding: 22px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.8); animation: modalPop 0.18s cubic-bezier(0.16, 1, 0.3, 1);">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px;">
+          <div style="width:40px; height:40px; border-radius:10px; background:rgba(255,255,255,0.06); display:flex; align-items:center; justify-content:center; font-size:20px; border:1px solid rgba(255,255,255,0.1);">
+            ${icon}
+          </div>
+          <div>
+            <h3 style="margin:0; font-size:15px; font-weight:800; color:#fff;">${escapeHtml(title)}</h3>
+            <span style="font-size:11px; color:#94a3b8;">OymaPOS Otomasyon Sistemi</span>
+          </div>
+        </div>
+        <p style="font-size:13px; color:#cbd5e1; line-height:1.55; margin:0 0 20px 0;">${escapeHtml(message)}</p>
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <button id="appConfirmCancelBtn" class="btn btn-secondary" style="padding:8px 16px; font-size:12px; cursor:pointer;">${escapeHtml(cancelText)}</button>
+          <button id="appConfirmOkBtn" class="btn" style="padding:8px 18px; font-size:12px; font-weight:700; cursor:pointer; ${btnStyle}">${escapeHtml(confirmText)}</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const cleanup = (result) => {
+      overlay.style.opacity = '0';
+      setTimeout(() => overlay.remove(), 120);
+      resolve(result);
+    };
+
+    overlay.querySelector('#appConfirmCancelBtn').onclick = () => cleanup(false);
+    overlay.querySelector('#appConfirmOkBtn').onclick = () => cleanup(true);
+    overlay.onclick = (e) => {
+      if (e.target === overlay) cleanup(false);
+    };
+  });
+}
+
 // 5. SUNUCU KAPATMA DİYALOĞU
 async function confirmShutdown() {
-  if (confirm("Sunucuyu kapatmak ve portu serbest bırakmak istediğinize emin misiniz?")) {
+  const ok = await showAppConfirmModal({
+    title: "Sunucuyu Kapat",
+    message: "Sunucuyu kapatmak ve portu serbest bırakmak istediğinize emin misiniz?",
+    confirmText: "Sunucuyu Kapat",
+    cancelText: "Vazgeç",
+    type: "danger",
+    icon: "🛑"
+  });
+  if (ok) {
     showToast("Sunucu kapatılıyor...", "info");
     try {
       await API.shutdownServer();

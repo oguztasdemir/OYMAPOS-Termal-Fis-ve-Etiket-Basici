@@ -31,13 +31,13 @@ def clean_tr(text):
     res = res.replace('^', '-').replace('~', '-')
     return res
 
-def split_title_lines(title1, title2="", max_chars_per_line=30):
+def split_title_lines(title1, title2="", max_chars_per_line=38):
     """Ürün başlığını güvenli karakter sınırına göre 1 veya 2 satıra böler."""
     t1 = clean_tr(title1).strip().upper()
     t2 = clean_tr(title2).strip().upper()
     
     if t2:
-        return t1[:34], t2[:34]
+        return t1[:42], t2[:42]
     
     if len(t1) <= max_chars_per_line:
         return t1, ""
@@ -62,7 +62,7 @@ def split_title_lines(title1, title2="", max_chars_per_line=30):
             line1 = " ".join(t1_words)
             line2 = " ".join(t2_words)
 
-    return line1[:34], line2[:34]
+    return line1[:42], line2[:42]
 
 def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, width_mm=76, height_mm=40, dpi=203, copies=1):
     """
@@ -87,7 +87,7 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
     top_right_text = clean_tr(data.get('top_right_text', '')).strip()
 
     # Eğer sağ üst doluysa başlık karakter limitini ayarla
-    max_title_chars = 22 if top_right_mode != 'empty' else 30
+    max_title_chars = 26 if top_right_mode != 'empty' else 38
     raw_t1 = data.get('title1', 'ULK 398-6 PIKO PORTAKAL')
     raw_t2 = data.get('title2', 'PIR PAT KAP')
     t1, t2 = split_title_lines(raw_t1, raw_t2, max_chars_per_line=max_title_chars)
@@ -230,24 +230,44 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
 
         # -------------------------------------------------------------
         # 3. BÖLÜM (ALT KATMAN): EAN-13 Barkod | Satış Fiyatı | BÜYÜK FİYAT
-        # Barkod kısmı 0.1 cm daha (+8 dot) yukarı taşındı (ox + 33 -> ox + 41)
         # -------------------------------------------------------------
-        if len(barcode) == 13 and barcode.isdigit():
-            zpl.append(f"^FO{ox + 41},{oy + 20}^BER,60,Y,N^FD{barcode}^FS")
+        # Barkod alanı sol tarafta güvenli mesafede
+        clean_bc = re.sub(r'[^0-9A-Za-z]', '', barcode)
+        if len(clean_bc) == 13 and clean_bc.isdigit():
+            zpl.append(f"^FO{ox + 41},{oy + 18}^BER,52,Y,N^FD{clean_bc}^FS")
+        elif len(clean_bc) == 8 and clean_bc.isdigit():
+            zpl.append(f"^FO{ox + 41},{oy + 18}^BER,52,Y,N^FD{clean_bc}^FS")
         else:
-            zpl.append(f"^FO{ox + 41},{oy + 20}^BY2^BCR,60,Y,N,N^FD{barcode}^FS")
+            # Code 128 için daraltılmış çizgi kalınlığı
+            zpl.append(f"^FO{ox + 41},{oy + 18}^BY2,3,52^BCR,52,Y,N,N^FD{clean_bc or '00000000'}^FS")
 
-        # Satış Fiyatı Dikey Ayracı
-        div_y = oy + int(w_dots * 0.39)
+        # Satış Fiyatı Dikey Ayracı (Kutu ve yazı)
+        div_y = oy + int(w_dots * 0.38)
         zpl.extend([
-            f"^FO{ox + 15},{div_y}^GB85,60,2^FS",
-            f"^FO{ox + 50},{div_y + 10}^A0R,17,15^FDSatis^FS",
-            f"^FO{ox + 20},{div_y + 10}^A0R,17,15^FDFiyati^FS",
+            f"^FO{ox + 16},{div_y}^GB82,54,2^FS",
+            f"^FO{ox + 48},{div_y + 8}^A0R,16,14^FDSatis^FS",
+            f"^FO{ox + 20},{div_y + 8}^A0R,16,14^FDFiyati^FS",
         ])
 
-        # DEV SATIŞ FİYATI (Sağ Alt - 10,00 TL)
-        price_y = oy + int(w_dots * 0.50)
-        zpl.append(f"^FO{ox + 8},{price_y}^A0R,94,76^FD{price}^FS")
+        # SATIŞ FİYATI (Sağ Alt - Örn: 1.250,00 TL veya 10,00 TL)
+        # Fiyat karakter uzunluğuna göre dinamik font boyutu seçimi (Taşmayı ve '00' kesilmesini önler)
+        price_clean = str(price).strip()
+        price_len = len(price_clean)
+        
+        if price_len >= 11:
+            # Örn: "1.250,00 TL" veya daha uzun
+            f_h, f_w = 70, 56
+            price_y = oy + int(w_dots * 0.48)
+        elif price_len >= 9:
+            # Örn: "150,00 TL"
+            f_h, f_w = 80, 64
+            price_y = oy + int(w_dots * 0.49)
+        else:
+            # Standart: "10,00 TL", "5,00 TL"
+            f_h, f_w = 88, 70
+            price_y = oy + int(w_dots * 0.50)
+
+        zpl.append(f"^FO{ox + 8},{price_y}^A0R,{f_h},{f_w}^FD{price_clean}^FS")
 
         if qty > 1:
             zpl.append(f"^PQ{qty},0,1,Y")

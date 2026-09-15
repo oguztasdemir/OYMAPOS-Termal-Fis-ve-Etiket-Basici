@@ -418,11 +418,9 @@ function copyTableToClipboard(tableId) {
 }
 
 function restoreSavedState() {
-  const savedQuery = localStorage.getItem('search_query');
-  if (savedQuery) {
-    const input = document.getElementById('productSearchInput');
-    if (input) input.value = savedQuery;
-  }
+  const input = document.getElementById('productSearchInput');
+  if (input) input.value = '';
+  localStorage.removeItem('search_query');
 
   const isCollapsed = localStorage.getItem('sidebar_collapsed') === 'true';
   const sidebar = document.getElementById('appSidebar');

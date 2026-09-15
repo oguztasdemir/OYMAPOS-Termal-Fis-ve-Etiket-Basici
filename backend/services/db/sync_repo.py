@@ -572,6 +572,7 @@ def update_products_by_clipboard_data(items: list, device_name: str = "Ana PC - 
                 old_p = parse_price(old.get("price"))
                 old_t = str(old.get("title") or "")
                 actual_p = p if has_incoming_price else old_p
+                item_date = item.get("price_updated_at") or now_str
 
                 has_price_diff = has_incoming_price and (abs(old_p - actual_p) > 0.001)
                 has_title_diff = (old_t != clean_t) or (raw_t and raw_t != str(old.get("raw_system_title") or ""))
@@ -590,13 +591,13 @@ def update_products_by_clipboard_data(items: list, device_name: str = "Ana PC - 
                         "new_price": actual_p,
                         "diff_amount": diff_amt,
                         "diff_percent": diff_pct,
-                        "changed_at": now_str
+                        "changed_at": item_date
                     })
 
                     cursor.execute("""
                     INSERT INTO vegawin_price_changes (sync_id, barcode, title, old_price, new_price, diff_amount, diff_percent, changed_at, source_device)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-                    """, (sync_id, b, clean_t or old_t, old_p, actual_p, diff_amt, diff_pct, now_str, device_name))
+                    """, (sync_id, b, clean_t or old_t, old_p, actual_p, diff_amt, diff_pct, item_date, device_name))
 
                     cursor.execute("""
                     UPDATE urunler 
@@ -604,7 +605,7 @@ def update_products_by_clipboard_data(items: list, device_name: str = "Ana PC - 
                         brand = COALESCE(NULLIF(?, ''), brand), unit = COALESCE(NULLIF(?, ''), unit), updated_at = ?, price_updated_at = ?, 
                         label_price = COALESCE(label_price, ?)
                     WHERE barcode = ?;
-                    """, (clean_t or old_t, raw_t or clean_t or old_t, str(actual_p), actual_p, sc, brand, unit, now_str, now_str, old_p, b))
+                    """, (clean_t or old_t, raw_t or clean_t or old_t, str(actual_p), actual_p, sc, brand, unit, now_str, item_date, old_p, b))
 
                     record_product_history(
                         conn,
@@ -620,7 +621,7 @@ def update_products_by_clipboard_data(items: list, device_name: str = "Ana PC - 
                         device_name=device_name,
                         details=f"Fiyat güncellendi ({old_p:.2f} TL -> {actual_p:.2f} TL)",
                         sync_id=sync_id,
-                        timestamp=now_str
+                        timestamp=item_date
                     )
                 elif has_title_diff:
                     title_change_count += 1
@@ -647,10 +648,11 @@ def update_products_by_clipboard_data(items: list, device_name: str = "Ana PC - 
                     unchanged_count += 1
             else:
                 new_count += 1
+                item_date = item.get("price_updated_at") or now_str
                 cursor.execute("""
                 INSERT INTO urunler (barcode, stock_code, title, raw_system_title, price, price_num, label_price, brand, unit, is_new, created_at, updated_at, price_updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, 1, ?, ?, ?);
-                """, (b, sc, clean_t, raw_t or clean_t, str(p or 0.0), p or 0.0, brand, unit, now_str, now_str, now_str))
+                """, (b, sc, clean_t, raw_t or clean_t, str(p or 0.0), p or 0.0, brand, unit, now_str, now_str, item_date))
 
                 # Tekrarlayan barkodların aynı batch içinde çökmesini engelle
                 existing_map[b] = {

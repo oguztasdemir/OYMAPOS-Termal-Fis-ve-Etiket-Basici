@@ -123,6 +123,15 @@ const API = {
     return await res.json();
   },
 
+  async batchBlacklist(barcodes, action = 'add') {
+    const res = await fetch('/api/products/batch-blacklist', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ barcodes, action })
+    });
+    return await res.json();
+  },
+
   // 4. Baskı İşlemleri
   getSelectedPrinter() {
     const sel = document.getElementById('topbarPrinterSelect');

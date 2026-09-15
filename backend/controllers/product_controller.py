@@ -23,6 +23,7 @@ from backend.utils.response_utils import success_response, error_response
 
 from backend.services.db.connection import db_session
 from backend.utils.text_utils import get_blacklist_data, save_blacklist_data, clean_barcode_text
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/api", tags=["Products"])
 
@@ -44,9 +45,9 @@ async def get_products(q: str = "", only_new: bool = False, only_diff: bool = Fa
 
     # İlgili tüm sayaçları hesapla
     counts = {
-        "total": get_products_count(),
-        "diff": get_products_count(only_diff=True),
-        "new": get_products_count(only_new=True),
+        "total": get_products_count(blacklist_barcodes=blacklist_barcodes),
+        "diff": get_products_count(only_diff=True, blacklist_barcodes=blacklist_barcodes),
+        "new": get_products_count(only_new=True, blacklist_barcodes=blacklist_barcodes),
         "blacklist": get_products_count(only_blacklist=True, blacklist_barcodes=blacklist_barcodes)
     }
 
@@ -84,11 +85,17 @@ async def toggle_product_blacklist(barcode: str):
         is_now_blacklisted = True
         msg = f"'{b}' barkodlu ürün kara listeye eklendi."
 
+    with db_session() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE urunler SET is_blacklisted = ? WHERE barcode = ?;", (1 if is_now_blacklisted else 0, b))
+        conn.commit()
+
+    b_set = set(barcodes)
     counts = {
-        "total": get_products_count(),
-        "diff": get_products_count(only_diff=True),
-        "new": get_products_count(only_new=True),
-        "blacklist": len(barcodes)
+        "total": get_products_count(blacklist_barcodes=b_set),
+        "diff": get_products_count(only_diff=True, blacklist_barcodes=b_set),
+        "new": get_products_count(only_new=True, blacklist_barcodes=b_set),
+        "blacklist": get_products_count(only_blacklist=True, blacklist_barcodes=b_set)
     }
 
     return success_response(
@@ -98,6 +105,54 @@ async def toggle_product_blacklist(barcode: str):
             "counts": counts
         },
         message=msg
+    )
+
+class BatchBlacklistRequest(BaseModel):
+    barcodes: list
+    action: str  # 'add' veya 'remove'
+
+@router.post("/products/batch-blacklist")
+async def batch_blacklist_products(req: BatchBlacklistRequest):
+    """Seçilen birden fazla ürünü topluca kara listeye ekler veya çıkarır."""
+    raw_barcodes = [clean_barcode_text(b) for b in req.barcodes if clean_barcode_text(b)]
+    if not raw_barcodes:
+        return error_response(message="İşlem yapılacak ürün seçilmedi.", status_code=400)
+
+    bl_data = get_blacklist_data()
+    current_barcodes = set(str(x).strip() for x in bl_data.get("barcodes", []) if str(x).strip())
+    
+    is_add = (req.action == 'add')
+    if is_add:
+        for b in raw_barcodes:
+            current_barcodes.add(b)
+    else:
+        for b in raw_barcodes:
+            current_barcodes.discard(b)
+
+    bl_data["barcodes"] = list(current_barcodes)
+    save_blacklist_data(bl_data)
+
+    with db_session() as conn:
+        cursor = conn.cursor()
+        val = 1 if is_add else 0
+        cursor.executemany("UPDATE urunler SET is_blacklisted = ? WHERE barcode = ?;", [(val, b) for b in raw_barcodes])
+        conn.commit()
+
+    counts = {
+        "total": get_products_count(blacklist_barcodes=current_barcodes),
+        "diff": get_products_count(only_diff=True, blacklist_barcodes=current_barcodes),
+        "new": get_products_count(only_new=True, blacklist_barcodes=current_barcodes),
+        "blacklist": get_products_count(only_blacklist=True, blacklist_barcodes=current_barcodes)
+    }
+
+    action_text = "kara listeye eklendi" if is_add else "kara listeden çıkarıldı"
+    return success_response(
+        data={
+            "updated_count": len(raw_barcodes),
+            "action": req.action,
+            "counts": counts
+        },
+        message=f"{len(raw_barcodes)} ürün başarıyla {action_text}."
     )
 
 @router.get("/products/{barcode}")
@@ -219,17 +274,18 @@ async def quick_update_excel_endpoint(
         if not items and not blacklisted_items:
             return error_response(message="Yüklenen Excel dosyasından geçerli ürün veya fiyat sütunları okunamadı. Lütfen dosya formatını kontrol edin.", status_code=400)
 
-        # Tabloya aktarmak için satırları da döndür (Spreadsheet grid doldurma)
+        # Tabloya aktarmak için satırları döndür (Spreadsheet 4 Temel Sütun: Barkod, Malın Cinsi, Fiyat, Değişme Tarihi)
         grid_rows = []
         # Başlık satırı
-        grid_rows.append(["Barkod", "Malın Cinsi", "Fiyat", "Birim", "Stok Kodu"])
+        grid_rows.append(["Barkod", "Malın Cinsi", "1. Satış Fiyatı", "1. Fiyat Değişme Tarihi"])
         for it in items:
+            p_val = f"{it['price']:.2f} TL" if it.get("price") is not None else ""
+            d_val = it.get("price_updated_at", "")
             grid_rows.append([
                 it.get("barcode", ""),
                 it.get("title", ""),
-                f"{it['price']:.2f} TL" if it.get("price") is not None else "",
-                it.get("unit", "ADET"),
-                it.get("stock_code", "")
+                p_val,
+                d_val
             ])
 
         # TSV formatında metin oluştur (daha sonra doğrudan güncelleme için)

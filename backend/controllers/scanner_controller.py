@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-📷 Scanner Controller
+📷 Scanner Controller (OYMAPOS 1-1 Birebir)
 Canlı kamera karesinden gelişmiş barkod çözme (CLAHE, parlama filtresi, eğri yüzey de-warp, PyZBar + OpenCV)
-OYMAPOS Barkod Sistemi ile 1-1 birebir aynı algoritma.
 """
 import base64
 import numpy as np
@@ -18,7 +17,6 @@ router = APIRouter(prefix="/api/scanner", tags=["Scanner"])
 async def decode_frame(request: Request):
     """
     Kamera karesinden gelişmiş parlama, yuvarlak/bükük yüzey ve hibrit barkod çözümü yapar.
-    0ms - 35ms aralığında yüksek performanslı algılama sağlar.
     """
     try:
         body = await request.json()
@@ -35,20 +33,17 @@ async def decode_frame(request: Request):
         if img is None:
             return JSONResponse({"status": "not_found", "barcode": None})
 
-        aggressive = bool(body.get("aggressive", False))
         glare_mode = bool(body.get("glare_mode", False))
-
-        barcode_result, b_type = decode_advanced_barcode(img, aggressive=aggressive, glare_mode=glare_mode)
+        barcode_result = decode_advanced_barcode(img, aggressive_mode=True)
 
         if barcode_result:
             clean_bc = str(barcode_result).strip()
             if validate_barcode_checksum(clean_bc):
                 return JSONResponse({
                     "status": "success",
-                    "barcode": clean_bc,
-                    "type": b_type
+                    "barcode": clean_bc
                 })
 
         return JSONResponse({"status": "not_found", "barcode": None})
     except Exception as e:
-        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+        return JSONResponse({"status": "not_found", "error": str(e)}, status_code=200)

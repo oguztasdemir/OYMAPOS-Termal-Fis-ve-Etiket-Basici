@@ -8,7 +8,7 @@ import datetime
 from typing import List, Dict, Optional, Any
 from backend.services.db.connection import db_session
 from backend.utils.text_utils import (
-    fold_turkish_text, clean_barcode_text, decode_scale_barcode, format_product_dict
+    fold_turkish_text, clean_barcode_text, decode_scale_barcode, format_product_dict, parse_price
 )
 
 def get_all_products(limit=None, offset=0, only_new=False, only_diff=False, only_blacklist=False, blacklist_barcodes=None):
@@ -20,14 +20,23 @@ def get_all_products(limit=None, offset=0, only_new=False, only_diff=False, only
             clauses.append("is_new = 1")
         if only_diff:
             clauses.append("(label_price IS NOT NULL AND ABS(parse_price(price) - parse_price(label_price)) > 0.001)")
+        
+        bl_list = list(blacklist_barcodes or [])
         if only_blacklist:
-            bl_list = list(blacklist_barcodes or [])
             if bl_list:
                 placeholders = ",".join("?" for _ in bl_list)
-                clauses.append(f"barcode IN ({placeholders})")
+                clauses.append(f"(barcode IN ({placeholders}) OR is_blacklisted = 1)")
                 params.extend(bl_list)
             else:
-                clauses.append("1 = 0")
+                clauses.append("is_blacklisted = 1")
+        else:
+            # Normal listelemede kara listedeki ürünleri gizle
+            if bl_list:
+                placeholders = ",".join("?" for _ in bl_list)
+                clauses.append(f"(barcode NOT IN ({placeholders}) AND COALESCE(is_blacklisted, 0) = 0)")
+                params.extend(bl_list)
+            else:
+                clauses.append("COALESCE(is_blacklisted, 0) = 0")
         
         where_clause = ("WHERE " + " AND ".join(clauses)) if clauses else ""
         if limit is not None and limit > 0:
@@ -53,14 +62,22 @@ def search_products(query: str, limit=None, only_new=False, only_diff=False, onl
             clauses.append("is_new = 1")
         if only_diff:
             clauses.append("(label_price IS NOT NULL AND ABS(parse_price(price) - parse_price(label_price)) > 0.001)")
+        
+        bl_list = list(blacklist_barcodes or [])
         if only_blacklist:
-            bl_list = list(blacklist_barcodes or [])
             if bl_list:
                 placeholders = ",".join("?" for _ in bl_list)
-                clauses.append(f"barcode IN ({placeholders})")
+                clauses.append(f"(barcode IN ({placeholders}) OR is_blacklisted = 1)")
                 params.extend(bl_list)
             else:
-                clauses.append("1 = 0")
+                clauses.append("is_blacklisted = 1")
+        else:
+            if bl_list:
+                placeholders = ",".join("?" for _ in bl_list)
+                clauses.append(f"(barcode NOT IN ({placeholders}) AND COALESCE(is_blacklisted, 0) = 0)")
+                params.extend(bl_list)
+            else:
+                clauses.append("COALESCE(is_blacklisted, 0) = 0")
             
         # Her bir arama kelimesi için şart ekle (AND mantığı)
         for token in tokens:
@@ -236,14 +253,23 @@ def get_products_count(only_new=False, only_diff=False, only_blacklist=False, bl
             clauses.append("is_new = 1")
         if only_diff:
             clauses.append("(label_price IS NOT NULL AND ABS(parse_price(price) - parse_price(label_price)) > 0.001)")
+        
+        bl_list = list(blacklist_barcodes or [])
         if only_blacklist:
-            bl_list = list(blacklist_barcodes or [])
             if bl_list:
                 placeholders = ",".join("?" for _ in bl_list)
-                clauses.append(f"barcode IN ({placeholders})")
+                clauses.append(f"(barcode IN ({placeholders}) OR is_blacklisted = 1)")
                 params.extend(bl_list)
             else:
-                clauses.append("1 = 0")
+                clauses.append("is_blacklisted = 1")
+        else:
+            if bl_list:
+                placeholders = ",".join("?" for _ in bl_list)
+                clauses.append(f"(barcode NOT IN ({placeholders}) AND COALESCE(is_blacklisted, 0) = 0)")
+                params.extend(bl_list)
+            else:
+                clauses.append("COALESCE(is_blacklisted, 0) = 0")
+
         where_clause = ("WHERE " + " AND ".join(clauses)) if clauses else ""
         cursor.execute(f"SELECT COUNT(*) as total FROM urunler {where_clause};", tuple(params))
         row = cursor.fetchone()

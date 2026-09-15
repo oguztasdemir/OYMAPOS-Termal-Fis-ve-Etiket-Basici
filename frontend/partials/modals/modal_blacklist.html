@@ -52,7 +52,20 @@
         </div>
       </div>
 
-      <!-- 3. Gelişmiş Kurallar & Switchler -->
+      <!-- 3. Kara Listedeki Kayıtlı Ürünler (Tüm Engellenen Ürünler, Fiyatları & Barkodları) -->
+      <div style="background: #090d16; padding: 12px 14px; border-radius: 8px; border: 1px solid #1e293b; display: flex; flex-direction: column; gap: 8px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <label style="font-size: 12.5px; font-weight: 700; color: #f87171; display: flex; align-items: center; gap: 6px;">
+            <span>🛡️</span> Kara Listedeki Kayıtlı Ürünler:
+          </label>
+          <span id="blacklistProductsListCount" class="badge" style="background:rgba(239,68,68,0.2); color:#fca5a5; font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700;">0 Ürün</span>
+        </div>
+        <div id="blacklistProductsListContainer" style="max-height: 160px; overflow-y: auto; background: #070c18; border-radius: 6px; border: 1px solid #1e293b;">
+          <!-- JS Doldurur -->
+        </div>
+      </div>
+
+      <!-- 4. Gelişmiş Kurallar & Switchler -->
       <div style="background: #090d16; padding: 12px 14px; border-radius: 8px; border: 1px solid #1e293b; display: flex; flex-direction: column; gap: 10px;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <span style="font-size: 12.5px; color: #cbd5e1; font-weight: 600;">🚬 Sigara ve Tütün Ürünlerini Engelle (Etiketi basılmaz)</span>

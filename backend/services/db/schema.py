@@ -28,6 +28,7 @@ def init_db():
             unit TEXT DEFAULT 'ADET',
             source_device TEXT DEFAULT 'OYMAPOS Barkod Sistemi',
             is_new INTEGER DEFAULT 0,
+            is_blacklisted INTEGER DEFAULT 0,
             created_at TEXT,
             updated_at TEXT,
             last_printed_at TEXT
@@ -49,6 +50,7 @@ def init_db():
             ("unit", "TEXT DEFAULT 'ADET'"),
             ("source_device", "TEXT DEFAULT 'OYMAPOS Barkod Sistemi'"),
             ("is_new", "INTEGER DEFAULT 0"),
+            ("is_blacklisted", "INTEGER DEFAULT 0"),
             ("created_at", "TEXT"),
             ("updated_at", "TEXT"),
             ("last_printed_at", "TEXT")

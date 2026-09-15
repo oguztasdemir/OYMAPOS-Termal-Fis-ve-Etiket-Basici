@@ -498,8 +498,30 @@ function renderDeviceDataRows(items) {
     `;
   });
 
-  tbody.innerHTML = html;
-}
+// Global Window Dışa Aktarımları
+window.initkasa_aktarimDropzone = initkasa_aktarimDropzone;
+window.handleVegaFileSelect = handleVegaFileSelect;
+window.uploadkasa_aktarimFile = uploadkasa_aktarimFile;
+window.switchSyncView = switchSyncView;
+window.loadPriceChanges = loadPriceChanges;
+window.loadNewProducts = loadNewProducts;
+window.loadSyncHistory = loadSyncHistory;
+window.rollbackSyncItem = rollbackSyncItem;
+window.clearAllSyncHistoryConfirm = clearAllSyncHistoryConfirm;
+window.loadkasa_aktarimDevicesAndData = loadkasa_aktarimDevicesAndData;
+window.onSelectkasa_aktarimDevice = onSelectkasa_aktarimDevice;
+window.fetchAndDisplayDeviceData = fetchAndDisplayDeviceData;
+window.filterDeviceDataTable = filterDeviceDataTable;
+window.copySyncLinkToClipboard = function() {
+  const codeEl = document.getElementById('kasa_aktarimSyncUrlCode');
+  if (codeEl) {
+    navigator.clipboard.writeText(codeEl.textContent.trim()).then(() => {
+      showToast('Dükkan bağlantı linki panoya kopyalandı!', 'success');
+    }).catch(() => {
+      showToast('Link kopyalanamadı.', 'warning');
+    });
+  }
+};
 
 // Otomatik Canlı Yoklama
 setInterval(() => {

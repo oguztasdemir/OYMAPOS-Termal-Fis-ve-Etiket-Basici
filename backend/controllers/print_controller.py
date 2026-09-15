@@ -81,6 +81,19 @@ async def print_batch(req: PrintBatchRequest):
         if success:
             printed_count += 1
             if item.barcode:
+                # 1. Satış fiyatı ve isim güncellemesini yap
+                if item.price is not None or item.title:
+                    try:
+                        update_product_details(
+                            barcode=item.barcode,
+                            title=item.title,
+                            price=float(item.price) if item.price is not None else None,
+                            brand=item.brand,
+                            device_name="Mobil Reyon Terminali"
+                        )
+                    except Exception:
+                        pass
+                # 2. Raf etiket fiyatını ve son baskı zamanını güncelle
                 update_product_printed_time(item.barcode, printed_price=item.price)
         else:
             errors.append(f"{item.title}: {msg}")

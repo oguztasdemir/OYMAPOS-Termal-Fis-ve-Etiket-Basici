@@ -201,15 +201,18 @@ async function toggleFlashlight() {
   }
 }
 
+let barcodeCandidateBuffer = { text: '', count: 0, lastTime: 0 };
+
 /**
- * 📷 Tam Ekran Canlı Kamerayı Aç (Hibrit ZXing + BarcodeDetector + OpenCV Backend)
+ * 📷 Tam Ekran Canlı Kamerayı Aç (Hibrit ZXing + BarcodeDetector + OpenCV Backend - OYMAPOS 1-1)
  */
 async function openFullscreenCamera() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     if (location.protocol === 'http:') {
-      const ok = confirm("🔒 Canlı video kamera için mobil güvenlik kuralı gereği HTTPS bağlantısı gereklidir.\n\nHTTPS canlı kamera sayfasına geçmek istiyor musunuz?");
+      const httpsPort = location.port ? (parseInt(location.port) + 1) : 8001;
+      const ok = confirm("🔒 Canlı video kamera için Apple/Chrome güvenlik kuralı gereği HTTPS bağlantısı gereklidir.\n\nHTTPS canlı kamera sayfasına geçmek istiyor musunuz?");
       if (ok) {
-        location.href = `https://${location.hostname}:8001/mobile`;
+        location.href = `https://${location.hostname}:${httpsPort}/mobile`;
       }
       return;
     }
@@ -229,7 +232,7 @@ async function openFullscreenCamera() {
   if (btnTorch) btnTorch.style.display = 'none';
   setCameraZoom(1.0);
 
-  // 1. ZXING ENTERPRISE BARKOD MOTORU & MEDIADEVICES
+  // 1. ZXING & MEDIADEVICES (OYMAPOS STANDART)
   try {
     if (typeof ZXing !== 'undefined') {
       if (!zxingReader) {
@@ -246,7 +249,7 @@ async function openFullscreenCamera() {
         ];
         hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
         hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-        zxingReader = new ZXing.BrowserMultiFormatReader(hints, 50);
+        zxingReader = new ZXing.BrowserMultiFormatReader(hints, 30);
       }
 
       const videoInputDevices = await zxingReader.listVideoInputDevices().catch(() => []);
@@ -296,21 +299,7 @@ async function openFullscreenCamera() {
         }
       }
 
-      // ZXing Stream Çözücü Başlat (Doğrudan Video Akışından Canlı Çözüm)
-      try {
-        zxingReader.decodeFromVideoElement(videoElem, (result, err) => {
-          if (result && isScanningLive) {
-            const raw = result.getText ? result.getText().trim() : String(result).trim();
-            if (validateBarcodeChecksum(raw)) {
-              onLiveBarcodeDetected(raw);
-            }
-          }
-        });
-      } catch (zxStreamErr) {
-        console.warn("ZXing Stream reader başlatılamadı, frame motoruna geçiliyor:", zxStreamErr);
-      }
-
-      // Hibrit Ek Motorları Başlat (Donanım BarcodeDetector + OpenCV Sunucu)
+      // Donanım BarcodeDetector ve Sunucu Hibrit Çözücüyü Başlat
       startContinuousBarcodeEngine(videoElem);
       return;
     }
@@ -353,41 +342,32 @@ async function openFullscreenCamera() {
     closeFullscreenCamera();
     
     if (location.protocol === 'http:') {
-      const ok = confirm("🔒 Canlı video kamera için HTTPS bağlantısı gereklidir.\n\nHTTPS canlı kamera sayfasına geçmek istiyor musunuz?");
+      const httpsPort = location.port ? (parseInt(location.port) + 1) : 8001;
+      const ok = confirm("🔒 Canlı video kamera için Apple/Chrome güvenlik kuralı gereği HTTPS bağlantısı gereklidir.\n\nHTTPS canlı kamera sayfasına geçmek istiyor musunuz?");
       if (ok) {
-        location.href = `https://${location.hostname}:8001/mobile`;
+        location.href = `https://${location.hostname}:${httpsPort}/mobile`;
       }
     } else {
-      showToast("⚠️ Kamera izni verilmedi. Lütfen tarayıcı ayarlarından kamera iznini onaylayın veya Foto Çek butonunu kullanın.", "error");
+      showToast("⚠️ Kamera izni verilmedi. Lütfen tarayıcı ayarlarından kamera iznini onaylayın.", "error");
     }
   }
 }
 
 /**
- * 🔴 Ultra Hızlı Hibrit Canlı Barkod Algılama Motoru
- * 1. Donanım BarcodeDetector (Android/iOS Safari)
- * 2. OpenCV + PyZBar Sunucu CLAHE & Çok Açılı Çözücü
+ * 📷 30 FPS Canlı Barkod Algılama Motoru (OYMAPOS 1-1)
  */
 function startContinuousBarcodeEngine(videoElem) {
   if (frameDetectionInterval) clearInterval(frameDetectionInterval);
   if (!videoElem) return;
 
-  let detectorInstance = null;
-  if ('BarcodeDetector' in window) {
-    try {
-      detectorInstance = new BarcodeDetector({ 
-        formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'itf', 'qr_code'] 
-      });
-    } catch(e) {}
-  }
-
   frameDetectionInterval = setInterval(async () => {
-    if (!isScanningLive || !videoElem || videoElem.readyState < 2) return;
+    if (!isScanningLive || videoElem.readyState < 2) return;
 
-    // 1. İstemci Donanım BarcodeDetector (Tam Kare + Doğrudan Video, 0ms Gecikme)
-    if (detectorInstance) {
+    // 1. İstemci Donanım BarcodeDetector (0ms gecikme)
+    if ('BarcodeDetector' in window) {
       try {
-        const barcodes = await detectorInstance.detect(videoElem);
+        const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'qr_code', 'itf'] });
+        const barcodes = await detector.detect(videoElem);
         if (barcodes && barcodes.length > 0 && barcodes[0].rawValue && isScanningLive) {
           const raw = barcodes[0].rawValue.trim();
           if (validateBarcodeChecksum(raw)) {
@@ -398,7 +378,7 @@ function startContinuousBarcodeEngine(videoElem) {
       } catch(e) {}
     }
 
-    // 2. OpenCV + PyZBar Sunucu Çözücü (Parlama bastırma, yüksek kontrast, CLAHE, eğik barkod)
+    // 2. OpenCV + PyZBar Hibrit Çözücü
     if (!isDecodingServerFrame && isScanningLive) {
       isDecodingServerFrame = true;
       try {
@@ -406,8 +386,10 @@ function startContinuousBarcodeEngine(videoElem) {
         const vh = videoElem.videoHeight || 720;
         
         const zoomRatio = currentZoomLevel > 1.0 ? currentZoomLevel : 1.0;
-        const cropW = Math.min(vw, Math.floor((vw * 0.95) / zoomRatio));
-        const cropH = Math.min(vh, Math.floor((vh * 0.70) / zoomRatio));
+        const baseCropW = Math.floor(vw * 0.85);
+        const baseCropH = Math.floor(vh * 0.55);
+        const cropW = Math.floor(baseCropW / zoomRatio);
+        const cropH = Math.floor(baseCropH / zoomRatio);
         const cropX = Math.floor((vw - cropW) / 2);
         const cropY = Math.floor((vh - cropH) / 2);
 
@@ -415,11 +397,29 @@ function startContinuousBarcodeEngine(videoElem) {
         roiCanvas.height = 360;
         roiCtx.drawImage(videoElem, cropX, cropY, cropW, cropH, 0, 0, 640, 360);
 
-        const b64 = roiCanvas.toDataURL('image/jpeg', 0.82);
+        if (isGlareModeActive) {
+          const imgData = roiCtx.getImageData(0, 0, 640, 360);
+          const d = imgData.data;
+          for (let i = 0; i < d.length; i += 4) {
+            const lum = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
+            if (lum > 225) {
+              d[i] = 190;
+              d[i+1] = 190;
+              d[i+2] = 190;
+            } else if (lum < 110) {
+              d[i] = Math.max(0, d[i] - 30);
+              d[i+1] = Math.max(0, d[i+1] - 30);
+              d[i+2] = Math.max(0, d[i+2] - 30);
+            }
+          }
+          roiCtx.putImageData(imgData, 0, 0);
+        }
+
+        const b64 = roiCanvas.toDataURL('image/jpeg', 0.85);
         const res = await fetch('/api/scanner/decode-frame', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: b64, glare_mode: isGlareModeActive, aggressive: true })
+          body: JSON.stringify({ image: b64, glare_mode: isGlareModeActive })
         });
         const data = await res.json();
         if (data.status === 'success' && data.barcode && isScanningLive) {
@@ -433,7 +433,7 @@ function startContinuousBarcodeEngine(videoElem) {
         isDecodingServerFrame = false;
       }
     }
-  }, 40);
+  }, 35);
 }
 
 /**
@@ -477,7 +477,7 @@ function closeFullscreenCamera() {
 }
 
 /**
- * 🔴 Barkod Algılandığında Tetiklenen Olay (Konsensüs & Yönlendirme)
+ * 🔴 Barkod Algılandığında Tetiklenen Olay (Konsensüs & Yönlendirme - OYMAPOS 1-1)
  */
 function onLiveBarcodeDetected(decodedText) {
   if (!decodedText || !isScanningLive) return;
@@ -487,12 +487,19 @@ function onLiveBarcodeDetected(decodedText) {
     return;
   }
 
-  isScanningLive = false;
-  playBeepSound();
-  if (navigator.vibrate) navigator.vibrate([100]);
+  const now = Date.now();
+  const isChecksumStrict = /^\d{8}$/.test(raw) || /^\d{12}$/.test(raw) || /^\d{13}$/.test(raw);
 
-  closeFullscreenCamera();
-  lookupBarcode(raw);
+  if (isChecksumStrict || (barcodeCandidateBuffer.text === raw && now - barcodeCandidateBuffer.lastTime < 400)) {
+    barcodeCandidateBuffer = { text: '', count: 0, lastTime: 0 };
+    playBeepSound();
+    if (navigator.vibrate) navigator.vibrate([100]);
+
+    closeFullscreenCamera();
+    lookupBarcode(raw);
+  } else {
+    barcodeCandidateBuffer = { text: raw, count: 1, lastTime: now };
+  }
 }
 
 /**
@@ -607,11 +614,48 @@ window.handleGalleryImage = handleGalleryImage;
 
 
 /**
+ * 📅 Tarih Formatlayıcı
+ */
+function formatDateTime(dtStr) {
+  if (!dtStr) return 'Yok / Henüz Yok';
+  try {
+    const s = String(dtStr).trim();
+    if (!s) return 'Yok / Henüz Yok';
+    const d = new Date(s);
+    if (!isNaN(d.getTime()) && s.length >= 10) {
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      const hours = String(d.getHours()).padStart(2, '0');
+      const minutes = String(d.getMinutes()).padStart(2, '0');
+      return `${day}.${month}.${year} ${hours}:${minutes}`;
+    }
+    return s.substring(0, 19);
+  } catch(e) {
+    return String(dtStr);
+  }
+}
+
+/**
  * 🔎 Barkod Sorgulama & Ekrana Getirme (OYMAPOS Standart)
  */
 async function lookupBarcode(barcode) {
   barcode = (barcode || '').trim();
   if (!barcode) return;
+
+  // 1. Eğer ürün basım listesinde zaten varsa kullanıcıyı uyar
+  const existingQueueItem = mobileQueue.find(x => x.barcode === barcode);
+  if (existingQueueItem) {
+    const ok = confirm(
+      `⚠️ Bu ürün zaten basım listesinde mevcut!\n\n` +
+      `Ürün: ${existingQueueItem.title}\n` +
+      `Mevcut Liste Değeri: ₺ ${Number(existingQueueItem.price || 0).toFixed(2)}\n\n` +
+      `Yine de bu ürün açılsın / güncellensin mi?`
+    );
+    if (!ok) {
+      return;
+    }
+  }
 
   currentBarcode = barcode;
   const emptyState = document.getElementById('empty-state');
@@ -621,6 +665,8 @@ async function lookupBarcode(barcode) {
   const badge = document.getElementById('badge-status');
   const inpTitle = document.getElementById('inp-title');
   const inpPrice = document.getElementById('inp-price');
+  const txtPriceDate = document.getElementById('txt-price-updated-at');
+  const txtPrintDate = document.getElementById('txt-last-printed-at');
 
   if (txtBarcode) txtBarcode.innerText = barcode;
   const manualInp = document.getElementById('inp-manual-barcode');
@@ -638,23 +684,18 @@ async function lookupBarcode(barcode) {
       if (inpTitle) inpTitle.value = p.title || "";
       
       const posPrice = (typeof p.price === 'number') ? p.price : Number(p.price || 0);
-      const hasLabel = (p.label_price !== null && p.label_price !== undefined);
-      const labelPrice = hasLabel ? Number(p.label_price) : null;
-
-      document.getElementById('val-pos-price').textContent = `₺ ${posPrice.toFixed(2)}`;
-      document.getElementById('val-label-price').textContent = hasLabel ? `₺ ${labelPrice.toFixed(2)}` : 'Basılmadı';
-
       if (inpPrice) inpPrice.value = posPrice.toFixed(2);
 
-      if (hasLabel && Math.abs(posPrice - labelPrice) > 0.001) {
-        badge.className = "product-status-pill diff";
-        badge.innerText = `⚠️ FARK: ₺${Math.abs(posPrice - labelPrice).toFixed(2)}`;
-      } else if (!p.last_printed_at) {
-        badge.className = "product-status-pill diff";
-        badge.innerText = "⚠️ Baskı Bekliyor";
-      } else {
+      // Tarih alanlarını göster
+      const priceDateStr = p.price_updated_at || p.updated_at || p.created_at;
+      const printDateStr = p.last_printed_at;
+
+      if (txtPriceDate) txtPriceDate.textContent = formatDateTime(priceDateStr);
+      if (txtPrintDate) txtPrintDate.textContent = printDateStr ? formatDateTime(printDateStr) : 'Henüz Basılmadı';
+
+      if (badge) {
         badge.className = "product-status-pill found";
-        badge.innerText = "✓ Kayıtlı & Güncel";
+        badge.innerText = "✓ Kayıtlı Ürün";
       }
 
       showToast(`✓ "${p.title}" getirildi.`, "success");
@@ -663,12 +704,15 @@ async function lookupBarcode(barcode) {
       currentProduct = { barcode: barcode, price: 0, title: '' };
       if (inpTitle) inpTitle.value = "";
       if (inpPrice) inpPrice.value = "";
-      document.getElementById('val-pos-price').textContent = "Yeni Ürün";
-      document.getElementById('val-label-price').textContent = "Yok";
 
-      badge.className = "product-status-pill new";
-      badge.innerText = "➕ Yeni Ürün";
-      showToast("Ürün kayıtlı değil. Bilgilerini yazıp basabilirsiniz.", "info");
+      if (txtPriceDate) txtPriceDate.textContent = 'Yeni Kayıt';
+      if (txtPrintDate) txtPrintDate.textContent = 'Yok';
+
+      if (badge) {
+        badge.className = "product-status-pill new";
+        badge.innerText = "➕ Yeni Ürün";
+      }
+      showToast("Ürün kayıtlı değil. Bilgilerini yazıp listeye ekleyin.", "info");
       if (inpTitle) inpTitle.focus();
     }
 
@@ -712,14 +756,12 @@ async function loadMobilePrinters() {
         if (p === chosen) opt.selected = true;
         sel.appendChild(opt);
       });
-      // Eğer seçili olan liste dışındaysa ilkini seç
       if (!printers.includes(chosen)) {
         chosen = printers[0];
         sel.value = chosen;
       }
     }
 
-    // Seçili yazıcının bağlantı durumunu al
     const stRes = await fetch(`/api/printer/status?printer=${encodeURIComponent(chosen)}`);
     const stJson = await stRes.json();
     const stData = stJson.data || {};
@@ -743,71 +785,20 @@ function handleMobilePrinterChange(newPrinter) {
 }
 
 /**
- * 🖨️ Hemen Etiket Yazdır
+ * ➕ Basım Listesine Ekle (OYMAPOS 1-1 Kuyruk)
  */
-async function printCurrentProductNow() {
-  if (!currentBarcode) return;
+async function addItemToQueue() {
   const title = (document.getElementById('inp-title')?.value || '').trim();
   const price = parseFloat(document.getElementById('inp-price')?.value) || 0;
-  const chosenPrinter = getSelectedMobilePrinter();
-
-  try {
-    const payload = {
-      barcode: currentBarcode,
-      title: title,
-      price: price,
-      copies: 1
-    };
-    if (chosenPrinter) payload.printer = chosenPrinter;
-
-    const res = await fetch('/api/print/single', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-
-    if (data.status === 'success') {
-      showToast(`✓ "${title}" yazıcıya basıldı!`, 'success');
-      document.getElementById('val-label-price').textContent = `₺ ${price.toFixed(2)}`;
-      const badge = document.getElementById('badge-status');
-      if (badge) {
-        badge.className = "product-status-pill found";
-        badge.innerText = "✓ Etiket Güncel";
-      }
-      loadMobilePrinters();
-    } else {
-      showToast('⚠️ Yazdırma Hatası: ' + data.message, 'error');
-      loadMobilePrinters();
-    }
-  } catch(e) {
-    showToast('⚠️ Yazıcıya ulaşılamadı: ' + e.message, 'error');
-    loadMobilePrinters();
-  }
-}
-
-/**
- * 💾 Barkod Okuma Sonrası Fiyatı ve İsmi Güncelle (Kayıt / Audit Geçmişi)
- */
-async function updatePriceFromMobile() {
-  if (!currentBarcode) {
-    showToast("Lütfen önce bir barkod okutun!", "error");
-    return;
-  }
-  const title = (document.getElementById('inp-title')?.value || '').trim();
-  const price = parseFloat(document.getElementById('inp-price')?.value);
 
   if (!title) {
-    showToast("Ürün adı boş olamaz!", "error");
-    return;
-  }
-  if (isNaN(price) || price < 0) {
-    showToast("Geçerli bir fiyat girin!", "error");
+    showToast("Lütfen Ürün Adı girin!", "error");
     return;
   }
 
+  // Eğer yeni ürünse veya fiyat değiştiyse sunucuya kaydet
   try {
-    const res = await fetch(`/api/products/${encodeURIComponent(currentBarcode)}`, {
+    await fetch(`/api/products/${encodeURIComponent(currentBarcode || '8690000000000')}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -818,107 +809,95 @@ async function updatePriceFromMobile() {
         device_name: "Mobil Reyon Terminali"
       })
     });
-    const data = await res.json();
-
-    if (data.status === 'success') {
-      showToast(`✓ "${title}" fiyatı (₺ ${price.toFixed(2)}) başarıyla güncellendi!`, 'success');
-      document.getElementById('val-pos-price').textContent = `₺ ${price.toFixed(2)}`;
-      if (currentProduct) {
-        currentProduct.price = price;
-        currentProduct.title = title;
-      }
-      const badge = document.getElementById('badge-status');
-      if (badge) {
-        badge.className = "product-status-pill diff";
-        badge.innerText = "⚠️ Baskı Bekliyor";
-      }
-    } else {
-      showToast('Güncelleme hatası: ' + data.message, 'error');
-    }
-  } catch(e) {
-    showToast('Bağlantı hatası: ' + e.message, 'error');
-  }
-}
-
-/**
- * ✓ Etiket Basıldı Onayla (Fiziki değişim onayı)
- */
-async function confirmPrintedOnly() {
-  if (!currentBarcode) return;
-  try {
-    const res = await fetch(`/api/products/${encodeURIComponent(currentBarcode)}/confirm-printed`, { method: 'POST' });
-    const data = await res.json();
-
-    if (data.status === 'success') {
-      showToast('✓ Etiket basıldı olarak onaylandı!', 'success');
-      const posP = parseFloat(document.getElementById('inp-price')?.value) || (currentProduct ? currentProduct.price : 0);
-      document.getElementById('val-label-price').textContent = `₺ ${Number(posP).toFixed(2)}`;
-      const badge = document.getElementById('badge-status');
-      if (badge) {
-        badge.className = "product-status-pill found";
-        badge.innerText = "✓ Etiket Güncel";
-      }
-    } else {
-      showToast('Hata: ' + data.message, 'error');
-    }
-  } catch(e) {
-    showToast('Hata: ' + e.message, 'error');
-  }
-}
-
-/**
- * ➕ Basım Listesine Ekle (Kuyruk)
- */
-function addItemToQueue() {
-  const title = (document.getElementById('inp-title')?.value || '').trim();
-  const price = parseFloat(document.getElementById('inp-price')?.value) || 0;
-
-  if (!title) {
-    showToast("Lütfen Ürün Adı girin!", "error");
-    return;
-  }
+  } catch(e) {}
 
   const existingIdx = mobileQueue.findIndex(x => x.barcode === currentBarcode);
   if (existingIdx !== -1) {
     mobileQueue[existingIdx].title = title;
     mobileQueue[existingIdx].price = price;
+    // Güncellenen ürünü en üste taşı
+    const item = mobileQueue.splice(existingIdx, 1)[0];
+    mobileQueue.unshift(item);
+    showToast(`✓ "${title}" güncellendi.`, "success");
   } else {
-    mobileQueue.push({
-      barcode: currentBarcode,
+    mobileQueue.unshift({
+      barcode: currentBarcode || "8690000000000",
       title: title,
-      price: price
+      price: price,
+      copies: 1
     });
+    showToast(`➕ "${title}" basım listesine eklendi!`, "success");
   }
 
   saveQueueToStorage();
-  showToast(`✓ "${title}" basım listesine eklendi!`, "success");
+  if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
 
   // Kart durumunu güncelle
-  const productCard = document.getElementById('product-card');
-  const addedCard = document.getElementById('added-success-card');
-  const addedDesc = document.getElementById('added-success-desc');
-  if (productCard) productCard.style.display = 'none';
-  if (addedCard) addedCard.style.display = 'flex';
-  if (addedDesc) addedDesc.textContent = `${title} (₺ ${price.toFixed(2)})`;
+  const prodCard = document.getElementById('product-card');
+  if (prodCard) prodCard.style.display = 'none';
+  if (document.getElementById('empty-state')) document.getElementById('empty-state').style.display = 'none';
+
+  const successCard = document.getElementById('added-success-card');
+  const successTitle = document.getElementById('added-success-title');
+  const successDesc = document.getElementById('added-success-desc');
+  const badgeCountText = document.getElementById('added-badge-count-text');
+
+  if (successTitle) successTitle.innerText = `"${title}" başarıyla listeye eklendi!`;
+  if (successDesc) successDesc.innerHTML = `<strong>Barkod:</strong> ${currentBarcode || '-'} &nbsp;|&nbsp; <strong>Fiyat:</strong> ₺ ${price.toFixed(2)}`;
+  if (badgeCountText) badgeCountText.innerText = `Listeyi Gör (${mobileQueue.length})`;
+  if (successCard) successCard.style.display = 'flex';
+
+  const manualInp = document.getElementById('inp-manual-barcode');
+  if (manualInp) manualInp.value = '';
+  currentBarcode = '';
 }
+
+/**
+ * 📷 Sıradaki Okutmaya Hazırlan
+ */
+function prepareForNextScan() {
+  if (document.getElementById('empty-state')) document.getElementById('empty-state').style.display = 'none';
+  if (document.getElementById('product-card')) document.getElementById('product-card').style.display = 'none';
+  if (document.getElementById('added-success-card')) document.getElementById('added-success-card').style.display = 'none';
+  const manualInp = document.getElementById('inp-manual-barcode');
+  if (manualInp) manualInp.value = '';
+  currentBarcode = '';
+  openFullscreenCamera();
+}
+
+window.prepareForNextScan = prepareForNextScan;
 
 function switchMobileTab(tabName) {
   const secScan = document.getElementById('section-scan');
   const secQueue = document.getElementById('section-queue');
+  const secChanges = document.getElementById('section-changes');
   const btnScan = document.getElementById('tab-btn-scan');
   const btnQueue = document.getElementById('tab-btn-queue');
+  const btnChanges = document.getElementById('tab-btn-changes');
 
   if (tabName === 'scan') {
-    secScan.style.display = 'flex';
-    secQueue.style.display = 'none';
-    btnScan.classList.add('active');
-    btnQueue.classList.remove('active');
-  } else {
-    secScan.style.display = 'none';
-    secQueue.style.display = 'flex';
-    btnScan.classList.remove('active');
-    btnQueue.classList.add('active');
+    if (secScan) secScan.style.display = 'flex';
+    if (secQueue) secQueue.style.display = 'none';
+    if (secChanges) secChanges.style.display = 'none';
+    if (btnScan) btnScan.classList.add('active');
+    if (btnQueue) btnQueue.classList.remove('active');
+    if (btnChanges) btnChanges.classList.remove('active');
+  } else if (tabName === 'queue') {
+    if (secScan) secScan.style.display = 'none';
+    if (secQueue) secQueue.style.display = 'flex';
+    if (secChanges) secChanges.style.display = 'none';
+    if (btnScan) btnScan.classList.remove('active');
+    if (btnQueue) btnQueue.classList.add('active');
+    if (btnChanges) btnChanges.classList.remove('active');
     renderQueueList();
+  } else if (tabName === 'changes') {
+    if (secScan) secScan.style.display = 'none';
+    if (secQueue) secQueue.style.display = 'none';
+    if (secChanges) secChanges.style.display = 'flex';
+    if (btnScan) btnScan.classList.remove('active');
+    if (btnQueue) btnQueue.classList.remove('active');
+    if (btnChanges) btnChanges.classList.add('active');
+    loadReportDates();
   }
 }
 
@@ -962,15 +941,21 @@ function renderQueueList() {
   if (emptyState) emptyState.style.display = 'none';
   let html = '';
   mobileQueue.forEach((item, idx) => {
+    const pVal = Number(item.price || 0).toFixed(2);
     html += `
-      <div class="queue-card">
+      <div class="queue-card" onclick="openProductEditFromQueue(${idx})" style="cursor:pointer;" title="Detayları açmak ve düzenlemek için dokunun">
         <div class="queue-card-top">
           <span class="queue-card-title">${item.title}</span>
-          <button class="btn-remove-item" onclick="removeItemFromQueue(${idx})">🗑️ Kaldır</button>
+          <button class="btn-remove-item" onclick="event.stopPropagation(); removeItemFromQueue(${idx})">🗑️ Kaldır</button>
         </div>
         <div class="queue-card-bottom">
           <span class="queue-barcode">${item.barcode}</span>
-          <input type="number" step="0.01" class="queue-price-inp" value="${item.price}" onchange="updateQueuePrice(${idx}, this.value)">
+          <div style="display:flex; align-items:center; gap:6px;" onclick="event.stopPropagation()">
+            <span style="font-size:12px; color:#38bdf8; font-weight:800;">₺</span>
+            <input type="number" step="0.01" class="queue-price-inp" value="${pVal}" 
+                   onclick="this.select()" 
+                   onchange="updateQueuePrice(${idx}, this.value)">
+          </div>
         </div>
       </div>
     `;
@@ -978,10 +963,24 @@ function renderQueueList() {
   container.innerHTML = html;
 }
 
-function updateQueuePrice(idx, val) {
+async function updateQueuePrice(idx, val) {
   if (mobileQueue[idx]) {
-    mobileQueue[idx].price = parseFloat(val) || 0;
+    const newP = parseFloat(val) || 0;
+    mobileQueue[idx].price = newP;
     saveQueueToStorage();
+    
+    // Veritabanını da güncelle
+    try {
+      await fetch(`/api/products/${encodeURIComponent(mobileQueue[idx].barcode)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: mobileQueue[idx].title,
+          price: newP,
+          device_name: "Mobil Reyon Terminali"
+        })
+      });
+    } catch(e) {}
   }
 }
 
@@ -1031,10 +1030,30 @@ async function submitQueueBatchPrint() {
     const data = await res.json();
 
     if (data.status === 'success') {
-      showToast(`✓ ${mobileQueue.length} etiket başarıyla basıldı!`, "success");
+      const printedCount = mobileQueue.length;
+      showToast(`✓ ${printedCount} etiket başarıyla basıldı!`, "success");
       mobileQueue = [];
       saveQueueToStorage();
       renderQueueList();
+
+      // Yazdırma sonrası onay ve bilgilendirme hatırlatıcısı
+      setTimeout(async () => {
+        try {
+          const todayStr = new Date().toISOString().split('T')[0];
+          const repRes = await fetch(`/api/reports/price-changes?date=${todayStr}&source_filter=all`);
+          const repData = await repRes.json();
+          const todayCount = repData.data?.total_count || 0;
+          
+          if (todayCount > 0) {
+            alert(
+              `🔔 HATIRLATMA & BİLGİLENDİRME:\n\n` +
+              `Bugün fiyatı değişen toplam ${todayCount} adet ürününüz bulunmaktadır.\n\n` +
+              `Lütfen bu ürünlerin raflardaki etiket fiyatlarını kontrol edip düzeltiniz.`
+            );
+          }
+        } catch(e) {}
+      }, 1200);
+
       setTimeout(() => switchMobileTab('scan'), 1000);
     } else {
       showToast("⚠️ Yazdırma hatası: " + data.message, "error");
@@ -1044,6 +1063,408 @@ async function submitQueueBatchPrint() {
   }
 }
 
+/**
+ * =========================================================================
+ * 📊 FİYATI DEĞİŞEN ÜRÜNLER RAPORU (MOBİL)
+ * =========================================================================
+ */
+let availableReportDates = [];
+let currentReportDate = "";
+let currentReportSource = "all"; // Varsayılan: Tümü
+
+function handleMobileReportDateChange(targetDate) {
+  currentReportDate = targetDate;
+  const selSource = document.getElementById('sel-report-source');
+  if (selSource) currentReportSource = selSource.value;
+  loadMobilePriceChanges(currentReportDate, currentReportSource);
+}
+
+function handleMobileReportSourceChange(source) {
+  currentReportSource = source || "all";
+  const selDate = document.getElementById('sel-report-date');
+  const targetDate = selDate?.value || currentReportDate;
+  loadMobilePriceChanges(targetDate, currentReportSource);
+}
+
+async function loadReportDates() {
+  const selDate = document.getElementById('sel-report-date');
+  const selSource = document.getElementById('sel-report-source');
+  if (selSource) {
+    currentReportSource = selSource.value || currentReportSource;
+  }
+  if (!selDate) return;
+  
+  try {
+    const res = await fetch(`/api/reports/price-changes/dates?source_filter=${encodeURIComponent(currentReportSource)}`);
+    const resData = await res.json();
+    const dates = resData.data?.dates || [];
+    availableReportDates = dates;
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (!dates.includes(todayStr)) {
+      dates.unshift(todayStr);
+    }
+
+    selDate.innerHTML = '';
+    dates.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d;
+      opt.textContent = d === todayStr ? `Bugün (${d})` : d;
+      selDate.appendChild(opt);
+    });
+
+    currentReportDate = selDate.value || todayStr;
+    await loadMobilePriceChanges(currentReportDate, currentReportSource);
+  } catch(e) {
+    console.error("Rapor tarihleri yüklenemedi:", e);
+    const todayStr = new Date().toISOString().split('T')[0];
+    selDate.innerHTML = `<option value="${todayStr}">Bugün (${todayStr})</option>`;
+    currentReportDate = todayStr;
+    await loadMobilePriceChanges(currentReportDate, currentReportSource);
+  }
+}
+
+async function loadMobilePriceChanges(targetDate, targetSource) {
+  const selSource = document.getElementById('sel-report-source');
+  currentReportSource = targetSource || (selSource?.value || currentReportSource);
+  currentReportDate = targetDate || currentReportDate;
+
+  const container = document.getElementById('report-items-container');
+  const summaryText = document.getElementById('report-summary-text');
+  const emptyState = document.getElementById('report-empty-state');
+  if (!container) return;
+
+  if (summaryText) summaryText.textContent = `${currentReportDate} için ürünler yükleniyor...`;
+  container.innerHTML = '<div style="text-align:center; padding:20px; color:#64748b;">Yükleniyor...</div>';
+  if (emptyState) emptyState.style.display = 'none';
+
+  try {
+    const res = await fetch(`/api/reports/price-changes?date=${encodeURIComponent(currentReportDate)}&source_filter=${encodeURIComponent(currentReportSource)}`);
+    const data = await res.json();
+
+    if (data.status === 'success') {
+      const items = data.data?.items || [];
+      const count = items.length;
+      
+      const filterLabels = {
+        'all': '🌐 Tümü (Mobil + Masaüstü)',
+        'mobile': '📱 Sadece Mobil QR Değişimleri',
+        'desktop': '💻 Sadece Masaüstü Tekil Değişimleri'
+      };
+      const activeLabel = filterLabels[currentReportSource] || 'Fiyat Değişimleri';
+
+      if (summaryText) {
+        summaryText.innerHTML = `📅 <b>${currentReportDate}</b> &nbsp;|&nbsp; <span>${activeLabel}</span>: <b>${count}</b> Adet`;
+      }
+
+      if (count === 0) {
+        container.innerHTML = '';
+        if (emptyState) {
+          emptyState.style.display = 'flex';
+          const emptyDesc = emptyState.querySelector('.empty-desc');
+          if (emptyDesc) {
+            emptyDesc.textContent = currentReportSource === 'mobile'
+              ? 'Seçilen tarihte mobilden QR okutularak fiyatı değiştirilen ürün bulunmuyor.'
+              : (currentReportSource === 'desktop'
+                ? 'Seçilen tarihte masaüstünde tekil olarak fiyatı değiştirilen ürün bulunmuyor.'
+                : 'Seçilen tarihte herhangi bir fiyat değişimi kaydı bulunmuyor.');
+          }
+        }
+        return;
+      }
+
+      if (emptyState) emptyState.style.display = 'none';
+      window.currentReportItemsMap = items;
+      let html = '';
+      items.forEach((item, idx) => {
+        const diffAmt = Number(item.diff_amount) || 0;
+        const diffStr = diffAmt > 0 ? `+${diffAmt.toFixed(2)} TL` : `${diffAmt.toFixed(2)} TL`;
+        const diffBadgeClass = diffAmt > 0 ? 'diff-up' : (diffAmt < 0 ? 'diff-down' : '');
+        const oldP = Number(item.old_price) || 0;
+        const newP = Number(item.new_price) || 0;
+
+        const isMob = (item.source_type === 'mobile');
+        const sourceBadge = isMob 
+          ? '<span style="font-size:10px; background:rgba(2,132,199,0.18); color:#38bdf8; padding:2px 6px; border-radius:4px; font-weight:700; border:1px solid rgba(2,132,199,0.3);">📱 Mobil QR</span>'
+          : '<span style="font-size:10px; background:rgba(99,102,241,0.18); color:#a5b4fc; padding:2px 6px; border-radius:4px; font-weight:700; border:1px solid rgba(99,102,241,0.3);">💻 Masaüstü</span>';
+
+        html += `
+          <div class="report-item-card">
+            <div class="report-item-header">
+              <div class="report-item-title">${idx + 1}. ${item.title}</div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                ${sourceBadge}
+                <span class="report-item-barcode">${item.barcode}</span>
+              </div>
+            </div>
+            <div class="report-item-prices">
+              <div class="price-col">
+                <span class="price-label">Eski Fiyat</span>
+                <span class="price-val-old">${oldP.toFixed(2)} TL</span>
+              </div>
+              <div class="price-col" style="text-align:center;">
+                <span class="price-label">Fark</span>
+                <span class="price-diff-badge ${diffBadgeClass}">${diffStr}</span>
+              </div>
+              <div class="price-col" style="text-align:right;">
+                <span class="price-label">Yeni Fiyat</span>
+                <span class="price-val-new">${newP.toFixed(2)} TL</span>
+              </div>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px;">
+              <span style="font-size:11px; color:#64748b;">🕒 ${item.time || ''}</span>
+              <button class="btn-action-camera" style="padding:6px 14px; font-size:12px; border-radius:8px; font-weight:800; background:linear-gradient(135deg, #0284c7 0%, #0369a1 100%);" onclick="openBarcodeDisplayModalByIndex(${idx})">
+                <span>🏷️</span>
+                <span>Barkodu Aç</span>
+              </button>
+            </div>
+          </div>
+        `;
+      });
+      container.innerHTML = html;
+    } else {
+      if (summaryText) summaryText.textContent = "Veriler alınırken hata oluştu.";
+      container.innerHTML = '';
+      if (emptyState) emptyState.style.display = 'flex';
+    }
+  } catch(e) {
+    if (summaryText) summaryText.textContent = "Bağlantı hatası: " + e.message;
+    container.innerHTML = '';
+    if (emptyState) emptyState.style.display = 'flex';
+  }
+}
+
+/**
+ * 🏷️ Değişenler Listesinden Index Üzerinden Detay & Düzenleme Modalı Açma
+ */
+function openBarcodeDisplayModalByIndex(index) {
+  if (!window.currentReportItemsMap || !window.currentReportItemsMap[index]) return;
+  const item = window.currentReportItemsMap[index];
+  openBarcodeDisplayModal(item.barcode, item.title, item.old_price, item.new_price);
+}
+
+/**
+ * 📋 Basım Listesinden (Queue) Detay & Düzenleme Modalı Açma
+ */
+function openProductEditFromQueue(index) {
+  if (!mobileQueue || !mobileQueue[index]) return;
+  const item = mobileQueue[index];
+  openBarcodeDisplayModal(item.barcode, item.title, null, item.price);
+}
+
+let activeModalBarcode = null;
+
+/**
+ * 🏷️ Tekil Ürün Detay & Düzenleme Modalını Ekranda Açma
+ */
+function openBarcodeDisplayModal(barcode, title, oldPrice, newPrice) {
+  const modal = document.getElementById('barcode-display-modal');
+  const barcodeNumEl = document.getElementById('modal-barcode-num');
+  const titleInp = document.getElementById('modal-edit-title');
+  const priceInp = document.getElementById('modal-edit-price');
+  const oldPriceRow = document.getElementById('modal-barcode-old-price-row');
+  const oldPriceEl = document.getElementById('modal-barcode-old-price');
+  const svgEl = document.getElementById('modal-barcode-svg');
+
+  if (!modal) return;
+  activeModalBarcode = barcode;
+
+  // 1. Form Değerlerini Doldur
+  if (barcodeNumEl) barcodeNumEl.textContent = barcode || '-';
+  if (titleInp) titleInp.value = title || '';
+  if (priceInp) priceInp.value = (Number(newPrice || 0)).toFixed(2);
+
+  if (oldPrice !== null && oldPrice !== undefined && oldPriceRow && oldPriceEl) {
+    oldPriceRow.style.display = 'flex';
+    oldPriceEl.textContent = `${Number(oldPrice).toFixed(2)} TL`;
+  } else if (oldPriceRow) {
+    oldPriceRow.style.display = 'none';
+  }
+
+  // 2. Modalı hemen görünür yap
+  modal.style.display = 'flex';
+  modal.classList.add('active');
+
+  // 3. Barkod SVG'sini çiz
+  if (svgEl) {
+    try {
+      const cleanCode = String(barcode || '').trim();
+      if (cleanCode && typeof JsBarcode === 'function') {
+        const isEan13 = /^\d{13}$/.test(cleanCode);
+        const isEan8 = /^\d{8}$/.test(cleanCode);
+        const format = isEan13 ? "EAN13" : (isEan8 ? "EAN8" : "CODE128");
+        
+        try {
+          JsBarcode(svgEl, cleanCode, {
+            format: format,
+            lineColor: "#000000",
+            width: 2.2,
+            height: 65,
+            displayValue: true,
+            fontSize: 14,
+            font: "JetBrains Mono",
+            textMargin: 4,
+            margin: 4
+          });
+        } catch (innerErr) {
+          JsBarcode(svgEl, cleanCode, {
+            format: "CODE128",
+            lineColor: "#000000",
+            width: 2.2,
+            height: 65,
+            displayValue: true,
+            fontSize: 14,
+            font: "JetBrains Mono",
+            textMargin: 4,
+            margin: 4
+          });
+        }
+      }
+    } catch (e) {
+      console.warn("JsBarcode çizim hatası:", e);
+    }
+  }
+
+  try {
+    playBeepSound();
+  } catch(e) {}
+}
+
+/**
+ * 💾 Modal İçerisinden Ürün Adı ve Fiyat Güncellemesini Kaydet
+ */
+async function saveModalProductEdit() {
+  if (!activeModalBarcode) return;
+  const newTitle = (document.getElementById('modal-edit-title')?.value || '').trim();
+  const newPrice = parseFloat(document.getElementById('modal-edit-price')?.value) || 0;
+
+  if (!newTitle) {
+    showToast("Ürün adı boş olamaz!", "error");
+    return;
+  }
+
+  showToast("Güncelleniyor...", "info");
+
+  try {
+    // 1. Veritabanına kaydet
+    const res = await fetch(`/api/products/${encodeURIComponent(activeModalBarcode)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: newTitle,
+        price: newPrice,
+        device_name: "Mobil Reyon Terminali"
+      })
+    });
+    const data = await res.json();
+
+    if (data.status === 'success') {
+      // 2. Basım listesinde (Queue) varsa orayı da güncelle
+      const qIdx = mobileQueue.findIndex(x => x.barcode === activeModalBarcode);
+      if (qIdx !== -1) {
+        mobileQueue[qIdx].title = newTitle;
+        mobileQueue[qIdx].price = newPrice;
+        saveQueueToStorage();
+        renderQueueList();
+      }
+
+      // 3. Fiyat Gör sekmesinde aktifse orayı güncelle
+      if (currentBarcode === activeModalBarcode) {
+        const inpTitle = document.getElementById('inp-title');
+        const inpPrice = document.getElementById('inp-price');
+        if (inpTitle) inpTitle.value = newTitle;
+        if (inpPrice) inpPrice.value = newPrice.toFixed(2);
+      }
+
+      // 4. Değişenler listesindeyse raporu tazele
+      const secChanges = document.getElementById('section-changes');
+      if (secChanges && secChanges.style.display !== 'none') {
+        const selDate = document.getElementById('sel-report-date');
+        const selSource = document.getElementById('sel-report-source');
+        loadMobilePriceChanges(selDate?.value, selSource?.value);
+      }
+
+      showToast(`✓ "${newTitle}" başarıyla güncellendi (₺${newPrice.toFixed(2)})`, "success");
+      closeBarcodeDisplayModal();
+    } else {
+      showToast("Güncelleme hatası: " + (data.message || 'Hata oluştu'), "error");
+    }
+  } catch(e) {
+    showToast("Bağlantı hatası: " + e.message, "error");
+  }
+}
+
+function closeBarcodeDisplayModal() {
+  const modal = document.getElementById('barcode-display-modal');
+  if (modal) {
+    modal.style.display = 'none';
+    modal.classList.remove('active');
+  }
+  activeModalBarcode = null;
+}
+
+async function downloadMobileReportPdf() {
+  const selDate = document.getElementById('sel-report-date');
+  const selSource = document.getElementById('sel-report-source');
+  const targetDate = (selDate && selDate.value) ? selDate.value : currentReportDate;
+  const targetSource = (selSource && selSource.value) ? selSource.value : currentReportSource;
+
+  if (!targetDate) {
+    showToast("Lütfen bir tarih seçin.", "error");
+    return;
+  }
+  showToast("PDF hazırlanıyor, indiriliyor...", "info");
+  const url = `/api/reports/price-changes/pdf?date=${encodeURIComponent(targetDate)}&source_filter=${encodeURIComponent(targetSource)}`;
+  window.open(url, '_blank');
+
+  // PDF açıldıktan hemen sonra kullanıcıya onay sorusu yönelt
+  setTimeout(async () => {
+    const ok = confirm(
+      `🖨️ PDF Raporu Oluşturuldu (${targetDate})!\n\n` +
+      `Baskı aldığınız bu ürünlerin sistemdeki etiket raf fiyatlarını güncel satış fiyatlarına eşitlemek ve basıldı olarak onaylamak istiyor musunuz?`
+    );
+    if (ok) {
+      try {
+        const res = await fetch('/api/reports/price-changes/confirm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ date: targetDate, source_filter: targetSource })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+          const updatedCount = data.data?.updated_count || 0;
+          showToast(`✅ ${updatedCount} ürünün etiket fiyatı güncellendi & onaylandı!`, 'success');
+          // Raporu ve listeyi tazele
+          loadMobilePriceChanges(targetDate, targetSource);
+
+          // Onay verdikten sonra mobilde hatırlatıcı göster
+          setTimeout(() => {
+            alert(
+              `🔔 DİKKAT & HATIRLATMA:\n\n` +
+              `Bugün fiyatı değişen ${updatedCount} adet ürününüz var, bunların fiyatını düzeltin.`
+            );
+          }, 400);
+        } else {
+          showToast("Onaylama hatası: " + (data.message || 'Hata oluştu'), 'error');
+        }
+      } catch(e) {
+        showToast("Bağlantı hatası: " + e.message, 'error');
+      }
+    }
+  }, 1000);
+}
+
+window.loadReportDates = loadReportDates;
+window.loadMobilePriceChanges = loadMobilePriceChanges;
+window.handleMobileReportDateChange = handleMobileReportDateChange;
+window.handleMobileReportSourceChange = handleMobileReportSourceChange;
+window.openProductEditFromQueue = openProductEditFromQueue;
+window.saveModalProductEdit = saveModalProductEdit;
+window.downloadMobileReportPdf = downloadMobileReportPdf;
+window.openBarcodeDisplayModal = openBarcodeDisplayModal;
+window.openBarcodeDisplayModalByIndex = openBarcodeDisplayModalByIndex;
+window.closeBarcodeDisplayModal = closeBarcodeDisplayModal;
+
 // Başlatıcı
 document.addEventListener('DOMContentLoaded', () => {
   loadQueueFromStorage();
@@ -1051,3 +1472,4 @@ document.addEventListener('DOMContentLoaded', () => {
   loadMobilePrinters();
   setInterval(loadMobilePrinters, 8000);
 });
+

@@ -44,33 +44,67 @@ PROTECTED_WORDS = {
 
 def strip_supplier_stock_codes(title: str) -> str:
     """
-    Ürün adının başında yer alan tedarikçi stok kodlarını, anlamsız kısa kodları
-    ve sembolleri temizler. (Örn: 'ABC-1234 ÇİKOLATA' -> 'ÇİKOLATA')
+    Ürün adındaki tedarikçi stok kodlarını, baştaki barkod numaralarını,
+    marka arkasındaki kodları ve sondaki koli/paketleme artıklarını temizler.
+    (Örn: '8690579003339 TADIM...' -> 'TADIM...', 'KENT 12429 OLİPS...' -> 'KENT OLİPS...', 'ULK 1905 TAC...' -> 'ÜLKER TAC...')
     """
     if not title:
         return ""
     s = fix_turkish_corrupted_chars(title).strip()
-    
+
     # 1. Başta yer alan - veya _ sembolleri
-    s = re.sub(r'^[-\-_.:\s*#]+', '', s).strip()
-    
-    # 2. Ürün adının başındaki stok/barkod kodları (korunan kelimeler hariç)
+    s = re.sub(r'^[-\-_.:\s*#+]+', '', s).strip()
+
+    # 2. Baştaki 8-14 haneli barkod numaralarını temizle (Örn: '8690579003339 TADIM...')
+    s = re.sub(r'^\d{8,14}\s+', '', s).strip()
+
+    # 3. Koli/Paketleme tedarikçi artıklarını temizle (Örn: '[X12]', '(X24)')
+    s = re.sub(r'\s*\[\s*X\d+\s*\]|\s*\(\s*X\d+\s*\)', '', s, flags=re.IGNORECASE).strip()
+
+    # 4. Marka + Stok Kodu temizleme:
+    # Örn: 'KENT 12429 OLİPS' -> 'KENT OLİPS', 'ULK 1905 TAC KRAKER' -> 'ÜLKER TAC KRAKER', 'ETI 16459 LIFALIF' -> 'ETİ LIFALIF'
+    brand_code_pattern = re.compile(
+        r'^(RMZ\.ULK|BAY\.ULK|BY\.ULK|ULK|ÜLK|ULKER|ÜLKER|ETI|ETİ|KENT|PINAR|DOĞUŞ|DOGUS|NESTLE|NESCAFE|TORKU|ICIM|İÇİM|KOMİLİ|KOMILI|ÇAYKUR|CAYKUR|BİNGO|BINGO|DURU|HACISAKIR|HACI\s*ŞAKİR|İPEK|IPEK|ELİDOR|ELIDOR|PANTENE|CALVE|SARELLE|TADELLE|HARİBO|HARIBO|FALIM|ALGİDA|ALGIDA|DİMES|DIMES|CAPPY|TAMEK|TAT|ÖNCÜ|ONCU|YUDUM|ORUÇOĞLU|ORUCOGLU|KRİSTAL|KRISTAL|BİFROST|BIFROST)\s+(\d{3,6}|\d{2,4}-\d{1,3})\s+(.+)$',
+        re.IGNORECASE
+    )
+    m = brand_code_pattern.match(s)
+    if m:
+        brand = m.group(1).upper()
+        if brand in ['ULK', 'ÜLK', 'ULKER', 'ÜLKER', 'RMZ.ULK', 'BAY.ULK', 'BY.ULK']:
+            brand = 'ÜLKER'
+        elif brand in ['ETI', 'ETİ']:
+            brand = 'ETİ'
+        elif brand in ['ICIM', 'İÇİM']:
+            brand = 'İÇİM'
+        elif brand in ['KOMILI', 'KOMİLİ']:
+            brand = 'KOMİLİ'
+        
+        code = m.group(2)
+        rest = m.group(3).strip()
+        first_rest = rest.split()[0].upper() if rest.split() else ''
+        if first_rest in ['GR', 'GRAM', 'KG', 'ML', 'LT', 'LİTRE', 'LITRE', 'CL', 'ADET', 'LI', 'LU', 'LÜ', 'LUK', 'LÜK']:
+            s = f"{brand} {code} {rest}"
+        else:
+            s = f"{brand} {rest}"
+
+    # 'ULK ' / 'BAY.ULK ' / 'RMZ.ULK ' öneklerini 'ÜLKER ' ile değiştir
+    s = re.sub(r'^(?:RMZ\.ULK|BAY\.ULK|BY\.ULK|ULK)\s+', 'ÜLKER ', s, flags=re.IGNORECASE)
+
+    # 5. Başta yer alan anlamsız stok kodları (korunan kelimeler hariç)
     first_token_match = re.match(r'^([A-Za-z0-9\-_./]+)\s+(.+)$', s)
     if first_token_match:
         token = first_token_match.group(1).upper()
         rest = first_token_match.group(2).strip()
-        
-        # Eğer ilk kelime PROTECTED_WORDS listesinde değilse ve kod formatındaysa
-        # (Ancak 50'Lİ, 100'LÜ, 2'Lİ, 3'LÜ gibi adet/miktar belirten ifadeleri koru)
         is_pack_count = bool(re.match(r'^[0-9]+[\'"]?[A-Za-zÇŞĞÜÖİçşğüöı]+$', token))
         if token not in PROTECTED_WORDS and not is_pack_count:
-            # Örn: 010203, A12-34, STK99, 0012, 123456
             if re.match(r'^(?:[0-9]{3,8}[A-Za-z0-9\-_.]*|[A-Za-z]{2,5}[0-9]+[A-Za-z0-9\-_.]*)$', token):
                 s = rest
-            # Örn: ABC-DEF-12
             elif '-' in token and re.search(r'[0-9]', token):
                 s = rest
-                
+
+    # 6. Sonda tek kalan tire/kod artıkları (örn: 'KOMİLİ PECETE 100LU 7632-0' -> 'KOMİLİ PECETE 100LU')
+    s = re.sub(r'\s+\d{3,5}-\d{1,3}\b', '', s)
+
     s = re.sub(r'[\-_.:\s]+$', '', s)
     s = re.sub(r'\s+', ' ', s).strip()
     return s
@@ -626,6 +660,29 @@ def unify_product_title(title: str, raw_system_title: str = None, brand: str = N
     result = re.sub(r"\b(100)'Lİ\b", r"100'LÜ", result)
     result = re.sub(r"\bTEKLI\b", "TEKLİ", result, flags=re.IGNORECASE)
 
+    # 4.2 Kategori ve Marka Standart Format Kuralları (Redbull, Nescafe, Coca-Cola vb.)
+    # REDBULL Standartlaştırması
+    result = re.sub(r'\bRED\s*BULL\b', 'REDBULL', result, flags=re.IGNORECASE)
+    result = re.sub(r'\bENERGY\s+DRINK\b', 'ENERJİ İÇECEĞİ', result, flags=re.IGNORECASE)
+    result = re.sub(r'\bREDBULL\s+(\d+)\s+ENERJİ(?:\s+İÇECEĞİ)?\b', r'REDBULL ENERJİ İÇECEĞİ \1 ML', result, flags=re.IGNORECASE)
+    result = re.sub(r'\bREDBULL\s+(\d+)\s*MLT\b', r'REDBULL ENERJİ İÇECEĞİ \1 ML', result, flags=re.IGNORECASE)
+    result = re.sub(r'\bSUGARFREE\b', 'ŞEKERSİZ', result, flags=re.IGNORECASE)
+    
+    # NESCAFE Standartlaştırması
+    result = re.sub(r'\bNESCAFE\s+3\s*[\/\-UuÜü]\s*1\s*(?:ARADA|BİRARADA)?\b', 'NESCAFE 3Ü1 ARADA', result, flags=re.IGNORECASE)
+    result = re.sub(r'\bNESCAFE\s+3ON1\b', 'NESCAFE 3Ü1 ARADA', result, flags=re.IGNORECASE)
+    result = re.sub(r'\bNESCAFE\s+2\s*[\/\-UuÜü]\s*1\s*(?:ARADA)?\b', 'NESCAFE 2Sİ1 ARADA', result, flags=re.IGNORECASE)
+    result = re.sub(r'\bNESCAFE\s+CLASIC\b', 'NESCAFE CLASSIC', result, flags=re.IGNORECASE)
+    result = re.sub(r'\bNESCAFE\s+EXPESS\b', 'NESCAFE XPRESS', result, flags=re.IGNORECASE)
+    result = re.sub(r'\bNESCAFE\s+EXPRESS\b', 'NESCAFE XPRESS', result, flags=re.IGNORECASE)
+
+    # COCA-COLA / FANTA / SPRITE Standartlaştırması
+    result = re.sub(r'\bCOCA\s+COLA\b', 'COCA-COLA', result, flags=re.IGNORECASE)
+    result = re.sub(r'\bCOCA-COLA\s+(\d+(?:\.\d+)?\s*(?:ML|LT))\s+KOLA(?:\s+KUTU)?\b', r'COCA-COLA \1 KUTU', result, flags=re.IGNORECASE)
+    result = re.sub(r'\bCOCA-COLA\s+(\d+(?:\.\d+)?\s*(?:ML|LT))\s+KOLA\b', r'COCA-COLA \1', result, flags=re.IGNORECASE)
+    result = re.sub(r'\bSPRITE\s+TENEKE\s+(\d+(?:\.\d+)?\s*(?:ML|LT))\b', r'SPRITE \1 KUTU', result, flags=re.IGNORECASE)
+    result = re.sub(r'\bFUSE\s+TEA\s+ICE\s+TEA\b', 'FUSE TEA', result, flags=re.IGNORECASE)
+
     # 5. Temizlik ve normalizasyon
     result = re.sub(r'\s*--\s*', ' - ', result)
     result = re.sub(r'^[-\-_.:\s]+', '', result)
@@ -795,6 +852,9 @@ def format_product_dict(row: dict) -> dict:
     d['unit'] = str(d.get('unit') or 'ADET').strip()
     d['is_new'] = bool(d.get('is_new', False))
     d['last_printed_at'] = d.get('last_printed_at') or ''
+    d['price_updated_at'] = d.get('price_updated_at') or d.get('updated_at') or ''
+    d['updated_at'] = d.get('updated_at') or ''
+    d['created_at'] = d.get('created_at') or ''
 
     if d.get('label_price') is not None and d.get('label_price') != '':
         d['label_price'] = parse_price(d['label_price'])
@@ -875,16 +935,49 @@ def check_blacklist_with_reason(barcode: str, title: str = "", price: float = 0.
         if (len(b) == 13 or len(b) == 7) and b.startswith(('27', '28', '29')) and b.isdigit():
             return True, "Terazi/Gramaj Barkodu (27-29)"
 
-    # Sigara
+    # Sigara Kontrolü
     if cfg.get("block_cigarettes", True):
-        sigara_keywords = [
-            'sigara', 'marlboro', 'parliament', 'winston', 'camel', 'kent', 'chesterfield', 
-            'muratti', 'rothmans', 'lucky strike', 'pall mall', 'davidoff', 'monte carlo', 
-            'ld ', 'touch', 'mentol', 'mentolu'
+        # Kesinlikle sigara olmayan gıda / temizlik / kozmetik istisna kelimeleri
+        non_cig_keywords = [
+            'ŞEKER', 'SEKER', 'TOFİTA', 'TOFITA', 'OLİPS', 'OLIPS', 'JELİBON', 'JELIBON',
+            'ŞİPŞEVDI', 'SİPSEVDİ', 'SIPSEVDI', 'KARBONAT', 'ELEGAN', 'BONBON', 'TOFY', 'MEYBON',
+            'SAKIZ', 'ÇİKOLATA', 'CIKOLATA', 'KAHVE', 'KAHVESİ', 'KAHVESI', 'BİSKÜVİ', 'BISKUVI',
+            'KEK', 'GIDA', 'SABUN', 'ŞAMPUAN', 'SAMPUAN', 'DİŞ', 'DIS', 'MACUN', 'ROLL-ON', 'ROLL ON',
+            'BOYA', 'MANTAR', 'ÇORAP', 'CORAP', 'ÇAY', 'CAY', 'GOFRET', 'KRAKER', 'PASTİL', 'PASTIL',
+            'VİVİDENT', 'VIVIDENT', 'FALIM', 'MENTOS', 'FIRST', 'TCHIBO', 'NESCAFE', 'NESCAFÉ', 'JACOBS',
+            'ORÇAY', 'ORCAY', 'DOĞUŞ', 'DOGUS', 'CLEAR', 'HEAD & SHOULDERS', 'HEAD SHOULDERS', 'LUX',
+            'SIGNAL', 'COLGATE', 'IPANA', 'DURU', 'HACI ŞAKİR', 'HACISAKIR', 'OLD SPICE', 'CANGA',
+            'BROWNİ', 'BROWNI', 'INTENSE', 'TUTKU', 'DİDO', 'DIDO', 'CAFE CROWN', 'PUF', 'CORN FLAKES',
+            'FLAKES', 'MÜSLİ', 'MUSLI'
         ]
-        for kw in sigara_keywords:
-            if kw in t_folded:
-                return True, "Sigara Ürünü (Yazdırılmaz)"
+        is_food_or_cosmetic = any(kw in t for kw in non_cig_keywords)
+
+        if not is_food_or_cosmetic:
+            # 1. Genel sigara markaları (kelime sınırıyla)
+            cig_brands = [
+                r'\bMARLBORO\b', r'\bPARLIAMENT\b', r'\bWINSTON\b', r'\bCAMEL\b', r'\bCHESTERFIELD\b',
+                r'\bMURATTI\b', r'\bROTHMANS\b', r'\bLUCKY\s*STRIKE\b', r'\bPALL\s*MALL\b', r'\bDAVIDOFF\b',
+                r'\bMONTE\s*CARLO\b', r'\bVICEROY\b', r'\bTEKEL\s*(?:2000|2001)?\b', r'\bLARK\b', r'\bL&M\b',
+                r'\bLM\s*(?:RED|BLUE|LABEL)\b', r'\bESSE\b', r'\bRAISON\b', r'\bPRESIDENT\b', r'\bPRESİDENT\b',
+                r'\bWINNER\b', r'\bWİNNER\b', r'\bHD\s*(?:BLUE|SLIMS|SLİMS|RED)\b', r'\bWEST\b', r'\bPOLO\s*SLIMS\b',
+                r'\bCLIPPER\s*SIGARA\b', r'\bSİGARA\b', r'\bSIGARA\b'
+            ]
+            for pat in cig_brands:
+                if re.search(pat, t, re.IGNORECASE):
+                    return True, "Sigara Ürünü (Yazdırılmaz)"
+
+            # 2. KENT (Sadece sigara modelleri: SWITCH, SLIMS, D-RANGE, BLUE, GREY, WHITE, DARK BLUE, NANO vb.)
+            if 'KENT' in t:
+                if re.search(r'\bKENT\b.*\b(SWITCH|SLIMS|SLİMS|D[\s\-_]*RANGE|DRANGE|BLUE|GREY|WHITE|DARK[\s\-_]*BLUE|NANO|LINE|LİNE|BLACK|SILVER)\b', t, re.IGNORECASE):
+                    return True, "Sigara Ürünü (Kent)"
+
+            # 3. LD (Sadece sigara LD serisi, Gold/Bold bisküvi veya çikolatalar değil)
+            if re.search(r'(?:^|\s)LD\s+(?:KISA|UZUN|BLUE|RED|SLIMS|SLİMS|SLENDER|LODOS)', t, re.IGNORECASE):
+                return True, "Sigara Ürünü (LD)"
+
+            # 4. TOUCH (Sadece Marlboro Touch veya Touch Blue/Gray vb.)
+            if re.search(r'\b(?:MARLBORO\s+TOUCH|TOUCH\s+(?:BLUE|GRAY|GREY|WHITE|SLIMS|SLİMS|AQUA))\b', t, re.IGNORECASE):
+                return True, "Sigara Ürünü (Touch)"
 
     # Özel tanımlı kara liste
     for blocked_b in cfg.get("barcodes", []):
@@ -898,14 +991,11 @@ def check_blacklist_with_reason(barcode: str, title: str = "", price: float = 0.
         r'^DUMMY', r'^ORNEK', r'^ÖRNEK', r'^TEMP', r'^GEÇİCİ', r'^GECICI',
         r'BO[ŞS]\s*STOK(?:\s*KARTI)?',
         r'TERAZ[İI]\s*BO[ŞS]',
-        r'BARKODSUZ\s*BO[ŞS]',
-        r'\bMNV\b',
-        r'^MNV\s+',
-        r'^(?:10|12|19|24)[\s\-_]*(?:LU|LI|Lİ|LUK|LÜK)?[\s\-_]*SU'
+        r'BARKODSUZ\s*BO[ŞS]'
     ]
     for pat in blacklist_patterns:
         if re.search(pat, t, re.IGNORECASE):
-            return True, "Kara Liste / Boş Stok / Manav / Test Kaydı"
+            return True, "Kara Liste / Boş Stok / Test Kaydı"
 
     for w in cfg.get("words", []):
         w_clean = str(w).strip().upper()
@@ -921,7 +1011,7 @@ def check_blacklist_with_reason(barcode: str, title: str = "", price: float = 0.
         p_val = float(price)
         if cfg.get("block_negative_prices", True) and p_val < 0:
             return True, "Negatif Fiyat (< 0 TL)"
-        if cfg.get("block_zero_prices", True) and p_val == 0.0 and (len(b) < 6 or re.search(r'DENEME|TEST|000|SU|BARDAK', t)):
+        if cfg.get("block_zero_prices", True) and p_val == 0.0 and (len(b) < 6 or re.search(r'DENEME|TEST|000', t)):
             return True, "Sıfır Fiyatlı Test Ürünü (0 TL)"
     except Exception:
         pass
@@ -935,5 +1025,40 @@ def is_invalid_or_blacklisted_product(barcode: str, title: str = "", price: floa
     """
     blocked, _ = check_blacklist_with_reason(barcode, title, price)
     return blocked
+
+def parse_date_string(val) -> str:
+    """
+    DD.MM.YYYY HH:MM:SS, DD/MM/YYYY, YYYY-MM-DD veya datetime nesnelerini
+    'YYYY-MM-DD HH:MM:SS' standart SQLite / ISO formatına çevirir.
+    """
+    if not val:
+        return ""
+    import datetime
+    if isinstance(val, (datetime.datetime, datetime.date)):
+        return val.strftime("%Y-%m-%d %H:%M:%S")
+    
+    s = str(val).strip()
+    if not s:
+        return ""
+    
+    parts = s.split()
+    date_part = parts[0]
+    time_part = parts[1] if len(parts) > 1 else "00:00:00"
+    
+    if '.' in date_part:
+        dp = date_part.split('.')
+        if len(dp) == 3:
+            day, month, year = dp[0].zfill(2), dp[1].zfill(2), dp[2]
+            return f"{year}-{month}-{day} {time_part}"
+    elif '/' in date_part:
+        dp = date_part.split('/')
+        if len(dp) == 3:
+            day, month, year = dp[0].zfill(2), dp[1].zfill(2), dp[2]
+            return f"{year}-{month}-{day} {time_part}"
+    elif '-' in date_part:
+        return f"{date_part} {time_part}"
+        
+    return s
+
 
 

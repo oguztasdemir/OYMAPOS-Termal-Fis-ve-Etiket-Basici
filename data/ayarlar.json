@@ -20,5 +20,7 @@
   "scale_model": "DIGI_SM100",
   "scale_ip": "192.168.1.61",
   "auto_backup_enabled": true,
-  "label_size_preset": "76x40"
+  "label_size_preset": "76x40",
+  "receipt_printer": "Termal Etiket Yazici",
+  "orientation": "POR"
 }

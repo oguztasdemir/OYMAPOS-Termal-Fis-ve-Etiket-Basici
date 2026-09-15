@@ -515,6 +515,71 @@ async function openBlacklistModal() {
   } catch (err) {
     console.error('Kara liste yüklenemedi:', err);
   }
+
+  // Kara listedeki kayıtlı tüm ürünleri de yükle
+  loadBlacklistedProductsList();
+}
+
+async function loadBlacklistedProductsList() {
+  const container = document.getElementById('blacklistProductsListContainer');
+  const countBadge = document.getElementById('blacklistProductsListCount');
+  if (!container) return;
+  container.innerHTML = '<div style="text-align:center; padding:12px; color:#94a3b8; font-size:12px;">⏳ Kara listedeki ürünler yükleniyor...</div>';
+
+  try {
+    const res = await API.searchProducts('', 0, false, false, true);
+    const data = res.data || res;
+    const prods = data.products || [];
+    if (countBadge) countBadge.textContent = `${prods.length} Ürün`;
+
+    if (prods.length === 0) {
+      container.innerHTML = '<div style="text-align:center; padding:16px; color:#64748b; font-size:12px;">Kara listeye eklenmiş ürün bulunmuyor.</div>';
+      return;
+    }
+
+    let html = `
+      <table style="width:100%; border-collapse:collapse; font-size:12px; color:#f1f5f9;">
+        <thead>
+          <tr style="background:#090d16; color:#94a3b8; text-align:left; border-bottom:1px solid #334155;">
+            <th style="padding:6px 10px;">Barkod</th>
+            <th style="padding:6px 10px;">Ürün Adı</th>
+            <th style="padding:6px 10px; text-align:right;">Fiyat</th>
+            <th style="padding:6px 10px; text-align:center;">İşlem</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    prods.forEach(p => {
+      const pPrice = Number(p.price || 0).toFixed(2);
+      const bEscaped = (p.barcode || '').replace(/'/g, "\\'");
+      html += `
+        <tr style="border-bottom:1px solid #1e293b;">
+          <td style="padding:6px 10px; font-family:monospace; color:#fca5a5; font-weight:700;">${escapeHtml(p.barcode)}</td>
+          <td style="padding:6px 10px; max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(p.title || p.raw_system_title)}</td>
+          <td style="padding:6px 10px; text-align:right; font-weight:700; color:#34d399;">₺ ${pPrice}</td>
+          <td style="padding:6px 10px; text-align:center;">
+            <button class="btn btn-secondary btn-sm" onclick="removeProductFromBlacklist('${bEscaped}')" style="padding:2px 8px; font-size:11px; color:#34d399; border-color:rgba(52,211,153,0.3); background:rgba(52,211,153,0.1);" title="Kara Listeden Çıkar">
+              ✓ Kaldır
+            </button>
+          </td>
+        </tr>
+      `;
+    });
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  } catch(e) {
+    container.innerHTML = `<div style="color:#f87171; padding:10px; font-size:12px;">Yükleme hatası: ${e.message}</div>`;
+  }
+}
+
+async function removeProductFromBlacklist(barcode) {
+  await toggleProductBlacklist(barcode, null, null);
+  loadBlacklistedProductsList();
+  if (typeof searchProducts === 'function') {
+    searchProducts(document.getElementById('productSearchInput')?.value || '');
+  }
 }
 
 function closeBlacklistModal() {
@@ -621,7 +686,7 @@ async function saveAndApplyBlacklist() {
   currentBlacklistData.block_cigarettes = !!cigarettesCheck?.checked;
   currentBlacklistData.block_scale_products = !!scaleCheck?.checked;
 
-  showToast('Kara liste güncelleniyor ve veritabanı temizleniyor...', 'info');
+  showToast('Kara liste kaydediliyor...', 'info');
 
   try {
     const res = await fetch('/api/system/blacklist', {
@@ -643,4 +708,14 @@ async function saveAndApplyBlacklist() {
     showToast('Sunucu hatası: ' + err.message, 'error');
   }
 }
+
+window.openBlacklistModal = openBlacklistModal;
+window.closeBlacklistModal = closeBlacklistModal;
+window.addBlacklistWord = addBlacklistWord;
+window.removeBlacklistWord = removeBlacklistWord;
+window.addBlacklistBarcode = addBlacklistBarcode;
+window.removeBlacklistBarcode = removeBlacklistBarcode;
+window.saveAndApplyBlacklist = saveAndApplyBlacklist;
+window.removeProductFromBlacklist = removeProductFromBlacklist;
+window.loadBlacklistedProductsList = loadBlacklistedProductsList;
 

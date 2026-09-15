@@ -59,24 +59,29 @@ async def update_system_blacklist(req: BlacklistUpdateRequest):
 
     save_blacklist_data(current)
 
-    # Veritabanında eşleşen ürünleri hemen temizle
-    deleted_count = 0
+    # Veritabanında eşleşen ürünleri kara liste olarak işaretle
+    flagged_count = 0
     with db_session() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT barcode, title, price FROM urunler;")
         rows = cursor.fetchall()
-        del_barcodes = []
+        bl_barcodes = []
+        un_barcodes = []
         for r in rows:
             if is_invalid_or_blacklisted_product(r["barcode"], r["title"], r["price"]):
-                del_barcodes.append((r["barcode"],))
-        if del_barcodes:
-            cursor.executemany("DELETE FROM urunler WHERE barcode = ?;", del_barcodes)
-            deleted_count = len(del_barcodes)
-            conn.commit()
+                bl_barcodes.append((r["barcode"],))
+            else:
+                un_barcodes.append((r["barcode"],))
+        if bl_barcodes:
+            cursor.executemany("UPDATE urunler SET is_blacklisted = 1 WHERE barcode = ?;", bl_barcodes)
+            flagged_count = len(bl_barcodes)
+        if un_barcodes:
+            cursor.executemany("UPDATE urunler SET is_blacklisted = 0 WHERE barcode = ?;", un_barcodes)
+        conn.commit()
 
     return success_response(
-        data={"blacklist": current, "purged_products_count": deleted_count},
-        message=f"Kara liste güncellendi! {deleted_count} uygunsuz ürün sistemden temizlendi."
+        data={"blacklist": current, "flagged_products_count": flagged_count},
+        message=f"Kara liste güncellendi! {flagged_count} ürün kara listeye alındı."
     )
 
 

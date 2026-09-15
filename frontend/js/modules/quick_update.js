@@ -1,12 +1,22 @@
 // ==========================================================================
-// OYMAPOS - DİNAMİK EXCEL SPREADSHEET ÇALIŞMA MASASI (A..Z, AA..ZZ SINIRSIZ SÜTUN)
+// OYMAPOS - DİNAMİK EXCEL SPREADSHEET ÇALIŞMA MASASI (4 TEMEL SÜTUN: BARKOD, MALIN CİNSİ, SATIŞ FİYATI, DEĞİŞME TARİHİ)
 // ==========================================================================
 
-let numCols = 26; // Başlangıçta A'dan Z'ye 26 sütun
-let gridData = []; // Array of arrays: [ [cellA, cellB, cellC...], ... ]
+const TARGET_COL_NAMES = [
+  'A (Barkod)',
+  'B (Malın Cinsi)',
+  'C (1. Satış Fiyatı)',
+  'D (1. Fiyat Değişme Tarihi)'
+];
+
+let numCols = 4; // 4 Temel Sütun ile tarayıcı donmasını engelle
+let gridData = []; // Array of arrays: [ [barkod, baslik, fiyat, tarih], ... ]
 let activeCell = { r: 0, c: 0 };
 
 function getExcelColName(colIdx) {
+  if (colIdx < TARGET_COL_NAMES.length) {
+    return TARGET_COL_NAMES[colIdx];
+  }
   let name = '';
   let n = colIdx;
   while (n >= 0) {
@@ -37,7 +47,7 @@ function loadQuickGridFromStorage() {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
         gridData = parsed;
-        if (savedCols) numCols = Math.max(numCols, parseInt(savedCols, 10) || 26);
+        numCols = Math.max(4, parseInt(savedCols, 10) || 4);
         return true;
       }
     }
@@ -45,8 +55,8 @@ function loadQuickGridFromStorage() {
   return false;
 }
 
-function initExcelGrid(minRows = 100, minCols = 26) {
-  numCols = Math.max(numCols, minCols);
+function initExcelGrid(minRows = 100, minCols = 4) {
+  numCols = Math.max(4, minCols);
   
   if (gridData.length === 0) {
     const hasRestored = loadQuickGridFromStorage();
@@ -65,7 +75,6 @@ function initExcelGrid(minRows = 100, minCols = 26) {
 
 function ensureCols(requiredCols) {
   if (requiredCols > numCols) {
-    const oldNum = numCols;
     numCols = requiredCols;
     gridData.forEach(row => {
       while (row.length < numCols) {
@@ -80,6 +89,7 @@ function renderExcelThead() {
   const thead = document.getElementById('excelGridThead');
   if (!thead) return;
 
+  const colWidths = ['160px', '420px', '160px', '220px'];
   let html = `
     <tr style="background: #1e293b; position: sticky; top: 0; z-index: 10; border-bottom: 2px solid #3b82f6; user-select: none;">
       <th style="width: 48px; min-width: 48px; background: #0f172a; border-right: 1px solid #334155; border-bottom: 1px solid #334155; text-align: center; color: #64748b; font-weight: 700; font-size: 11px; position: sticky; left: 0; z-index: 12;">#</th>
@@ -87,8 +97,9 @@ function renderExcelThead() {
 
   for (let c = 0; c < numCols; c++) {
     const colName = getExcelColName(c);
+    const w = colWidths[c] || '160px';
     html += `
-      <th style="width: 140px; min-width: 140px; border-right: 1px solid #334155; padding: 7px 10px; text-align: center; color: #93c5fd; font-weight: 800; font-family: 'JetBrains Mono', monospace; font-size: 12.5px;">
+      <th style="width: ${w}; min-width: ${w}; border-right: 1px solid #334155; padding: 7px 12px; text-align: ${c === 1 ? 'left' : 'center'}; color: #93c5fd; font-weight: 800; font-family: 'JetBrains Mono', monospace; font-size: 12.5px;">
         ${colName}
       </th>
     `;
@@ -97,16 +108,18 @@ function renderExcelThead() {
   html += `</tr>`;
   thead.innerHTML = html;
 
-  // Tablo genişliğini sütun sayısına göre dinamik ayarla
   const table = document.getElementById('excelSpreadsheetTable');
   if (table) {
-    table.style.minWidth = `${48 + numCols * 140}px`;
+    table.style.width = '100%';
   }
 }
 
 function renderExcelGrid() {
   const tbody = document.getElementById('excelGridTbody');
   if (!tbody) return;
+
+  const colAligns = ['center', 'left', 'right', 'center'];
+  const colWidths = ['160px', '420px', '160px', '220px'];
 
   let html = '';
   gridData.forEach((row, rIdx) => {
@@ -122,6 +135,8 @@ function renderExcelGrid() {
     // Sütunlar 0'dan numCols-1'e
     for (let cIdx = 0; cIdx < numCols; cIdx++) {
       const val = row[cIdx] || '';
+      const align = colAligns[cIdx] || 'left';
+      const w = colWidths[cIdx] || '160px';
       html += `
         <td 
           data-row="${rIdx}" 
@@ -131,7 +146,7 @@ function renderExcelGrid() {
           onfocus="onCellFocus(${rIdx}, ${cIdx})"
           onblur="onCellBlur(${rIdx}, ${cIdx}, this.innerText)"
           onkeydown="onCellKeyDown(event, ${rIdx}, ${cIdx})"
-          style="border-right: 1px solid #1e293b; padding: 6px 10px; color: #f1f5f9; font-size: 13px; outline: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 140px; max-width: 320px;"
+          style="border-right: 1px solid #1e293b; padding: 6px 10px; color: ${cIdx === 2 ? '#34d399' : '#f1f5f9'}; font-weight: ${cIdx === 2 ? '700' : 'normal'}; text-align: ${align}; font-size: 13px; outline: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: ${w}; max-width: ${cIdx === 1 ? '500px' : '300px'};"
         >${escapeHtml(val)}</td>
       `;
     }
@@ -211,11 +226,11 @@ function addGridRow(count = 1) {
 
 function clearGridData(silent = false) {
   gridData = [];
-  numCols = 26;
+  numCols = 4;
   activeCell = { r: 0, c: 0 };
   localStorage.removeItem('quick_update_grid_data');
   localStorage.removeItem('quick_update_grid_cols');
-  initExcelGrid(100, 26);
+  initExcelGrid(100, 4);
   if (!silent) {
     showToast('Excel tablosu temizlendi.', 'info');
   }
@@ -233,7 +248,7 @@ function updateGridStats() {
 
   if (statsEl) {
     if (filledRows > 0) {
-      statsEl.innerHTML = `<span style="color: #38bdf8; font-weight: 700;">✓ ${filledRows} satır veri hazır.</span> Otomatik sütun eşleştirme (Barkod, Ürün Adı, Fiyat vb.) ile sisteme aktarılacaktır.`;
+      statsEl.innerHTML = `<span style="color: #38bdf8; font-weight: 700;">✓ ${filledRows} satır veri hazır.</span> 4 sütun (Barkod, Malın Cinsi, Fiyat, Değişme Tarihi) sisteme aktarılacaktır.`;
     } else {
       statsEl.innerHTML = `<span>💡</span> <strong>İpucu:</strong> Excel'deki verinizi seçip <kbd style="background:#1e293b; color:#38bdf8; padding:1px 5px; border-radius:3px;">Ctrl + C</kbd> ile kopyalayın, ardından tablodaki herhangi bir hücreye tıklayıp <kbd style="background:#1e293b; color:#38bdf8; padding:1px 5px; border-radius:3px;">Ctrl + V</kbd> yapın.`;
     }
@@ -241,60 +256,110 @@ function updateGridStats() {
 }
 
 async function clearAndPasteFromClipboard() {
-  // Kullanıcı butona basar basmaz sürecin (process) başladığını anında hissettir
-  showQuickUpdateProgress('Pano Okunuyor...', 'Pano içeriği taranıyor ve yapıştırma hazırlanıyor...', '📋');
-  updateQuickUpdateProgress(0, 100, 'Pano erişimi sağlanıyor...');
-
   try {
     let clipboardText = '';
 
-    // 1. Önce modern tarayıcı Clipboard API'sini dene
+    // 1. Önce modern tarayıcı Clipboard API'sini dene (HTTPS / Localhost)
     if (navigator.clipboard && navigator.clipboard.readText) {
       try {
         clipboardText = await navigator.clipboard.readText();
       } catch (clipErr) {
-        console.warn('Tarayıcı panosuna erişilemedi, sistem API deneniyor:', clipErr);
+        console.warn('Tarayıcı Clipboard API doğrudan okunamadı (HTTP güvenlik kısıtlaması):', clipErr);
       }
     }
 
-    // 2. Eğer tarayıcı engellediyse veya boşsa sunucu üzerinden Windows panosunu oku
-    if (!clipboardText || !clipboardText.trim()) {
-      updateQuickUpdateProgress(20, 100, 'Sistem panosundan veri okunuyor...');
-      try {
-        const res = await fetch('/api/system/get-clipboard');
-        const json = await res.json();
-        if (json.status === 'success' && json.data && json.data.clipboard_text) {
-          clipboardText = json.data.clipboard_text;
-        }
-      } catch (apiErr) {
-        console.warn('Sistem API panosu okunamadı:', apiErr);
-      }
-    }
-
-    if (!clipboardText || !clipboardText.trim()) {
-      hideQuickUpdateProgress();
-      // Tarayıcı ve sistem API erişimi güvenlik nedeniyle bloklandıysa kullanıcıdan doğrudan yapıştırmasını iste
-      const manualText = prompt("Tarayıcı panonuzu otomatik okuyamadı.\nLütfen kopyaladığınız veriyi (Ctrl+V) buraya yapıştırıp 'Tamam' butonuna basınız:");
-      if (manualText && manualText.trim()) {
-        showQuickUpdateProgress('Veri İşleniyor...', 'Girdiğiniz liste ayrıştırılıyor...', '📋');
-        await parseAndApplyTextToGrid(manualText, true);
-        return;
-      }
-      showToast('Panoda kopyalanmış veri bulunamadı. Excel veya metin belgenizden satırları kopyalayıp (Ctrl+C) doğrudan tabloya Ctrl+V yapabilirsiniz.', 'warning');
+    if (clipboardText && clipboardText.trim()) {
+      showQuickUpdateProgress('Veri İşleniyor...', 'Pano içeriği tabloya aktarılıyor...', '📋');
+      await parseAndApplyTextToGrid(clipboardText, true);
       return;
     }
 
-    updateQuickUpdateProgress(50, 100, 'Pano verisi alındı, tabloya aktarılıyor...');
-    await new Promise(r => setTimeout(r, 60));
+    // 2. Gizli textarea ile execCommand('paste') dene
+    try {
+      const hiddenInput = document.createElement('textarea');
+      hiddenInput.style.position = 'fixed';
+      hiddenInput.style.left = '-9999px';
+      hiddenInput.style.top = '-9999px';
+      hiddenInput.style.opacity = '0';
+      document.body.appendChild(hiddenInput);
+      hiddenInput.focus();
+      const success = document.execCommand('paste');
+      const val = hiddenInput.value;
+      document.body.removeChild(hiddenInput);
 
-    // Panoyu temizle ve yapıştır (sıfırdan yapıştır)
-    await parseAndApplyTextToGrid(clipboardText, true);
+      if (success && val && val.trim()) {
+        showQuickUpdateProgress('Veri İşleniyor...', 'Pano içeriği tabloya aktarılıyor...', '📋');
+        await parseAndApplyTextToGrid(val, true);
+        return;
+      }
+    } catch (e) {}
+
+    // 3. Tarayıcı HTTP güvenlik engeli nedeniyle doğrudan panoyu okutmadıysa (Dükkan İstemci PC)
+    // Kullanıcıya şık, anında odaklanan ve Ctrl+V'yi doğrudan yakalayan pencereyi aç
+    openQuickPasteModal();
 
   } catch (err) {
-    hideQuickUpdateProgress();
-    showToast('Pano yapıştırma hatası: ' + err.message, 'error');
+    openQuickPasteModal();
   }
 }
+
+function openQuickPasteModal() {
+  const modal = document.getElementById('modalQuickPasteCatcher');
+  const ta = document.getElementById('quickPasteModalTextarea');
+  if (modal) {
+    modal.style.display = 'flex';
+    if (ta) {
+      ta.value = '';
+      setTimeout(() => {
+        ta.focus();
+        ta.select();
+      }, 50);
+
+      // Textarea'ya yapıştırma yapıldığı anda otomatik işle ve modalı kapat
+      ta.oninput = function () {
+        if (ta.value && ta.value.trim().length > 2) {
+          const val = ta.value;
+          closeQuickPasteModal();
+          showQuickUpdateProgress('Veri İşleniyor...', 'Girdiğiniz liste ayrıştırılıyor...', '📋');
+          parseAndApplyTextToGrid(val, true);
+        }
+      };
+      ta.onpaste = function (e) {
+        const cd = e.clipboardData || window.clipboardData;
+        if (cd) {
+          const pasted = cd.getData('text');
+          if (pasted && pasted.trim()) {
+            e.preventDefault();
+            closeQuickPasteModal();
+            showQuickUpdateProgress('Veri İşleniyor...', 'Girdiğiniz liste ayrıştırılıyor...', '📋');
+            parseAndApplyTextToGrid(pasted, true);
+          }
+        }
+      };
+    }
+  }
+}
+
+function closeQuickPasteModal() {
+  const modal = document.getElementById('modalQuickPasteCatcher');
+  if (modal) modal.style.display = 'none';
+}
+
+function submitQuickPasteModal() {
+  const ta = document.getElementById('quickPasteModalTextarea');
+  const text = ta ? ta.value.trim() : '';
+  closeQuickPasteModal();
+  if (text) {
+    showQuickUpdateProgress('Veri İşleniyor...', 'Girdiğiniz liste ayrıştırılıyor...', '📋');
+    parseAndApplyTextToGrid(text, true);
+  } else {
+    showToast('Yapıştırılan metin bulunamadı.', 'warning');
+  }
+}
+
+window.openQuickPasteModal = openQuickPasteModal;
+window.closeQuickPasteModal = closeQuickPasteModal;
+window.submitQuickPasteModal = submitQuickPasteModal;
 
 function showQuickUpdateProgress(title, subtitle, icon = '📋') {
   const overlay = document.getElementById('quickUpdateProgressOverlay');
@@ -336,8 +401,17 @@ function hideQuickUpdateProgress() {
   }
 }
 
+function normalizeHeaderForMapping(str) {
+  if (!str) return '';
+  const trMap = {'İ': 'i', 'I': 'ı', 'ı': 'i', 'Ğ': 'g', 'ğ': 'g', 'Ü': 'u', 'ü': 'u', 'Ş': 's', 'ş': 's', 'Ö': 'o', 'ö': 'o', 'Ç': 'c', 'ç': 'c'};
+  const lowered = String(str).split('').map(c => trMap[c] || c.toLowerCase()).join('');
+  return lowered.replace(/[^a-z0-9]/g, '');
+}
+
 /**
  * Verilen metni (TSV / CSV / Tablo) güvenli, donmayan (chunked / non-blocking) bir şekilde grid'e aktarır.
+ * Çok sütunlu VegaWin/fiyat.xlsx kopyalarından yalnızca ilgili 4 sütunu çeker:
+ * [0: Barkod, 1: Malın Cinsi, 2: 1. Satış Fiyatı, 3: 1. Fiyat Değişme Tarihi]
  */
 async function parseAndApplyTextToGrid(text, isClearFirst = false) {
   if (!text || !text.trim()) return;
@@ -352,45 +426,90 @@ async function parseAndApplyTextToGrid(text, isClearFirst = false) {
 
   if (lines.length === 0) return;
 
-  showQuickUpdateProgress('Pano Verisi Yapıştırılıyor...', 'Satırlar ayrıştırılıyor ve tabloya işleniyor...', '📋');
+  showQuickUpdateProgress('Pano Verisi Ayrıştırılıyor...', 'Gerekli 4 sütun süzülüyor ve tabloya işleniyor...', '📋');
   updateQuickUpdateProgress(0, lines.length, `${lines.length} satır hazırlandı...`);
 
   await new Promise(r => setTimeout(r, 20));
 
+  // İlk satırları incele ve sütun indekslerini tespit et
+  const delimiter = lines[0].includes('\t') ? '\t' : (lines[0].includes(';') ? ';' : '\t');
+  const sampleCells = lines[0].split(delimiter).map(c => c.trim());
+
+  let b_idx = -1;
+  let t_idx = -1;
+  let p_idx = -1;
+  let d_idx = -1;
+  let hasHeader = false;
+
+  const normHeaders = sampleCells.map(normalizeHeaderForMapping);
+  for (let i = 0; i < normHeaders.length; i++) {
+    const h = normHeaders[i];
+    if (b_idx === -1 && (h.includes('barkod') || h.includes('barcode') || h.includes('ean'))) {
+      b_idx = i;
+    } else if (t_idx === -1 && (h.includes('malin') || h.includes('cinsi') || h.includes('urun') || h.includes('title') || h.includes('name') || h.includes('aciklama') || h.includes('stokadi'))) {
+      t_idx = i;
+    } else if (p_idx === -1 && (h.includes('satisfiyati') || h.includes('fiyat') || h.includes('price') || h.includes('satis') || h.includes('tutar'))) {
+      p_idx = i;
+    } else if (d_idx === -1 && (h.includes('degis') || h.includes('fiyattarih') || h.includes('tarih'))) {
+      d_idx = i;
+    }
+  }
+
+  // Eğer başlık satırında barkod veya ürün adı bulunduysa ilk satırı başlık olarak atla
+  if ((b_idx !== -1 && t_idx !== -1) || (b_idx !== -1 && p_idx !== -1) || (t_idx !== -1 && p_idx !== -1)) {
+    hasHeader = true;
+  }
+
+  // Eğer başlık bulunamadıysa ve çok sütunluysa (örn: fiyat.xlsx kopyası veya standart VegaWin kopyası)
+  const incomingColCount = sampleCells.length;
+  if (!hasHeader && incomingColCount >= 7) {
+    // fiyat.xlsx formatı varsayılan: Col 1: Barkod, Col 5: Malın Cinsi, Col 6: Satış Fiyatı, Col 10: Değişme Tarihi
+    b_idx = incomingColCount >= 2 ? 1 : 0;
+    t_idx = incomingColCount >= 6 ? 5 : 1;
+    p_idx = incomingColCount >= 7 ? 6 : 2;
+    d_idx = incomingColCount >= 11 ? 10 : -1;
+  } else if (!hasHeader && incomingColCount === 4) {
+    b_idx = 0;
+    t_idx = 1;
+    p_idx = 2;
+    d_idx = 3;
+  } else if (!hasHeader && incomingColCount === 3) {
+    b_idx = 0;
+    t_idx = 1;
+    p_idx = 2;
+    d_idx = -1;
+  } else if (!hasHeader && incomingColCount === 2) {
+    b_idx = 0;
+    p_idx = 1;
+    t_idx = -1;
+    d_idx = -1;
+  }
+
   if (isClearFirst) {
     gridData = [];
-    numCols = 26;
+    numCols = 4;
     activeCell = { r: 0, c: 0 };
+  } else {
+    numCols = Math.max(numCols, 4);
   }
 
+  renderExcelThead();
+
+  const startLineIdx = hasHeader ? 1 : 0;
+  const dataLines = lines.slice(startLineIdx);
   const startR = isClearFirst ? 0 : (activeCell.r || 0);
-  const startC = isClearFirst ? 0 : (activeCell.c || 0);
-
-  // Maksimum gelen sütun sayısını hesapla
-  let maxIncomingCols = 0;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    let count = (line.match(/\t/g) || []).length + 1;
-    if (count === 1 && line.includes(';')) {
-      count = (line.match(/;/g) || []).length + 1;
-    }
-    if (count > maxIncomingCols) maxIncomingCols = count;
-  }
-
-  const requiredTotalCols = Math.max(26, startC + maxIncomingCols);
-  ensureCols(requiredTotalCols);
 
   // İhtiyaç kadar satır ekle
-  while (gridData.length < startR + lines.length) {
+  while (gridData.length < startR + dataLines.length) {
     gridData.push(new Array(numCols).fill(''));
   }
 
-  // Tarayıcı donmasını engellemek için satırları parçalı (async chunk) işle
+  // Tarayıcı donmasını engellemek için async chunking ile 4 hedef sütunu ayıkla
   const CHUNK_SIZE = 500;
-  for (let i = 0; i < lines.length; i += CHUNK_SIZE) {
-    const end = Math.min(i + CHUNK_SIZE, lines.length);
+  for (let i = 0; i < dataLines.length; i += CHUNK_SIZE) {
+    const end = Math.min(i + CHUNK_SIZE, dataLines.length);
     for (let idx = i; idx < end; idx++) {
-      const line = lines[idx];
+      const line = dataLines[idx];
       let cells = line.split('\t');
       if (cells.length === 1 && line.includes(';')) {
         cells = line.split(';');
@@ -401,32 +520,46 @@ async function parseAndApplyTextToGrid(text, isClearFirst = false) {
         gridData[targetRow] = new Array(numCols).fill('');
       }
 
-      for (let c = 0; c < cells.length; c++) {
-        const targetCol = startC + c;
-        if (targetCol < numCols) {
-          gridData[targetRow][targetCol] = (cells[c] || '').trim();
-        }
+      // 4 Hedef Sütunu Seç:
+      // Col 0: Barkod
+      // Col 1: Malın Cinsi
+      // Col 2: 1. Satış Fiyatı
+      // Col 3: 1. Fiyat Değişme Tarihi
+      let valBarcode = (b_idx !== -1 && b_idx < cells.length) ? (cells[b_idx] || '').trim() : (cells[0] || '').trim();
+      let valTitle = (t_idx !== -1 && t_idx < cells.length) ? (cells[t_idx] || '').trim() : (cells[1] || '').trim();
+      let valPrice = (p_idx !== -1 && p_idx < cells.length) ? (cells[p_idx] || '').trim() : (cells[2] || '').trim();
+      let valDate = (d_idx !== -1 && d_idx < cells.length) ? (cells[d_idx] || '').trim() : (cells[3] || '').trim();
+
+      // Eğer tek sütun veya 2 sütun yapıştırıldıysa sıralı yerleştir
+      if (incomingColCount <= 4 && (b_idx === -1 || (b_idx === 0 && t_idx === 1))) {
+        valBarcode = (cells[0] || '').trim();
+        valTitle = (cells[1] || '').trim();
+        valPrice = (cells[2] || '').trim();
+        valDate = (cells[3] || '').trim();
       }
+
+      gridData[targetRow][0] = valBarcode;
+      gridData[targetRow][1] = valTitle;
+      gridData[targetRow][2] = valPrice;
+      gridData[targetRow][3] = valDate;
     }
 
-    updateQuickUpdateProgress(end, lines.length, `${end} / ${lines.length} satır tabloya yerleştirildi...`);
-
-    // Event loop'a nefes aldır (UI donmasını önle ve progress bar animasyonunu göster)
+    updateQuickUpdateProgress(end, dataLines.length, `${end} / ${dataLines.length} ürün hazırlandı...`);
     await new Promise(r => setTimeout(r, 10));
   }
 
-  // Minimum 100 satır olsun
+  // Minimum 100 satır görünüm sağla
   while (gridData.length < 100) {
     gridData.push(new Array(numCols).fill(''));
   }
 
-  updateQuickUpdateProgress(lines.length, lines.length, 'Tablo görünümü hazırlanıyor...');
+  updateQuickUpdateProgress(dataLines.length, dataLines.length, 'Tablo görünümü oluşturuluyor...');
   await new Promise(r => setTimeout(r, 20));
 
   renderExcelGrid();
   updateGridStats();
   hideQuickUpdateProgress();
-  showToast(`✓ ${lines.length} satır, ${maxIncomingCols} sütun başarıyla yapıştırıldı!`, 'success');
+  showToast(`✓ ${dataLines.length} satır ayrıştırıldı. Yalnızca gerekli 4 sütun (Barkod, Ürün Adı, Fiyat, Değişme Tarihi) tabloya aktarıldı.`, 'success');
 }
 
 function handleGridPaste(e) {
@@ -441,6 +574,35 @@ function handleGridPaste(e) {
   e.preventDefault();
   parseAndApplyTextToGrid(pastedText, false);
 }
+
+// EVRENSEL PASTE (CTRL+V) DİNLENMESİ - Sayfanın neresinde olunursa olunsun doğrudan yakalar
+document.addEventListener('paste', function (e) {
+  // Eğer başka bir girdi kutusunda yazı yazıyorsa engelleme
+  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) {
+    if (e.target.id !== 'quickPasteModalTextarea') {
+      return;
+    }
+  }
+
+  const tabPriceUpdate = document.getElementById('tab-price-update');
+  if (!tabPriceUpdate || tabPriceUpdate.style.display === 'none' || !tabPriceUpdate.classList.contains('active')) {
+    return;
+  }
+
+  const clipboardData = e.clipboardData || window.clipboardData;
+  if (!clipboardData) return;
+
+  const pastedText = clipboardData.getData('text');
+  if (!pastedText || !pastedText.trim()) return;
+
+  const lines = pastedText.trim().split(/\r?\n/).filter(l => l.trim());
+  if (lines.length > 0 && (lines.length > 1 || pastedText.includes('\t') || pastedText.includes(';') || pastedText.includes(','))) {
+    e.preventDefault();
+    closeQuickPasteModal();
+    showQuickUpdateProgress('Veri İşleniyor...', 'Girdiğiniz liste ayrıştırılıyor...', '📋');
+    parseAndApplyTextToGrid(pastedText, true);
+  }
+});
 
 
 let lastCalculatedRawText = '';
@@ -630,9 +792,17 @@ async function executeQuickPriceUpdate() {
     return;
   }
 
-  // TSV biçiminde arka plandaki otomatik ayrıştırıcıya gönder
-  const tsvLines = filledRows.map(row => row.join('\t'));
-  const rawText = tsvLines.join('\n');
+  // 4 Temel Sütun Başlığını en başa ekleyerek backend'e gönder (Barkod, Malın Cinsi, 1. Satış Fiyatı, 1. Fiyat Değişme Tarihi)
+  const headerLine = "Barkod\tMalın Cinsi\t1. Satış Fiyatı\t1. Fiyat Değişme Tarihi";
+  const tsvLines = filledRows.map(row => {
+    // col 0: Barkod, col 1: Malın Cinsi, col 2: Fiyat, col 3: Tarih
+    const b = (row[0] || '').trim();
+    const t = (row[1] || '').trim();
+    const p = (row[2] || '').trim();
+    const d = (row[3] || '').trim();
+    return `${b}\t${t}\t${p}\t${d}`;
+  });
+  const rawText = headerLine + '\n' + tsvLines.join('\n');
   lastCalculatedRawText = rawText;
 
   const originalHtml = btn ? btn.innerHTML : '';
@@ -923,8 +1093,32 @@ function addGridRowsBatch(count = 50) {
   updateGridStats();
 }
 
+// Global Window Dışa Aktarımları (HTML onClick ve Event Bağlantıları İçin)
+window.initExcelGrid = initExcelGrid;
+window.renderExcelThead = renderExcelThead;
+window.renderExcelGrid = renderExcelGrid;
+window.onCellFocus = onCellFocus;
+window.onCellBlur = onCellBlur;
+window.onFormulaBarInput = onFormulaBarInput;
+window.onCellKeyDown = onCellKeyDown;
+window.addGridRow = addGridRow;
+window.clearGridData = clearGridData;
+window.updateGridStats = updateGridStats;
+window.clearAndPasteFromClipboard = clearAndPasteFromClipboard;
+window.handleGridPaste = handleGridPaste;
+window.switchQuickUpdateStep = switchQuickUpdateStep;
+window.handleExcelFileUpload = handleExcelFileUpload;
+window.closeQuickUpdateConfirmModal = closeQuickUpdateConfirmModal;
+window.switchPreviewSubTab = switchPreviewSubTab;
+window.executeQuickPriceUpdate = executeQuickPriceUpdate;
+window.confirmAndApplyQuickUpdate = confirmAndApplyQuickUpdate;
+window.openQuickPasteModal = openQuickPasteModal;
+window.closeQuickPasteModal = closeQuickPasteModal;
+window.submitQuickPasteModal = submitQuickPasteModal;
+window.parseAndApplyTextToGrid = parseAndApplyTextToGrid;
+
 document.addEventListener('DOMContentLoaded', () => {
-  initExcelGrid(100, 26);
+  initExcelGrid(100, 4);
   setupInfiniteScroll();
 });
 

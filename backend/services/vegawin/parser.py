@@ -203,6 +203,11 @@ def parse_vegawin_file(file_path: str, collect_blacklisted: bool = False):
                 if u_idx is None and any(k in cand for k in ['birim', 'unit']):
                     u_idx = col_i
 
+            d_idx = None
+            for cand, col_i in col_map.items():
+                if d_idx is None and any(k in cand for k in ['degismetarihi', 'degismatarihi', 'fiyatdegis', 'fiyattarihi', 'degisimtarihi', 'degisim', 'tarih']):
+                    d_idx = col_i
+
             items = []
             blacklisted_items = []
             for r in rows[header_idx + 1:]:
@@ -215,6 +220,11 @@ def parse_vegawin_file(file_path: str, collect_blacklisted: bool = False):
                 p = parse_price(r[p_idx]) if has_price else None
                 unit = normalize_text(r[u_idx]) if u_idx is not None and u_idx < len(r) and r[u_idx] is not None else "ADET"
                 sc = normalize_text(r[sc_idx]) if sc_idx is not None and sc_idx < len(r) and r[sc_idx] is not None else ""
+                
+                # Tarih sütunu (1. Fiyat Değişme Tarihi)
+                raw_date = r[d_idx] if d_idx is not None and d_idx < len(r) and r[d_idx] is not None else ""
+                from backend.utils.text_utils import parse_date_string
+                price_updated_at = parse_date_string(raw_date)
 
                 clean_t = clean_product_title(t_raw)
                 from backend.utils.text_utils import check_blacklist_with_reason
@@ -227,6 +237,7 @@ def parse_vegawin_file(file_path: str, collect_blacklisted: bool = False):
                         "barcode": b,
                         "title": clean_t or t_raw,
                         "price": p or 0.0,
+                        "price_updated_at": price_updated_at,
                         "reason": block_reason or "Kara Liste / Boş Stok / Manav / Test Kaydı"
                     })
                     continue
@@ -238,6 +249,7 @@ def parse_vegawin_file(file_path: str, collect_blacklisted: bool = False):
                     "raw_system_title": t_raw,
                     "price": p,
                     "has_price": has_price,
+                    "price_updated_at": price_updated_at,
                     "brand": "",
                     "unit": unit
                 })
@@ -312,7 +324,7 @@ def parse_raw_text_products(raw_text: str, collect_blacklisted: bool = False):
                 col_map[h] = col_i
             break
 
-    b_idx, t_idx, p_idx, sc_idx, br_idx, u_idx = None, None, None, None, None, None
+    b_idx, t_idx, p_idx, sc_idx, br_idx, u_idx, d_idx = None, None, None, None, None, None, None
 
     if header_idx != -1:
         for h, col_i in col_map.items():
@@ -322,6 +334,8 @@ def parse_raw_text_products(raw_text: str, collect_blacklisted: bool = False):
                 t_idx = col_i
             elif p_idx is None and any(k in h for k in ['satisfiyati', 'fiyat', 'price', 'satis', 'tutar']):
                 p_idx = col_i
+            elif d_idx is None and any(k in h for k in ['degismetarihi', 'degismatarihi', 'fiyatdegis', 'fiyattarihi', 'degisimtarihi', 'degisim', 'tarih']):
+                d_idx = col_i
             elif sc_idx is None and any(k in h for k in ['stokkodu', 'kod', 'stokkod']):
                 sc_idx = col_i
             elif br_idx is None and any(k in h for k in ['marka', 'brand']):
@@ -344,38 +358,62 @@ def parse_raw_text_products(raw_text: str, collect_blacklisted: bool = False):
         barcode_scores = [0] * col_counts
         price_scores = [0] * col_counts
         title_scores = [0] * col_counts
+        date_scores = [0] * col_counts
+
+        def is_date_candidate(val_str):
+            s = str(val_str).strip()
+            return bool(re.match(r'^\d{2}[\.\/]\d{2}[\.\/]\d{4}(?:\s+\d{2}:\d{2}(?::\d{2})?)?$', s) or re.match(r'^\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2}(?::\d{2})?)?$', s))
 
         for r in inspect_rows:
             for col_i, val in enumerate(r):
                 if col_i >= col_counts:
                     break
-                v_clean = clean_barcode_text(val)
+                v_str = str(val).strip()
+                if not v_str:
+                    continue
+                v_clean = clean_barcode_text(v_str)
                 if v_clean.isdigit() and len(v_clean) in (8, 12, 13, 14):
                     barcode_scores[col_i] += 4
                 elif v_clean.isdigit() and len(v_clean) >= 4:
                     barcode_scores[col_i] += 2
                 
-                if any(curr in val for curr in ['₺', 'TL', 'tl', ',']) or (val.replace('.', '').replace(',', '').isdigit() and len(val) <= 8):
+                if is_date_candidate(v_str):
+                    date_scores[col_i] += 5
+                
+                if any(curr in v_str for curr in ['₺', 'TL', 'tl', ',']) or (v_str.replace('.', '').replace(',', '').isdigit() and len(v_str) <= 8 and not is_date_candidate(v_str)):
                     price_scores[col_i] += 2
                 
-                if len(val.strip()) > 3 and not val.strip().replace('.', '').replace(',', '').isdigit():
-                    title_scores[col_i] += 2
+                # Tarih ve sayılar asla başlık olamaz!
+                if len(v_str) > 2 and not is_date_candidate(v_str) and not v_str.replace('.', '').replace(',', '').replace('-', '').isdigit():
+                    title_scores[col_i] += 3
 
         if any(barcode_scores):
             b_idx = barcode_scores.index(max(barcode_scores))
+        if any(date_scores):
+            d_idx = date_scores.index(max(date_scores))
         if any(price_scores):
-            # b_idx ile aynı olmayan en yüksek fiyat sütununu seç
-            valid_p_scores = [s if i != b_idx else -1 for i, s in enumerate(price_scores)]
+            valid_p_scores = [s if i not in (b_idx, d_idx) else -1 for i, s in enumerate(price_scores)]
             if any(s > 0 for s in valid_p_scores):
                 p_idx = valid_p_scores.index(max(valid_p_scores))
         if any(title_scores):
-            valid_t_scores = [s if i not in (b_idx, p_idx) else -1 for i, s in enumerate(title_scores)]
+            valid_t_scores = [s if i not in (b_idx, p_idx, d_idx) else -1 for i, s in enumerate(title_scores)]
             if any(s > 0 for s in valid_t_scores):
                 t_idx = valid_t_scores.index(max(valid_t_scores))
 
-        if b_idx is None and col_counts > 0: b_idx = 0
-        if t_idx is None and col_counts > 1: t_idx = 1
-        if p_idx is None and col_counts > 2: p_idx = 2
+        # Eğer standart 4 sütunlu yapı geldiyse (Barkod, Malın Cinsi, Fiyat, Değişme Tarihi)
+        if col_counts == 4:
+            if b_idx is None: b_idx = 0
+            if t_idx is None: t_idx = 1
+            if p_idx is None: p_idx = 2
+            if d_idx is None: d_idx = 3
+        elif col_counts == 3:
+            if b_idx is None: b_idx = 0
+            if t_idx is None: t_idx = 1
+            if p_idx is None: p_idx = 2
+        else:
+            if b_idx is None and col_counts > 0: b_idx = 0
+            if t_idx is None and col_counts > 1: t_idx = 1
+            if p_idx is None and col_counts > 2: p_idx = 2
 
     items = []
     blacklisted_items = []
@@ -391,6 +429,10 @@ def parse_raw_text_products(raw_text: str, collect_blacklisted: bool = False):
         sc = normalize_text(r[sc_idx]) if sc_idx is not None and sc_idx < len(r) else ""
         brand = normalize_text(r[br_idx]) if br_idx is not None and br_idx < len(r) else ""
         unit = normalize_text(r[u_idx]) if u_idx is not None and u_idx < len(r) else "ADET"
+        
+        raw_date = r[d_idx] if d_idx is not None and d_idx < len(r) else ""
+        from backend.utils.text_utils import parse_date_string
+        price_updated_at = parse_date_string(raw_date)
 
         clean_t = clean_product_title(t_raw)
         from backend.utils.text_utils import check_blacklist_with_reason
@@ -403,6 +445,7 @@ def parse_raw_text_products(raw_text: str, collect_blacklisted: bool = False):
                 "barcode": b,
                 "title": clean_t or t_raw,
                 "price": p or 0.0,
+                "price_updated_at": price_updated_at,
                 "reason": block_reason or "Kara Liste / Test Kaydı"
             })
             continue
@@ -414,6 +457,7 @@ def parse_raw_text_products(raw_text: str, collect_blacklisted: bool = False):
             "raw_system_title": t_raw,
             "price": p,
             "has_price": has_price_col,
+            "price_updated_at": price_updated_at,
             "brand": brand,
             "unit": unit
         })
