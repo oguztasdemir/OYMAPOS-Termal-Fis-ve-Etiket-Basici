@@ -340,9 +340,9 @@ function handleTopbarPrinterChange(newPrinter) {
   showToast(`Aktif Yazıcı: "${newPrinter}" olarak seçildi.`, 'info');
 }
 
-let selectedHistYear = 'all';
-let selectedHistMonth = 'all';
-let selectedHistDay = 'all';
+let selectedHistYear = null;
+let selectedHistMonth = null;
+let selectedHistDay = null;
 let rawAvailableDates = [];
 
 const MONTH_NAMES_TR = {
@@ -352,13 +352,13 @@ const MONTH_NAMES_TR = {
 };
 
 function getActiveHistFilterString() {
-  if (selectedHistDay !== 'all') {
+  if (selectedHistDay) {
     return selectedHistDay; // "15.09.2026"
   }
-  if (selectedHistMonth !== 'all' && selectedHistYear !== 'all') {
+  if (selectedHistMonth && selectedHistYear) {
     return `${selectedHistMonth}.${selectedHistYear}`; // "09.2026"
   }
-  if (selectedHistYear !== 'all') {
+  if (selectedHistYear) {
     return selectedHistYear; // "2026"
   }
   return 'all';
@@ -371,7 +371,14 @@ function populateHistDateDropdowns(dates) {
   const daySel = document.getElementById('histFilterDay');
   if (!yearSel || !monthSel || !daySel) return;
 
-  // 1. Mevcut Yılları Çıkar
+  if (rawAvailableDates.length === 0) {
+    yearSel.innerHTML = '<option value="">Kayıt Yok</option>';
+    monthSel.innerHTML = '<option value="">Kayıt Yok</option>';
+    daySel.innerHTML = '<option value="">Kayıt Yok</option>';
+    return;
+  }
+
+  // 1. Sistemde kaydı olan gerçek Yılları Çıkar
   const years = new Set();
   rawAvailableDates.forEach(d => {
     const parts = d.split('.');
@@ -379,71 +386,80 @@ function populateHistDateDropdowns(dates) {
   });
   const sortedYears = Array.from(years).sort().reverse();
 
-  let yearHtml = '<option value="all">Tüm Yıllar</option>';
+  // Eğer seçili yıl yoksa veya listede yoksa en güncel yılı seç
+  if (!selectedHistYear || !years.has(selectedHistYear)) {
+    selectedHistYear = sortedYears[0] || null;
+  }
+
+  let yearHtml = '';
   sortedYears.forEach(y => {
     yearHtml += `<option value="${y}" ${selectedHistYear === y ? 'selected' : ''}>${y} Yılı</option>`;
   });
   yearSel.innerHTML = yearHtml;
 
-  // 2. Seçili Yıla Göre Ayları Çıkar
+  // 2. Seçili Yıla ait gerçek Ayları Çıkar
   const months = new Set();
   rawAvailableDates.forEach(d => {
     const parts = d.split('.');
-    if (parts.length === 3) {
-      if (selectedHistYear === 'all' || parts[2] === selectedHistYear) {
-        months.add(parts[1]);
-      }
+    if (parts.length === 3 && parts[2] === selectedHistYear) {
+      months.add(parts[1]);
     }
   });
-  const sortedMonths = Array.from(months).sort();
+  const sortedMonths = Array.from(months).sort().reverse();
 
-  let monthHtml = '<option value="all">Tüm Aylar</option>';
+  // Eğer seçili ay yoksa veya bu yılda yoksa en güncel ayı seç
+  if (!selectedHistMonth || !months.has(selectedHistMonth)) {
+    selectedHistMonth = sortedMonths[0] || null;
+  }
+
+  let monthHtml = '';
   sortedMonths.forEach(m => {
     const name = MONTH_NAMES_TR[m] || m;
     monthHtml += `<option value="${m}" ${selectedHistMonth === m ? 'selected' : ''}>${name} (${m})</option>`;
   });
   monthSel.innerHTML = monthHtml;
 
-  // 3. Seçili Yıl ve Aya Göre Günleri Çıkar
+  // 3. Seçili Yıl ve Aya ait gerçek Günleri Çıkar
   const days = [];
   rawAvailableDates.forEach(d => {
     const parts = d.split('.');
-    if (parts.length === 3) {
-      const matchYear = (selectedHistYear === 'all' || parts[2] === selectedHistYear);
-      const matchMonth = (selectedHistMonth === 'all' || parts[1] === selectedHistMonth);
-      if (matchYear && matchMonth) {
-        days.push(d);
-      }
+    if (parts.length === 3 && parts[2] === selectedHistYear && parts[1] === selectedHistMonth) {
+      days.push(d);
     }
   });
 
-  let dayHtml = '<option value="all">Tüm Günler</option>';
+  // Eğer seçili gün yoksa veya bu ayda yoksa en güncel günü seç
+  if (!selectedHistDay || !days.includes(selectedHistDay)) {
+    selectedHistDay = days[0] || null;
+  }
+
+  let dayHtml = '';
   days.forEach(d => {
     const parts = d.split('.');
     const mName = MONTH_NAMES_TR[parts[1]] || parts[1];
-    dayHtml += `<option value="${d}" ${selectedHistDay === d ? 'selected' : ''}>${parts[0]} ${mName} ${parts[2]}</option>`;
+    dayHtml += `<option value="${d}" ${selectedHistDay === d ? 'selected' : ''}>${parts[0]} ${mName}</option>`;
   });
   daySel.innerHTML = dayHtml;
 }
 
 async function handleHistYearChange(year) {
-  selectedHistYear = year || 'all';
-  selectedHistMonth = 'all';
-  selectedHistDay = 'all';
+  selectedHistYear = year;
+  selectedHistMonth = null;
+  selectedHistDay = null;
   populateHistDateDropdowns(rawAvailableDates);
   await loadPrintHistoryTable();
 }
 
 async function handleHistMonthChange(month) {
-  selectedHistMonth = month || 'all';
-  selectedHistDay = 'all';
+  selectedHistMonth = month;
+  selectedHistDay = null;
   populateHistDateDropdowns(rawAvailableDates);
   await loadPrintHistoryTable();
 }
 
 async function handleHistDayChange(day) {
-  selectedHistDay = day || 'all';
-  if (day !== 'all') {
+  selectedHistDay = day;
+  if (day) {
     const parts = day.split('.');
     if (parts.length === 3) {
       selectedHistMonth = parts[1];
@@ -455,9 +471,9 @@ async function handleHistDayChange(day) {
 }
 
 async function resetPrintHistoryFilters() {
-  selectedHistYear = 'all';
-  selectedHistMonth = 'all';
-  selectedHistDay = 'all';
+  selectedHistYear = null;
+  selectedHistMonth = null;
+  selectedHistDay = null;
   populateHistDateDropdowns(rawAvailableDates);
   await loadPrintHistoryTable();
 }
