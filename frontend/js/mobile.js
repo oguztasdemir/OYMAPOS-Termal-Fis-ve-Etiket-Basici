@@ -1049,7 +1049,10 @@ function renderQueueList() {
       <div class="queue-card" onclick="openProductEditFromQueue(${idx})" style="cursor:pointer;" title="Detayları açmak ve düzenlemek için dokunun">
         <div class="queue-card-top">
           <span class="queue-card-title">${item.title}</span>
-          <button class="btn-remove-item" onclick="event.stopPropagation(); removeItemFromQueue(${idx})">🗑️ Kaldır</button>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <button class="btn-print-item" onclick="event.stopPropagation(); printSingleQueueItem(${idx})" title="Bu ürünü yazdır ve listeden kaldır">🖨️ Yazdır</button>
+            <button class="btn-remove-item" onclick="event.stopPropagation(); removeItemFromQueue(${idx})" title="Listeden kaldır">🗑️ Sil</button>
+          </div>
         </div>
         <div class="queue-card-bottom">
           <span class="queue-barcode">${item.barcode}</span>
@@ -1064,6 +1067,49 @@ function renderQueueList() {
     `;
   });
   container.innerHTML = html;
+}
+
+/**
+ * 🖨️ Basım Listesinden Tekil (Bireysel) Ürün Yazdırma
+ * Yazdırma başarılı olduğunda ürünü basım listesinden kaldırır.
+ */
+async function printSingleQueueItem(idx) {
+  if (!mobileQueue || !mobileQueue[idx]) return;
+  const item = mobileQueue[idx];
+  const chosenPrinter = getSelectedMobilePrinter();
+
+  showToast(`"${item.title}" yazıcıya gönderiliyor...`, "info");
+
+  try {
+    const payload = {
+      products: [{
+        barcode: item.barcode,
+        title: item.title,
+        price: item.price
+      }],
+      copies: 1
+    };
+    if (chosenPrinter) payload.printer = chosenPrinter;
+
+    const res = await fetch('/api/print/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+
+    if (data.status === 'success') {
+      showToast(`✓ "${item.title}" başarıyla yazdırıldı ve listeden çıkarıldı.`, "success");
+      // Listeden çıkar
+      mobileQueue.splice(idx, 1);
+      saveQueueToStorage();
+      renderQueueList();
+    } else {
+      showToast("Yazdırma hatası: " + (data.message || 'Bilinmeyen hata'), "error");
+    }
+  } catch(e) {
+    showToast("Yazdırma bağlantı hatası: " + e.message, "error");
+  }
 }
 
 async function updateQueuePrice(idx, val) {
@@ -1674,6 +1720,57 @@ function closeBarcodeDisplayModal() {
     modal.classList.remove('active');
   }
   activeModalBarcode = null;
+}
+
+/**
+ * 🖨️ Ürün Detay/Barkod Modalından Bireysel Yazdırma
+ * Yazdırıldığında eğer ürün basım listesinde (kuyrukta) varsa listeden de kaldırılır.
+ */
+async function printFromDisplayModal() {
+  if (!activeModalBarcode) return;
+  const title = (document.getElementById('modal-edit-title')?.value || '').trim();
+  const price = parseFloat(document.getElementById('modal-edit-price')?.value) || 0;
+  const barcode = activeModalBarcode;
+  const chosenPrinter = getSelectedMobilePrinter();
+
+  showToast(`"${title || barcode}" yazdırılıyor...`, "info");
+
+  try {
+    const payload = {
+      products: [{
+        barcode: barcode,
+        title: title,
+        price: price
+      }],
+      copies: 1
+    };
+    if (chosenPrinter) payload.printer = chosenPrinter;
+
+    const res = await fetch('/api/print/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+
+    if (data.status === 'success') {
+      showToast(`✓ "${title || barcode}" başarıyla yazdırıldı.`, "success");
+      
+      // Basım listesinde varsa oradan kaldır
+      const qIdx = mobileQueue.findIndex(x => x.barcode === barcode);
+      if (qIdx !== -1) {
+        mobileQueue.splice(qIdx, 1);
+        saveQueueToStorage();
+        renderQueueList();
+      }
+
+      closeBarcodeDisplayModal();
+    } else {
+      showToast("Yazdırma hatası: " + (data.message || 'Bilinmeyen hata'), "error");
+    }
+  } catch(e) {
+    showToast("Yazdırma bağlantı hatası: " + e.message, "error");
+  }
 }
 
 let currentActivePdfUrl = "";

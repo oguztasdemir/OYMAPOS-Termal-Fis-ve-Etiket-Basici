@@ -652,6 +652,24 @@
       line-height: 1.3;
     }
 
+    .btn-print-item {
+      background: rgba(2, 132, 199, 0.18);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all 0.2s ease;
+    }
+
+    .btn-print-item:active {
+      transform: scale(0.95);
+      background: rgba(2, 132, 199, 0.35);
+    }
+
     .btn-remove-item {
       background: rgba(239, 68, 68, 0.15);
       color: #f87171;
@@ -1315,11 +1333,16 @@
       </div>
 
       <!-- İşlem Butonları -->
-      <div style="display:flex; gap:8px; width:100%; margin-top:2px;">
-        <button id="btn-modal-save-price" class="btn-action-camera" style="flex:1; padding:12px; font-size:13.5px; font-weight:800; border-radius:10px;" onclick="saveModalProductEdit()">
-          💾 Kaydet & Güncelle
-        </button>
-        <button class="btn-barcode-modal-close" style="flex:0.8; margin-top:0; padding:12px; font-size:13px; font-weight:700; background:#64748b;" onclick="closeBarcodeDisplayModal()">Kapat</button>
+      <div style="display:flex; flex-direction:column; gap:8px; width:100%; margin-top:4px;">
+        <div style="display:flex; gap:8px; width:100%;">
+          <button id="btn-modal-print-single" class="btn-action-camera" style="flex:1; padding:12px; font-size:13.5px; font-weight:800; border-radius:10px; background:linear-gradient(135deg, #0284c7 0%, #0369a1 100%);" onclick="printFromDisplayModal()">
+            🖨️ Yazdır
+          </button>
+          <button id="btn-modal-save-price" class="btn-action-camera" style="flex:1; padding:12px; font-size:13.5px; font-weight:800; border-radius:10px; background:linear-gradient(135deg, #10b981 0%, #059669 100%);" onclick="saveModalProductEdit()">
+            💾 Güncelle
+          </button>
+        </div>
+        <button class="btn-barcode-modal-close" style="width:100%; margin-top:0; padding:10px; font-size:13px; font-weight:700; background:#64748b;" onclick="closeBarcodeDisplayModal()">Kapat</button>
       </div>
     </div>
   </div>
