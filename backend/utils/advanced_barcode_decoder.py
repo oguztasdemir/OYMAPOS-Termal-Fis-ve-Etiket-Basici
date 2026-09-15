@@ -5,9 +5,12 @@ Gelişmiş Parlama ve Yuvarlak/Bükük Yüzey Barkod Çözümleme Motoru (OYMAPO
 - Yuvarlak Yapılar (Yumurta çikolata, silindir, şişe, bükük ambalaj) Düzleştirme & Silindirik De-warp
 - Multi-Angle (Çok Açılı) Döndürme & Dilimleme
 - PyZBar + OpenCV BarcodeDetector Hibrit Motoru
-"""
-import cv2
-import numpy as np
+try:
+    import cv2
+    import numpy as np
+except ImportError:
+    cv2 = None
+    np = None
 
 try:
     from pyzbar import pyzbar

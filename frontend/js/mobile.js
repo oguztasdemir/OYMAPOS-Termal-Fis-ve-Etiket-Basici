@@ -777,6 +777,8 @@ async function toggleCurrentProductPriceChange() {
 
 window.toggleCurrentProductPriceChange = toggleCurrentProductPriceChange;
 window.setChangesButtonState = setChangesButtonState;
+
+function getSelectedMobilePrinter() {
   const sel = document.getElementById('mobilePrinterSelect');
   if (sel && sel.value) return sel.value;
   return localStorage.getItem('selected_printer') || null;
