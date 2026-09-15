@@ -514,6 +514,9 @@ function renderDeviceDataRows(items) {
     `;
   });
 
+  tbody.innerHTML = html;
+}
+
 // Global Window Dışa Aktarımları
 window.initkasa_aktarimDropzone = initkasa_aktarimDropzone;
 window.handleVegaFileSelect = handleVegaFileSelect;
