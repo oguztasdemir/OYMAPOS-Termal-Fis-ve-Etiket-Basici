@@ -247,8 +247,12 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
         # -------------------------------------------------------------
         # 3. BÖLÜM (ALT KATMAN): EAN-13 Barkod | Satış Fiyatı | BÜYÜK FİYAT
         # -------------------------------------------------------------
-        # Barkod sağa doğru 0.5mm (4 dot) uzatıldı / kaydırıldı (bc_start_y = start_y + 20), boyutu artırılmadı (64 dot)
-        bc_start_y = start_y + 20
+        # Satış Fiyatı Dikey Ayracı (Kutu ve yazı)
+        div_y = oy + 320 # ~352 dot
+
+        # Barkod sol kenar (sep_start_y: 54 dot) ile Satış Fiyatı kutusu (div_y: 352 dot) arasındaki alanın tam ortasına hizalandı
+        # Alan genişliği: 352 - 54 = 298 dot. EAN-13 genişliği ~190 dot. Orta başlangıç: 54 + (298 - 190)/2 = ~108 dot
+        bc_start_y = sep_start_y + int((div_y - sep_start_y - 190) / 2) # ~108 dot
         clean_bc = re.sub(r'[^0-9A-Za-z]', '', barcode)
         if len(clean_bc) == 13 and clean_bc.isdigit():
             zpl.append(f"^FO{ox + 34},{bc_start_y}^BY2,2.5,64^BER,64,Y,N^FD{clean_bc}^FS")
@@ -258,7 +262,6 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
             zpl.append(f"^FO{ox + 34},{bc_start_y}^BY2,2.5,64^BCR,64,Y,N,N^FD{clean_bc or '00000000'}^FS")
 
         # Satış Fiyatı Dikey Ayracı (Kutu ve yazı) - Barkod ile çakışmayacak şekilde 352 dot konumuna güvenle hizalandı
-        div_y = oy + 320 # ~352 dot
         zpl.extend([
             f"^FO{ox + 16},{div_y}^GB82,54,2^FS",
             f"^FO{ox + 48},{div_y + 8}^A0R,16,14^FDSatis^FS",
