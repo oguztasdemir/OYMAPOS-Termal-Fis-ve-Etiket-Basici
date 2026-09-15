@@ -127,23 +127,37 @@ def check_printer_connection(printer_name: str = None) -> dict:
 
 PRINT_HISTORY_FILE = os.path.join(DATA_DIR, "baski_gecmisi.json")
 
-def get_print_history(limit: int = 200, date_filter: str = None) -> list:
-    """Son etiket baskı geçmişini döner. date_filter (YYYY-MM-DD veya DD.MM.YYYY) belirtilirse o güne ait olanları döner."""
+def get_print_history(limit: int = 500, date_filter: str = None) -> list:
+    """Son etiket baskı geçmişini döner. 
+    date_filter:
+      - 'all' veya None: tümü
+      - '2026': sadece 2026 yılı
+      - '09.2026' veya '2026-09': Eylül 2026
+      - '15.09.2026' veya '2026-09-15': 15 Eylül 2026
+    """
     if os.path.exists(PRINT_HISTORY_FILE):
         try:
             with open(PRINT_HISTORY_FILE, 'r', encoding='utf-8') as f:
                 history = json.load(f)
-                if date_filter:
-                    # Tarih filtresi uygula (YYYY-MM-DD formatını DD.MM.YYYY ile eşleştir)
-                    target_date = date_filter
-                    if "-" in date_filter and len(date_filter) == 10:
-                        parts = date_filter.split("-")
-                        target_date = f"{parts[2]}.{parts[1]}.{parts[0]}"
+                if date_filter and date_filter != 'all':
+                    df = str(date_filter).strip()
                     filtered = []
                     for h in history:
-                        p_date = (h.get("printed_at") or "").split(" ")[0]
-                        if p_date == target_date:
-                            filtered.append(h)
+                        p_date = (h.get("printed_at") or "").split(" ")[0] # "15.09.2026"
+                        if not p_date:
+                            continue
+                        parts = p_date.split(".") # [15, 09, 2026]
+                        if len(parts) == 3:
+                            day_s, month_s, year_s = parts[0], parts[1], parts[2]
+                            # Tam gün eşleşmesi
+                            if df in (p_date, f"{year_s}-{month_s}-{day_s}"):
+                                filtered.append(h)
+                            # Ay eşleşmesi (Örn: "09.2026" veya "2026-09")
+                            elif df in (f"{month_s}.{year_s}", f"{year_s}-{month_s}"):
+                                filtered.append(h)
+                            # Yıl eşleşmesi (Örn: "2026")
+                            elif df == year_s:
+                                filtered.append(h)
                     return filtered[:limit]
                 return history[:limit]
         except Exception:

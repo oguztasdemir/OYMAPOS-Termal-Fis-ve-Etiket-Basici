@@ -340,23 +340,125 @@ function handleTopbarPrinterChange(newPrinter) {
   showToast(`Aktif Yazıcı: "${newPrinter}" olarak seçildi.`, 'info');
 }
 
-let selectedPrintHistoryDate = 'all';
+let selectedHistYear = 'all';
+let selectedHistMonth = 'all';
+let selectedHistDay = 'all';
+let rawAvailableDates = [];
 
-async function handlePrintHistoryDateChange(targetDate) {
-  selectedPrintHistoryDate = targetDate || 'all';
-  const picker = document.getElementById('printHistoryDatePicker');
-  if (picker) {
-    if (targetDate && targetDate !== 'all') {
-      if (targetDate.includes('.')) {
-        const p = targetDate.split('.');
-        picker.value = `${p[2]}-${p[1]}-${p[0]}`;
-      } else {
-        picker.value = targetDate;
+const MONTH_NAMES_TR = {
+  "01": "Ocak", "02": "Şubat", "03": "Mart", "04": "Nisan",
+  "05": "Mayıs", "06": "Haziran", "07": "Temmuz", "08": "Ağustos",
+  "09": "Eylül", "10": "Ekim", "11": "Kasım", "12": "Aralık"
+};
+
+function getActiveHistFilterString() {
+  if (selectedHistDay !== 'all') {
+    return selectedHistDay; // "15.09.2026"
+  }
+  if (selectedHistMonth !== 'all' && selectedHistYear !== 'all') {
+    return `${selectedHistMonth}.${selectedHistYear}`; // "09.2026"
+  }
+  if (selectedHistYear !== 'all') {
+    return selectedHistYear; // "2026"
+  }
+  return 'all';
+}
+
+function populateHistDateDropdowns(dates) {
+  rawAvailableDates = dates || [];
+  const yearSel = document.getElementById('histFilterYear');
+  const monthSel = document.getElementById('histFilterMonth');
+  const daySel = document.getElementById('histFilterDay');
+  if (!yearSel || !monthSel || !daySel) return;
+
+  // 1. Mevcut Yılları Çıkar
+  const years = new Set();
+  rawAvailableDates.forEach(d => {
+    const parts = d.split('.');
+    if (parts.length === 3) years.add(parts[2]);
+  });
+  const sortedYears = Array.from(years).sort().reverse();
+
+  let yearHtml = '<option value="all">Tüm Yıllar</option>';
+  sortedYears.forEach(y => {
+    yearHtml += `<option value="${y}" ${selectedHistYear === y ? 'selected' : ''}>${y} Yılı</option>`;
+  });
+  yearSel.innerHTML = yearHtml;
+
+  // 2. Seçili Yıla Göre Ayları Çıkar
+  const months = new Set();
+  rawAvailableDates.forEach(d => {
+    const parts = d.split('.');
+    if (parts.length === 3) {
+      if (selectedHistYear === 'all' || parts[2] === selectedHistYear) {
+        months.add(parts[1]);
       }
-    } else {
-      picker.value = '';
+    }
+  });
+  const sortedMonths = Array.from(months).sort();
+
+  let monthHtml = '<option value="all">Tüm Aylar</option>';
+  sortedMonths.forEach(m => {
+    const name = MONTH_NAMES_TR[m] || m;
+    monthHtml += `<option value="${m}" ${selectedHistMonth === m ? 'selected' : ''}>${name} (${m})</option>`;
+  });
+  monthSel.innerHTML = monthHtml;
+
+  // 3. Seçili Yıl ve Aya Göre Günleri Çıkar
+  const days = [];
+  rawAvailableDates.forEach(d => {
+    const parts = d.split('.');
+    if (parts.length === 3) {
+      const matchYear = (selectedHistYear === 'all' || parts[2] === selectedHistYear);
+      const matchMonth = (selectedHistMonth === 'all' || parts[1] === selectedHistMonth);
+      if (matchYear && matchMonth) {
+        days.push(d);
+      }
+    }
+  });
+
+  let dayHtml = '<option value="all">Tüm Günler</option>';
+  days.forEach(d => {
+    const parts = d.split('.');
+    const mName = MONTH_NAMES_TR[parts[1]] || parts[1];
+    dayHtml += `<option value="${d}" ${selectedHistDay === d ? 'selected' : ''}>${parts[0]} ${mName} ${parts[2]}</option>`;
+  });
+  daySel.innerHTML = dayHtml;
+}
+
+async function handleHistYearChange(year) {
+  selectedHistYear = year || 'all';
+  selectedHistMonth = 'all';
+  selectedHistDay = 'all';
+  populateHistDateDropdowns(rawAvailableDates);
+  await loadPrintHistoryTable();
+}
+
+async function handleHistMonthChange(month) {
+  selectedHistMonth = month || 'all';
+  selectedHistDay = 'all';
+  populateHistDateDropdowns(rawAvailableDates);
+  await loadPrintHistoryTable();
+}
+
+async function handleHistDayChange(day) {
+  selectedHistDay = day || 'all';
+  if (day !== 'all') {
+    const parts = day.split('.');
+    if (parts.length === 3) {
+      selectedHistMonth = parts[1];
+      selectedHistYear = parts[2];
     }
   }
+  populateHistDateDropdowns(rawAvailableDates);
+  await loadPrintHistoryTable();
+}
+
+async function resetPrintHistoryFilters() {
+  selectedHistYear = 'all';
+  selectedHistMonth = 'all';
+  selectedHistDay = 'all';
+  populateHistDateDropdowns(rawAvailableDates);
   await loadPrintHistoryTable();
 }
 
@@ -364,34 +466,47 @@ async function loadPrintHistoryTable() {
   const tbody = document.getElementById('printHistoryTableBody');
   if (!tbody) return;
 
+  const currentFilter = getActiveHistFilterString();
+
   try {
-    const res = await API.getPrintHistory(200, selectedPrintHistoryDate);
+    const res = await API.getPrintHistory(300, currentFilter);
     const data = (res && res.data) || {};
     const history = data.history || [];
     const availableDates = data.available_dates || [];
+
+    // Dropdownları doldur / senkronize et
+    populateHistDateDropdowns(availableDates);
 
     // İstatistik ve sayaç güncellemesi
     const dayCountEl = document.getElementById('histDayTotalPrints');
     if (dayCountEl) {
       const totalPrintsCount = history.reduce((sum, item) => sum + (item.copies || 1), 0);
-      dayCountEl.textContent = `${totalPrintsCount} Etiket (${history.length} İşlem)`;
+      let filterLabel = 'Tümü';
+      if (selectedHistDay !== 'all') {
+        filterLabel = selectedHistDay;
+      } else if (selectedHistMonth !== 'all') {
+        filterLabel = `${MONTH_NAMES_TR[selectedHistMonth] || selectedHistMonth} ${selectedHistYear !== 'all' ? selectedHistYear : ''}`;
+      } else if (selectedHistYear !== 'all') {
+        filterLabel = `${selectedHistYear} Yılı`;
+      }
+      dayCountEl.textContent = `${totalPrintsCount} Etiket (${history.length} İşlem) [${filterLabel.trim()}]`;
     }
 
-    // Tarih Hapları (Date Pills) Oluşturma
+    // Hızlı Gün Hapları (Date Pills)
     const pillsContainer = document.getElementById('printHistoryDatePills');
     if (pillsContainer) {
       if (availableDates.length === 0) {
         pillsContainer.innerHTML = '';
       } else {
-        let pillsHtml = `<span style="font-size:11.5px; font-weight:700; color:var(--text-muted);">Hızlı Günler:</span>`;
-        availableDates.slice(0, 6).forEach(d => {
-          const isActive = (selectedPrintHistoryDate === d || (selectedPrintHistoryDate && selectedPrintHistoryDate.split('-').reverse().join('.') === d));
+        let pillsHtml = `<span style="font-size:11px; font-weight:700; color:var(--text-muted);">Son Günler:</span>`;
+        availableDates.slice(0, 5).forEach(d => {
+          const isActive = (selectedHistDay === d);
           const btnStyle = isActive
             ? 'background: var(--primary); color: #fff; border-color: var(--primary); font-weight:800;'
             : 'background: var(--card-inner); color: var(--text-main); border-color: var(--border-color);';
           
           pillsHtml += `
-            <button class="btn btn-sm" onclick="handlePrintHistoryDateChange('${escapeHtml(d)}')" style="${btnStyle} font-size:11px; padding:3px 9px; border-radius:14px; cursor:pointer;" title="${escapeHtml(d)} gününün baskılarını göster">
+            <button class="btn btn-sm" onclick="handleHistDayChange('${escapeHtml(d)}')" style="${btnStyle} font-size:11px; padding:3px 9px; border-radius:14px; cursor:pointer;" title="${escapeHtml(d)} gününü filtrele">
               📅 ${escapeHtml(d)}
             </button>
           `;
@@ -400,25 +515,11 @@ async function loadPrintHistoryTable() {
       }
     }
 
-    // "Tüm Günler" buton stilini güncelle
-    const btnAll = document.getElementById('btnHistShowAllDates');
-    if (btnAll) {
-      if (selectedPrintHistoryDate === 'all' || !selectedPrintHistoryDate) {
-        btnAll.style.background = 'var(--primary)';
-        btnAll.style.color = '#fff';
-        btnAll.style.fontWeight = '800';
-      } else {
-        btnAll.style.background = '';
-        btnAll.style.color = '';
-        btnAll.style.fontWeight = '';
-      }
-    }
-
     if (history.length === 0) {
       tbody.innerHTML = `
         <tr>
           <td colspan="8" style="text-align: center; padding: 40px; color: var(--text-muted);">
-            🖨️ ${selectedPrintHistoryDate !== 'all' ? selectedPrintHistoryDate + ' gününe ait baskı kaydı bulunamadı.' : 'Henüz kayıtlı bir etiket baskısı bulunmuyor.'}
+            🖨️ ${currentFilter !== 'all' ? `"${currentFilter}" filtresine ait baskı kaydı bulunamadı.` : 'Henüz kayıtlı bir etiket baskısı bulunmuyor.'}
           </td>
         </tr>
       `;
