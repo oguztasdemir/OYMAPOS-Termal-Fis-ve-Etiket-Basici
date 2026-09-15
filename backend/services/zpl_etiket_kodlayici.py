@@ -229,9 +229,9 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
         # -------------------------------------------------------------
         # 2. BÖLÜM (ORTA KATMAN): Marka (Sol) & 3 Satır Yasal Bilgi (Sağ)
         # -------------------------------------------------------------
-        # Yarenler 0.5mm sağa (start_y + 6), 0.2mm aşağı (ox + 155)
-        brand_y = start_y + 6
-        zpl.append(f"^FO{ox + 155},{brand_y}^A0R,40,34^FD{brand}^FS")
+        # Yarenler yazısı ilgili alanın tam ortasına getirildi (1 tık sağa: start_y + 14, 1 tık aşağı: ox + 150)
+        brand_y = start_y + 14
+        zpl.append(f"^FO{ox + 150},{brand_y}^A0R,40,34^FD{brand}^FS")
 
         # Üretim yeri, Kdv, Fiyat Değiştirme Tarihi 1cm (~80 dot) sağa kaydırıldı
         mid_y = start_y + 190 + 80 # ~302 dot
@@ -247,29 +247,29 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
         # -------------------------------------------------------------
         # 3. BÖLÜM (ALT KATMAN): EAN-13 Barkod | Satış Fiyatı | BÜYÜK FİYAT
         # -------------------------------------------------------------
-        # Barkod sağa doğru maksimum okunabilir genişlikte uzatıldı (BY3 ile ~250 dot alan kaplar, bitiş: ~340 dot)
-        bc_start_y = start_y + 12
+        # Barkod çok az küçültüldü (yükseklik: 64 dot, BY2, oran: 2.5), genişlik ve konum tam dengelendi
+        bc_start_y = start_y + 16
         clean_bc = re.sub(r'[^0-9A-Za-z]', '', barcode)
         if len(clean_bc) == 13 and clean_bc.isdigit():
-            zpl.append(f"^FO{ox + 30},{bc_start_y}^BY3,3,72^BER,72,Y,N^FD{clean_bc}^FS")
+            zpl.append(f"^FO{ox + 34},{bc_start_y}^BY2,2.5,64^BER,64,Y,N^FD{clean_bc}^FS")
         elif len(clean_bc) == 8 and clean_bc.isdigit():
-            zpl.append(f"^FO{ox + 30},{bc_start_y}^BY3,3,72^BER,72,Y,N^FD{clean_bc}^FS")
+            zpl.append(f"^FO{ox + 34},{bc_start_y}^BY2,2.5,64^BER,64,Y,N^FD{clean_bc}^FS")
         else:
-            zpl.append(f"^FO{ox + 30},{bc_start_y}^BY3,3,72^BCR,72,Y,N,N^FD{clean_bc or '00000000'}^FS")
+            zpl.append(f"^FO{ox + 34},{bc_start_y}^BY2,2.5,64^BCR,64,Y,N,N^FD{clean_bc or '00000000'}^FS")
 
-        # Satış Fiyatı Dikey Ayracı (Kutu ve yazı) - Barkod ile çakışmayacak şekilde 368 dot konumuna güvenle hizalandı
-        div_y = oy + 336 # ~368 dot (Barkod bittikten sonra güvenli 28 dot boşluk)
+        # Satış Fiyatı Dikey Ayracı (Kutu ve yazı) - Barkod ile çakışmayacak şekilde 352 dot konumuna güvenle hizalandı
+        div_y = oy + 320 # ~352 dot
         zpl.extend([
             f"^FO{ox + 16},{div_y}^GB82,54,2^FS",
             f"^FO{ox + 48},{div_y + 8}^A0R,16,14^FDSatis^FS",
             f"^FO{ox + 20},{div_y + 8}^A0R,16,14^FDFiyati^FS",
         ])
 
-        # SATIŞ FİYATI (Büyük Fiyat) - Satış Fiyatı kutusundan sonra güvenli 432 dot konumunda
+        # SATIŞ FİYATI (Büyük Fiyat) - Satış Fiyatı kutusundan sonra güvenli 386 dot konumunda
         price_clean = str(price).strip()
         price_len = len(price_clean)
 
-        price_y = div_y + 64 # ~432 dot
+        price_y = div_y + 66 # ~418 dot
         if price_len >= 11:
             f_h, f_w = 70, 56
         elif price_len >= 9:
