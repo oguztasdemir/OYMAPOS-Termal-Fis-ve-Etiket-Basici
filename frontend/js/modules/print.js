@@ -491,19 +491,32 @@ async function resetPrintHistoryFilters() {
   await loadPrintHistoryTable();
 }
 
-function _updateHistDayStats(history) {
+function _updateHistDayStats(history, allHistory = []) {
   const dayCountEl = document.getElementById('histDayTotalPrints');
-  if (!dayCountEl) return;
-  const totalPrintsCount = history.reduce((sum, item) => sum + (item.copies || 1), 0);
-  let filterLabel = 'Tümü';
-  if (selectedHistDay) {
-    filterLabel = selectedHistDay;
-  } else if (selectedHistMonth && selectedHistYear) {
-    filterLabel = `${MONTH_NAMES_TR[selectedHistMonth] || selectedHistMonth} ${selectedHistYear}`;
-  } else if (selectedHistYear) {
-    filterLabel = `${selectedHistYear} Yılı`;
+  const todayPrintsEl = document.getElementById('histTodayPrints');
+  
+  if (dayCountEl) {
+    const totalPrintsCount = history.reduce((sum, item) => sum + (item.copies || 1), 0);
+    let filterLabel = 'Tümü';
+    if (selectedHistDay) {
+      filterLabel = selectedHistDay;
+    } else if (selectedHistMonth && selectedHistYear) {
+      filterLabel = `${MONTH_NAMES_TR[selectedHistMonth] || selectedHistMonth} ${selectedHistYear}`;
+    } else if (selectedHistYear) {
+      filterLabel = `${selectedHistYear} Yılı`;
+    }
+    dayCountEl.textContent = `${totalPrintsCount} Etiket (${history.length} İşlem) [${(filterLabel || 'Tümü').trim()}]`;
   }
-  dayCountEl.textContent = `${totalPrintsCount} Etiket (${history.length} İşlem) [${(filterLabel || 'Tümü').trim()}]`;
+
+  // Bugün basılan toplam etiket adedini hesapla (GG.AA.YYYY formatında bugünün tarihi)
+  if (todayPrintsEl) {
+    const now = new Date();
+    const todayStr = `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}.${now.getFullYear()}`;
+    const dataset = (allHistory && allHistory.length > 0) ? allHistory : history;
+    const todayItems = dataset.filter(item => (item.printed_at || '').startsWith(todayStr));
+    const todayTotalCount = todayItems.reduce((sum, item) => sum + (item.copies || 1), 0);
+    todayPrintsEl.textContent = `${todayTotalCount} Etiket (${todayItems.length} İşlem)`;
+  }
 }
 
 function _updateHistDayPills(availableDates) {
@@ -601,13 +614,13 @@ async function loadPrintHistoryTable() {
     if (isFirstLoad && selectedHistDay && availableDates.length > 0) {
       const filteredHistory = history.filter(h => (h.printed_at || '').startsWith(selectedHistDay));
       tbody.innerHTML = _buildHistoryTableHtml(filteredHistory, selectedHistDay);
-      _updateHistDayStats(filteredHistory);
+      _updateHistDayStats(filteredHistory, history);
       _updateHistDayPills(rawAvailableDates.length > 0 ? rawAvailableDates : availableDates);
       return;
     }
 
     // İstatistik, pill ve tablo güncelle
-    _updateHistDayStats(history);
+    _updateHistDayStats(history, history);
     _updateHistDayPills(rawAvailableDates.length > 0 ? rawAvailableDates : availableDates);
     tbody.innerHTML = _buildHistoryTableHtml(history, currentFilter);
 

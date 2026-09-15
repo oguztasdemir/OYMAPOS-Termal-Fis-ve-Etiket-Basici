@@ -211,7 +211,7 @@ def log_print_job(barcode: str, title: str, price, copies: int = 1, status: str 
             "printed_at": now_str
         }
         history.insert(0, record)
-        history = history[:200] # Maksimum son 200 baskıyı sakla
+        history = history[:2000] # Maksimum son 2000 baskıyı sakla
 
         with open(PRINT_HISTORY_FILE, 'w', encoding='utf-8') as f:
             json.dump(history, f, ensure_ascii=False, indent=2)
