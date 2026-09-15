@@ -474,15 +474,92 @@ async function resetPrintHistoryFilters() {
   selectedHistYear = null;
   selectedHistMonth = null;
   selectedHistDay = null;
-  populateHistDateDropdowns(rawAvailableDates);
+  // rawAvailableDates zaten önbellekte - sıfırlamadan sonra tüm veriyi çek
+  // populateHistDateDropdowns API cevabından sonra çağrılacak
   await loadPrintHistoryTable();
+}
+
+function _updateHistDayStats(history) {
+  const dayCountEl = document.getElementById('histDayTotalPrints');
+  if (!dayCountEl) return;
+  const totalPrintsCount = history.reduce((sum, item) => sum + (item.copies || 1), 0);
+  let filterLabel = 'Tümü';
+  if (selectedHistDay) {
+    filterLabel = selectedHistDay;
+  } else if (selectedHistMonth && selectedHistYear) {
+    filterLabel = `${MONTH_NAMES_TR[selectedHistMonth] || selectedHistMonth} ${selectedHistYear}`;
+  } else if (selectedHistYear) {
+    filterLabel = `${selectedHistYear} Yılı`;
+  }
+  dayCountEl.textContent = `${totalPrintsCount} Etiket (${history.length} İşlem) [${(filterLabel || 'Tümü').trim()}]`;
+}
+
+function _updateHistDayPills(availableDates) {
+  const pillsContainer = document.getElementById('printHistoryDatePills');
+  if (!pillsContainer) return;
+  if (availableDates.length === 0) { pillsContainer.innerHTML = ''; return; }
+  let pillsHtml = `<span style="font-size:11px; font-weight:700; color:var(--text-muted);">Son Günler:</span>`;
+  availableDates.slice(0, 5).forEach(d => {
+    const isActive = (selectedHistDay === d);
+    const btnStyle = isActive
+      ? 'background: var(--primary); color: #fff; border-color: var(--primary); font-weight:800;'
+      : 'background: var(--card-inner); color: var(--text-main); border-color: var(--border-color);';
+    pillsHtml += `<button class="btn btn-sm" onclick="handleHistDayChange('${escapeHtml(d)}')" style="${btnStyle} font-size:11px; padding:3px 9px; border-radius:14px; cursor:pointer;" title="${escapeHtml(d)} gününü filtrele">📅 ${escapeHtml(d)}</button>`;
+  });
+  pillsContainer.innerHTML = pillsHtml;
+}
+
+function _buildHistoryTableHtml(history, currentFilter) {
+  if (history.length === 0) {
+    return `<tr><td colspan="8" style="text-align: center; padding: 40px; color: var(--text-muted);">🖨️ ${currentFilter && currentFilter !== 'all' ? `"${currentFilter}" filtresine ait baskı kaydı bulunamadı.` : 'Henüz kayıtlı bir etiket baskısı bulunmuyor.'}</td></tr>`;
+  }
+  let html = '';
+  let currentDayGroup = null;
+  let rowIdxInDay = 0;
+  history.forEach((item) => {
+    const dateTimeParts = (item.printed_at || '').split(' ');
+    const itemDate = dateTimeParts[0] || 'Bilinmeyen Tarih';
+    const itemTime = dateTimeParts[1] || '';
+    if (itemDate !== currentDayGroup) {
+      currentDayGroup = itemDate;
+      rowIdxInDay = 0;
+      const dayItems = history.filter(h => (h.printed_at || '').startsWith(itemDate));
+      const dayTotalCopies = dayItems.reduce((acc, h) => acc + (h.copies || 1), 0);
+      html += `<tr style="background: rgba(2, 132, 199, 0.12); border-top: 2px solid rgba(56, 189, 248, 0.4); border-bottom: 1px solid rgba(56, 189, 248, 0.2);">
+        <td colspan="8" style="padding: 9px 16px; font-weight: 800; color: #38bdf8; font-size: 13px;">
+          <div style="display:flex; align-items:center; justify-content:space-between;">
+            <div style="display:flex; align-items:center; gap:8px;"><span style="font-size:15px;">📅</span><span>${escapeHtml(itemDate)}</span><span style="font-size:11px; font-weight:600; background:rgba(56,189,248,0.2); color:#93c5fd; padding:2px 8px; border-radius:10px;">${dayItems.length} İşlem</span></div>
+            <div style="font-size:12px; color:#fbbf24; font-family:var(--font-mono); font-weight:700;">Toplam: ${dayTotalCopies} Adet Etiket</div>
+          </div>
+        </td></tr>`;
+    }
+    rowIdxInDay++;
+    const isSuccess = item.status === 'success';
+    const statusBadge = isSuccess
+      ? `<span class="badge" style="background:rgba(16,185,129,0.15); color:#34d399; border:1px solid rgba(16,185,129,0.3); font-size:11px; padding:3px 8px; border-radius:6px; font-weight:700;">✅ Başarılı</span>`
+      : `<span class="badge" style="background:rgba(239,68,68,0.15); color:#f87171; border:1px solid rgba(239,68,68,0.3); font-size:11px; padding:3px 8px; border-radius:6px; font-weight:700;" title="${escapeHtml(item.message)}">❌ Hata</span>`;
+    const priceStr = (item.price !== null && item.price !== undefined) ? `${Number(item.price).toFixed(2)} TL` : '-';
+    html += `<tr>
+      <td style="text-align: center; color: var(--text-muted); font-size: 11.5px;">${rowIdxInDay}</td>
+      <td style="font-size: 12px; color: #38bdf8; font-family: var(--font-mono); font-weight: 700;"><span style="color:#94a3b8; font-size:11px; margin-right:4px;">🕒</span>${escapeHtml(itemTime || item.printed_at)}</td>
+      <td style="font-family: var(--font-mono); font-weight: 700; color: #818cf8; font-size: 12.5px;">${escapeHtml(item.barcode)}</td>
+      <td style="font-weight: 700; color: #fff; font-size: 12.5px;">${escapeHtml(item.title)}</td>
+      <td style="text-align: right; font-weight: 800; color: #fbbf24; font-family: var(--font-mono);">${escapeHtml(priceStr)}</td>
+      <td style="text-align: center; font-weight: 700; color: #cbd5e1;">${item.copies || 1} Adet</td>
+      <td style="text-align: center;">${statusBadge}</td>
+      <td style="text-align: center;"><button class="btn btn-secondary btn-sm" onclick="reprintFromHistory('${escapeHtml(item.barcode)}', this)" style="padding: 3px 10px; font-size: 11.5px; border-color: rgba(56,189,248,0.4); color: #38bdf8;" title="Bu etiketi tekrar yazdır">🖨️ Tekrar Bas</button></td>
+    </tr>`;
+  });
+  return html;
 }
 
 async function loadPrintHistoryTable() {
   const tbody = document.getElementById('printHistoryTableBody');
   if (!tbody) return;
 
-  const currentFilter = getActiveHistFilterString();
+  // İlk açılışta available_dates'i önce 'all' ile çek, en güncel günü otomatik seç
+  const isFirstLoad = !selectedHistYear && !selectedHistMonth && !selectedHistDay;
+  const currentFilter = isFirstLoad ? 'all' : getActiveHistFilterString();
 
   try {
     const res = await API.getPrintHistory(300, currentFilter);
@@ -490,124 +567,24 @@ async function loadPrintHistoryTable() {
     const history = data.history || [];
     const availableDates = data.available_dates || [];
 
-    // Dropdownları doldur / senkronize et
+    // Dropdownları doldur / senkronize et (bu aynı zamanda selectedHistYear/Month/Day'i otomatik set eder)
     populateHistDateDropdowns(availableDates);
 
-    // İstatistik ve sayaç güncellemesi
-    const dayCountEl = document.getElementById('histDayTotalPrints');
-    if (dayCountEl) {
-      const totalPrintsCount = history.reduce((sum, item) => sum + (item.copies || 1), 0);
-      let filterLabel = 'Tümü';
-      if (selectedHistDay !== 'all') {
-        filterLabel = selectedHistDay;
-      } else if (selectedHistMonth !== 'all') {
-        filterLabel = `${MONTH_NAMES_TR[selectedHistMonth] || selectedHistMonth} ${selectedHistYear !== 'all' ? selectedHistYear : ''}`;
-      } else if (selectedHistYear !== 'all') {
-        filterLabel = `${selectedHistYear} Yılı`;
-      }
-      dayCountEl.textContent = `${totalPrintsCount} Etiket (${history.length} İşlem) [${filterLabel.trim()}]`;
-    }
-
-    // Hızlı Gün Hapları (Date Pills)
-    const pillsContainer = document.getElementById('printHistoryDatePills');
-    if (pillsContainer) {
-      if (availableDates.length === 0) {
-        pillsContainer.innerHTML = '';
-      } else {
-        let pillsHtml = `<span style="font-size:11px; font-weight:700; color:var(--text-muted);">Son Günler:</span>`;
-        availableDates.slice(0, 5).forEach(d => {
-          const isActive = (selectedHistDay === d);
-          const btnStyle = isActive
-            ? 'background: var(--primary); color: #fff; border-color: var(--primary); font-weight:800;'
-            : 'background: var(--card-inner); color: var(--text-main); border-color: var(--border-color);';
-          
-          pillsHtml += `
-            <button class="btn btn-sm" onclick="handleHistDayChange('${escapeHtml(d)}')" style="${btnStyle} font-size:11px; padding:3px 9px; border-radius:14px; cursor:pointer;" title="${escapeHtml(d)} gününü filtrele">
-              📅 ${escapeHtml(d)}
-            </button>
-          `;
-        });
-        pillsContainer.innerHTML = pillsHtml;
-      }
-    }
-
-    if (history.length === 0) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="8" style="text-align: center; padding: 40px; color: var(--text-muted);">
-            🖨️ ${currentFilter !== 'all' ? `"${currentFilter}" filtresine ait baskı kaydı bulunamadı.` : 'Henüz kayıtlı bir etiket baskısı bulunmuyor.'}
-          </td>
-        </tr>
-      `;
+    // İlk açılışta en güncel günü seçip sadece o güne ait verileri göster
+    if (isFirstLoad && selectedHistDay && availableDates.length > 0) {
+      // Yalnızca seçili güne ait verileri filtrele (ikinci API çağrısı yapmadan client-side filtrele)
+      const filteredHistory = history.filter(h => (h.printed_at || '').startsWith(selectedHistDay));
+      tbody.innerHTML = _buildHistoryTableHtml(filteredHistory, selectedHistDay);
+      _updateHistDayStats(filteredHistory);
+      _updateHistDayPills(availableDates);
       return;
     }
 
-    // Gün gün ayırarak (Group by Date) HTML oluştur
-    let html = '';
-    let currentDayGroup = null;
-    let rowIdxInDay = 0;
+    // İstatistik, pill ve tablo güncelle
+    _updateHistDayStats(history);
+    _updateHistDayPills(availableDates);
+    tbody.innerHTML = _buildHistoryTableHtml(history, currentFilter);
 
-    history.forEach((item, idx) => {
-      const dateTimeParts = (item.printed_at || '').split(' ');
-      const itemDate = dateTimeParts[0] || 'Bilinmeyen Tarih';
-      const itemTime = dateTimeParts[1] || '';
-
-      // Yeni bir gün grubuna geçildiğinde ayırıcı başlık satırı bas
-      if (itemDate !== currentDayGroup) {
-        currentDayGroup = itemDate;
-        rowIdxInDay = 0;
-
-        // O güne ait toplam baskı sayısını hesapla
-        const dayItems = history.filter(h => (h.printed_at || '').startsWith(itemDate));
-        const dayTotalCopies = dayItems.reduce((acc, h) => acc + (h.copies || 1), 0);
-
-        html += `
-          <tr style="background: rgba(2, 132, 199, 0.12); border-top: 2px solid rgba(56, 189, 248, 0.4); border-bottom: 1px solid rgba(56, 189, 248, 0.2);">
-            <td colspan="8" style="padding: 9px 16px; font-weight: 800; color: #38bdf8; font-size: 13px;">
-              <div style="display:flex; align-items:center; justify-content:space-between;">
-                <div style="display:flex; align-items:center; gap:8px;">
-                  <span style="font-size:15px;">📅</span>
-                  <span>${escapeHtml(itemDate)}</span>
-                  <span style="font-size:11px; font-weight:600; background:rgba(56,189,248,0.2); color:#93c5fd; padding:2px 8px; border-radius:10px;">${dayItems.length} İşlem</span>
-                </div>
-                <div style="font-size:12px; color:#fbbf24; font-family:var(--font-mono); font-weight:700;">
-                  Toplam: ${dayTotalCopies} Adet Etiket
-                </div>
-              </div>
-            </td>
-          </tr>
-        `;
-      }
-
-      rowIdxInDay++;
-      const isSuccess = item.status === 'success';
-      const statusBadge = isSuccess
-        ? `<span class="badge" style="background:rgba(16,185,129,0.15); color:#34d399; border:1px solid rgba(16,185,129,0.3); font-size:11px; padding:3px 8px; border-radius:6px; font-weight:700;">✅ Başarılı</span>`
-        : `<span class="badge" style="background:rgba(239,68,68,0.15); color:#f87171; border:1px solid rgba(239,68,68,0.3); font-size:11px; padding:3px 8px; border-radius:6px; font-weight:700;" title="${escapeHtml(item.message)}">❌ Hata</span>`;
-
-      const priceStr = (item.price !== null && item.price !== undefined) ? `${Number(item.price).toFixed(2)} TL` : '-';
-
-      html += `
-        <tr>
-          <td style="text-align: center; color: var(--text-muted); font-size: 11.5px;">${rowIdxInDay}</td>
-          <td style="font-size: 12px; color: #38bdf8; font-family: var(--font-mono); font-weight: 700;">
-            <span style="color:#94a3b8; font-size:11px; margin-right:4px;">🕒</span>${escapeHtml(itemTime || item.printed_at)}
-          </td>
-          <td style="font-family: var(--font-mono); font-weight: 700; color: #818cf8; font-size: 12.5px;">${escapeHtml(item.barcode)}</td>
-          <td style="font-weight: 700; color: #fff; font-size: 12.5px;">${escapeHtml(item.title)}</td>
-          <td style="text-align: right; font-weight: 800; color: #fbbf24; font-family: var(--font-mono);">${escapeHtml(priceStr)}</td>
-          <td style="text-align: center; font-weight: 700; color: #cbd5e1;">${item.copies || 1} Adet</td>
-          <td style="text-align: center;">${statusBadge}</td>
-          <td style="text-align: center;">
-            <button class="btn btn-secondary btn-sm" onclick="reprintFromHistory('${escapeHtml(item.barcode)}', this)" style="padding: 3px 10px; font-size: 11.5px; border-color: rgba(56,189,248,0.4); color: #38bdf8;" title="Bu etiketi tekrar yazdır">
-              🖨️ Tekrar Bas
-            </button>
-          </td>
-        </tr>
-      `;
-    });
-
-    tbody.innerHTML = html;
   } catch (err) {
     tbody.innerHTML = `
       <tr>
