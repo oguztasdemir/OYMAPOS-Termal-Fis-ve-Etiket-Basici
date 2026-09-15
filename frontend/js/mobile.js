@@ -839,20 +839,17 @@ function handleMobilePrinterChange(newPrinter) {
 }
 
 /**
- * ➕ Basım Listesine Ekle (OYMAPOS 1-1 Kuyruk)
+ * 💾 Ürün Adı veya Fiyatı Değiştiğinde Otomatik Sunucuya Kaydet
  */
-async function addItemToQueue() {
+async function autoSaveCurrentProduct() {
+  if (!currentBarcode) return;
   const title = (document.getElementById('inp-title')?.value || '').trim();
   const price = parseFloat(document.getElementById('inp-price')?.value) || 0;
 
-  if (!title) {
-    showToast("Lütfen Ürün Adı girin!", "error");
-    return;
-  }
+  if (!title) return;
 
-  // Eğer yeni ürünse veya fiyat değiştiyse sunucuya kaydet
   try {
-    await fetch(`/api/products/${encodeURIComponent(currentBarcode || '8690000000000')}`, {
+    const res = await fetch(`/api/products/${encodeURIComponent(currentBarcode)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -863,7 +860,63 @@ async function addItemToQueue() {
         device_name: "Mobil Reyon Terminali"
       })
     });
-  } catch(e) {}
+    const data = await res.json();
+    if (data.status === 'success') {
+      isNewProduct = false;
+      if (currentProduct) {
+        currentProduct.title = title;
+        currentProduct.price = price;
+      }
+      const badge = document.getElementById('badge-status');
+      if (badge) {
+        badge.className = "product-status-pill found";
+        badge.innerText = "✓ Kayıtlı Ürün";
+      }
+    }
+  } catch(e) {
+    console.warn("Otomatik kaydetme hatası:", e);
+  }
+}
+
+window.autoSaveCurrentProduct = autoSaveCurrentProduct;
+
+/**
+ * ➕ Basım Listesine Ekle (OYMAPOS 1-1 Kuyruk)
+ */
+async function addItemToQueue() {
+  const title = (document.getElementById('inp-title')?.value || '').trim();
+  const price = parseFloat(document.getElementById('inp-price')?.value) || 0;
+  const targetBarcode = currentBarcode || (currentProduct?.barcode || "8690000000000");
+
+  if (!title) {
+    showToast("Lütfen Ürün Adı girin!", "error");
+    return;
+  }
+
+  // Veritabanına kesin kaydet
+  try {
+    const res = await fetch(`/api/products/${encodeURIComponent(targetBarcode)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: title,
+        price: price,
+        brand: currentProduct?.brand || "",
+        unit: currentProduct?.unit || "ADET",
+        device_name: "Mobil Reyon Terminali"
+      })
+    });
+    const data = await res.json();
+    if (data.status === 'success') {
+      isNewProduct = false;
+      if (currentProduct) {
+        currentProduct.title = title;
+        currentProduct.price = price;
+      }
+    }
+  } catch(e) {
+    console.error("Ürün kaydetme hatası:", e);
+  }
 
   const existingIdx = mobileQueue.findIndex(x => x.barcode === currentBarcode);
   if (existingIdx !== -1) {
