@@ -128,7 +128,11 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
         # =========================================================================
         pw = h_dots + ox + 6
         ll = w_dots
-        line_w = w_dots - oy - 24
+        
+        # İçeriği sola yapışmaktan kurtarıp sağa doğru ortalama ofsetleri
+        start_y = oy + 32  # Başlık ve marka başlangıcı (~8 mm)
+        sep_start_y = start_y - 10 # Ayraç çizgileri başlangıcı (~6.75 mm)
+        line_w = max(400, int(w_dots - sep_start_y - 20)) # Çizgi bitişi 588 dot (~73.5 mm)
 
         zpl = [
             "^XA",
@@ -144,8 +148,8 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
         # -------------------------------------------------------------
         if t2:
             zpl.extend([
-                f"^FO{ox + 270},{oy + 16}^A0R,30,26^FD{t1}^FS",
-                f"^FO{ox + 238},{oy + 16}^A0R,28,24^FD{t2}^FS",
+                f"^FO{ox + 270},{start_y}^A0R,30,26^FD{t1}^FS",
+                f"^FO{ox + 238},{start_y}^A0R,28,24^FD{t2}^FS",
             ])
         else:
             # Tek satırda büyük ve geniş basım (Karakter uzunluğuna göre maksimum okunabilirlik)
@@ -160,12 +164,12 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
                 font_h, font_w = 34, 28
                 pos_x = ox + 254
 
-            zpl.append(f"^FO{pos_x},{oy + 16}^A0R,{font_h},{font_w}^FD{t1}^FS")
+            zpl.append(f"^FO{pos_x},{start_y}^A0R,{font_h},{font_w}^FD{t1}^FS")
 
         # Sağ Üst Köşe Özelleştirmeleri
         if top_right_mode == 'unit_price':
             box_x = ox + 230
-            box_y = oy + line_w - 175
+            box_y = sep_start_y + line_w - 175
             val = top_right_text or unit_price
             zpl.extend([
                 f"^FO{box_x},{box_y}^GB75,165,2^FS",
@@ -175,7 +179,7 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
 
         elif top_right_mode == 'weight':
             box_x = ox + 235
-            box_y = oy + line_w - 155
+            box_y = sep_start_y + line_w - 155
             val = top_right_text or "NET: 35 GR"
             zpl.extend([
                 f"^FO{box_x},{box_y}^GB65,145,2^FS",
@@ -184,7 +188,7 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
 
         elif top_right_mode == 'code':
             box_x = ox + 235
-            box_y = oy + line_w - 155
+            box_y = sep_start_y + line_w - 155
             val = top_right_text or "REYON: A-04"
             zpl.extend([
                 f"^FO{box_x},{box_y}^GB65,145,2^FS",
@@ -194,12 +198,12 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
         elif top_right_mode == 'qr':
             qr_data = top_right_text or barcode or "https://market.com"
             box_x = ox + 230
-            box_y = oy + line_w - 100
+            box_y = sep_start_y + line_w - 100
             zpl.append(f"^FO{box_x},{box_y}^BQN,2,3^FDQA,{qr_data}^FS")
 
         elif top_right_mode == 'campaign':
             box_x = ox + 235
-            box_y = oy + line_w - 165
+            box_y = sep_start_y + line_w - 165
             val = top_right_text or "SUPER FIYAT"
             zpl.extend([
                 f"^FO{box_x},{box_y}^GB65,155,65^FS",
@@ -208,7 +212,7 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
 
         elif top_right_mode == 'yerli':
             box_x = ox + 225
-            box_y = oy + line_w - 185
+            box_y = sep_start_y + line_w - 185
             zpl.extend([
                 f"^FO{box_x},{box_y}^GB85,175,2^FS",
                 f"^FO{box_x + 50},{box_y + 8}^GB26,26,2^FS",
@@ -219,14 +223,14 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
             ])
 
         # 1. AYRAÇ ÇİZGİSİ (Yatay Boydan Boya)
-        zpl.append(f"^FO{ox + 215},{oy}^GB2,{line_w},2^FS")
+        zpl.append(f"^FO{ox + 215},{sep_start_y}^GB2,{line_w},2^FS")
 
         # -------------------------------------------------------------
         # 2. BÖLÜM (ORTA KATMAN): Marka (Sol) & 3 Satır Yasal Bilgi (Sağ)
         # -------------------------------------------------------------
-        zpl.append(f"^FO{ox + 160},{oy + 16}^A0R,34,28^FD{brand}^FS")
+        zpl.append(f"^FO{ox + 160},{start_y}^A0R,34,28^FD{brand}^FS")
 
-        mid_y = oy + int(line_w * 0.36)
+        mid_y = start_y + int(line_w * 0.36)
         zpl.extend([
             f"^FO{ox + 188},{mid_y}^A0R,16,14^FDUretim Yeri: {origin}^FS",
             f"^FO{ox + 161},{mid_y}^A0R,15,13^FDFiyatlarimiza Kdv Dahildir.^FS",
@@ -234,21 +238,22 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
         ])
 
         # 2. AYRAÇ ÇİZGİSİ (Yatay Boydan Boya)
-        zpl.append(f"^FO{ox + 122},{oy}^GB2,{line_w},2^FS")
+        zpl.append(f"^FO{ox + 122},{sep_start_y}^GB2,{line_w},2^FS")
 
         # -------------------------------------------------------------
-        # 3. BÖLÜM (ALT KATMAN): EAN-13 Barkod | Satış Fiyatı | BÜYÜK FİYAT
+        # 3. BÖLÜM (ALT KATMAN): BÜYÜK EAN-13 Barkod | Satış Fiyatı | BÜYÜK FİYAT
         # -------------------------------------------------------------
-        # Barkod alanı sol kenardan ve çizgiden dengeli mesafede (oy + 28, height 52)
+        # Barkod alanı sağa kaydırıldı (start_y + 12), boyutu büyütüldü (62 dot)
+        bc_start_y = start_y + 12
         clean_bc = re.sub(r'[^0-9A-Za-z]', '', barcode)
         if len(clean_bc) == 13 and clean_bc.isdigit():
-            zpl.append(f"^FO{ox + 41},{oy + 28}^BER,52,Y,N^FD{clean_bc}^FS")
+            zpl.append(f"^FO{ox + 35},{bc_start_y}^BER,62,Y,N^FD{clean_bc}^FS")
         elif len(clean_bc) == 8 and clean_bc.isdigit():
-            zpl.append(f"^FO{ox + 41},{oy + 28}^BER,52,Y,N^FD{clean_bc}^FS")
+            zpl.append(f"^FO{ox + 35},{bc_start_y}^BER,62,Y,N^FD{clean_bc}^FS")
         else:
-            zpl.append(f"^FO{ox + 41},{oy + 28}^BY2,3,52^BCR,52,Y,N,N^FD{clean_bc or '00000000'}^FS")
+            zpl.append(f"^FO{ox + 35},{bc_start_y}^BY2,3,62^BCR,62,Y,N,N^FD{clean_bc or '00000000'}^FS")
 
-        # Satış Fiyatı Dikey Ayracı (Kutu ve yazı)
+        # Satış Fiyatı Dikey Ayracı (Kutu ve yazı) - Konumu korundu
         div_y = oy + int(line_w * 0.58)
         zpl.extend([
             f"^FO{ox + 16},{div_y}^GB82,54,2^FS",
@@ -256,7 +261,7 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
             f"^FO{ox + 20},{div_y + 8}^A0R,16,14^FDFiyati^FS",
         ])
 
-        # SATIŞ FİYATI (Sağ Alt - Örn: 1.250,00 TL veya 10,00 TL)
+        # SATIŞ FİYATI (Sağ Alt - Örn: 1.250,00 TL veya 10,00 TL) - Konumu korundu
         price_clean = str(price).strip()
         price_len = len(price_clean)
 
