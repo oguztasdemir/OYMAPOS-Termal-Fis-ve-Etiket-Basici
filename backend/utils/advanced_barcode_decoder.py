@@ -176,21 +176,31 @@ def decode_advanced_barcode(img_bgr, aggressive_mode=True):
         return quick_result
 
     # -------------------------------------------------------------
-    # 2. AŞAMA: PARLAMA BASTIRMA & MORFOLOJİK FİLTRELER (Glare / Reflection)
+    # 2. AŞAMA: PARLAMA BASTIRMA, BEYAZ/SARI ZEMİN NORMALİZASYONU & MORFOLOJİK FİLTRELER
     # -------------------------------------------------------------
     glare_suppressed = remove_glare_and_normalize(gray)
     
-    # Blackhat Morfolojisi (Parlak arka plandaki siyah çubukları izole eder)
+    # 2.1 Otsu Eşikleme (Beyaz veya açık renkli etiketlerdeki soluk çizgileri anında netleştirir)
+    _, otsu_thresh = cv2.threshold(glare_suppressed, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    
+    # 2.2 Blackhat Morfolojisi (Parlak/Beyaz arka plandaki dikey siyah çubukları doğrudan izole eder)
     kernel_horiz = cv2.getStructuringElement(cv2.MORPH_RECT, (25, 3))
     blackhat_horiz = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, kernel_horiz)
     blackhat_enhanced = cv2.normalize(blackhat_horiz, None, 0, 255, cv2.NORM_MINMAX)
 
-    # Adaptif Eşikleme (Adaptive Gaussian Binarization)
+    # 2.3 Adaptif Gaussian Eşikleme
     adaptive_thresh = cv2.adaptiveThreshold(
         glare_suppressed, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 21, 5
     )
+    
+    # 2.4 Yüksek Kontrast Germe (Linear Contrast Stretching)
+    min_val, max_val = np.percentile(gray, (2, 98))
+    if max_val > min_val:
+        stretched_contrast = np.clip((gray.astype(np.float32) - min_val) * (255.0 / (max_val - min_val)), 0, 255).astype(np.uint8)
+    else:
+        stretched_contrast = gray
 
-    stage2_result = try_decode_variants([glare_suppressed, blackhat_enhanced, adaptive_thresh], cv_detector)
+    stage2_result = try_decode_variants([glare_suppressed, otsu_thresh, blackhat_enhanced, adaptive_thresh, stretched_contrast], cv_detector)
     if stage2_result:
         return stage2_result
 
