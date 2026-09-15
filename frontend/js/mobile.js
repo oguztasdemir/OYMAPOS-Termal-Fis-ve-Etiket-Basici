@@ -680,16 +680,12 @@ async function lookupBarcode(barcode) {
       }
       setChangesButtonState(false);
       showToast("Ürün kayıtlı değil. Bilgilerini yazıp listeye ekleyin.", "info");
-      if (inpTitle) inpTitle.focus();
     }
 
     if (emptyState) emptyState.style.display = 'none';
     if (addedCard) addedCard.style.display = 'none';
     if (productCard) {
       productCard.style.display = 'flex';
-      setTimeout(() => {
-        productCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }, 50);
     }
   } catch (err) {
     showToast("Bağlantı hatası: " + err.message, "error");
