@@ -1413,45 +1413,86 @@ async function downloadMobileReportPdf() {
     showToast("Lütfen bir tarih seçin.", "error");
     return;
   }
-  showToast("PDF hazırlanıyor, indiriliyor...", "info");
+
+  showToast("PDF hazırlanıyor...", "info");
   const url = `/api/reports/price-changes/pdf?date=${encodeURIComponent(targetDate)}&source_filter=${encodeURIComponent(targetSource)}`;
-  window.open(url, '_blank');
 
-  // PDF açıldıktan hemen sonra kullanıcıya onay sorusu yönelt
-  setTimeout(async () => {
-    const ok = confirm(
-      `🖨️ PDF Raporu Oluşturuldu (${targetDate})!\n\n` +
-      `Baskı aldığınız bu ürünlerin sistemdeki etiket raf fiyatlarını güncel satış fiyatlarına eşitlemek ve basıldı olarak onaylamak istiyor musunuz?`
-    );
-    if (ok) {
-      try {
-        const res = await fetch('/api/reports/price-changes/confirm', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ date: targetDate, source_filter: targetSource })
+  try {
+    // iOS Safari / iPhone paylaşım desteği: fetch ile blob al, navigator.share ile paylaş
+    if (navigator.share && navigator.canShare) {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('PDF alınamadı: ' + response.status);
+      const blob = await response.blob();
+      const fileName = `fiyat-raporu-${targetDate}.pdf`;
+      const file = new File([blob], fileName, { type: 'application/pdf' });
+
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: `Fiyat Değişim Raporu - ${targetDate}`,
+          text: `${targetDate} tarihli fiyat değişim raporu`,
+          files: [file]
         });
-        const data = await res.json();
-        if (data.status === 'success') {
-          const updatedCount = data.data?.updated_count || 0;
-          showToast(`✅ ${updatedCount} ürünün etiket fiyatı güncellendi & onaylandı!`, 'success');
-          // Raporu ve listeyi tazele
-          loadMobilePriceChanges(targetDate, targetSource);
-
-          // Onay verdikten sonra mobilde hatırlatıcı göster
-          setTimeout(() => {
-            alert(
-              `🔔 DİKKAT & HATIRLATMA:\n\n` +
-              `Bugün fiyatı değişen ${updatedCount} adet ürününüz var, bunların fiyatını düzeltin.`
-            );
-          }, 400);
-        } else {
-          showToast("Onaylama hatası: " + (data.message || 'Hata oluştu'), 'error');
-        }
-      } catch(e) {
-        showToast("Bağlantı hatası: " + e.message, 'error');
+        // Paylaşım başarılı ise onay yönelt
+        await _promptMobileReportConfirm(targetDate, targetSource);
+        return;
       }
     }
-  }, 1000);
+
+    // iOS Safari'de dosya paylaşımı desteklenmiyorsa veya diğer tarayıcılarda
+    // Blob ile güvenilir indirme linkini aç
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('PDF alınamadı: ' + response.status);
+    const blob = await response.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = `fiyat-raporu-${targetDate}.pdf`;
+    a.target = '_blank'; // iOS için önce yeni sekme, PDF görüntüleyici açılır
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(blobUrl); }, 2000);
+
+  } catch (err) {
+    // Fetch veya paylaşım hatasında son çare: doğrudan URL'yi aç
+    showToast("PDF hazırlanamadı, doğrudan açılıyor...", "warning");
+    window.open(url, '_blank');
+  }
+
+  // Kısa bir bekleme sonrası onay yönelt
+  setTimeout(() => _promptMobileReportConfirm(targetDate, targetSource), 1500);
+}
+
+async function _promptMobileReportConfirm(targetDate, targetSource) {
+  const ok = confirm(
+    `🖨️ PDF Raporu Oluşturuldu (${targetDate})!\n\n` +
+    `Baskı aldığınız bu ürünlerin sistemdeki etiket raf fiyatlarını güncel satış fiyatlarına eşitlemek ve basıldı olarak onaylamak istiyor musunuz?`
+  );
+  if (ok) {
+    try {
+      const res = await fetch('/api/reports/price-changes/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: targetDate, source_filter: targetSource })
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        const updatedCount = data.data?.updated_count || 0;
+        showToast(`✅ ${updatedCount} ürünün etiket fiyatı güncellendi & onaylandı!`, 'success');
+        loadMobilePriceChanges(targetDate, targetSource);
+
+        setTimeout(() => {
+          alert(
+            `🔔 DİKKAT & HATIRLATMA:\n\n` +
+            `Bugün fiyatı değişen ${updatedCount} adet ürününüz var, bunların fiyatını düzeltin.`
+          );
+        }, 400);
+      } else {
+        showToast("Onaylama hatası: " + (data.message || 'Hata oluştu'), 'error');
+      }
+    } catch(e) {
+      showToast("Bağlantı hatası: " + e.message, 'error');
+    }
+  }
 }
 
 window.loadReportDates = loadReportDates;
