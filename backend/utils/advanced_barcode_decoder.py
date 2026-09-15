@@ -6,16 +6,20 @@ Gelişmiş Parlama ve Yuvarlak/Bükük Yüzey Barkod Çözümleme Motoru (OYMAPO
 - Multi-Angle (Çok Açılı) Döndürme & Dilimleme
 - PyZBar + OpenCV BarcodeDetector Hibrit Motoru
 """
+import importlib
+
+# İsteğe bağlı (optional) bilgisayarlı görü kütüphanelerini güvenli ve dinamik yükle (IDE statik analiz hatalarını önler)
 try:
-    import cv2
-    import numpy as np
-except ImportError:
+    cv2 = importlib.import_module("cv2")
+    np = importlib.import_module("numpy")
+except (ImportError, ModuleNotFoundError):
     cv2 = None
     np = None
 
 try:
-    from pyzbar import pyzbar
-    from pyzbar.pyzbar import ZBarSymbol
+    pyzbar_mod = importlib.import_module("pyzbar.pyzbar")
+    pyzbar = pyzbar_mod
+    ZBarSymbol = pyzbar_mod.ZBarSymbol
     ALLOWED_SYMBOLS = [
         ZBarSymbol.EAN13,
         ZBarSymbol.EAN8,
@@ -32,7 +36,7 @@ try:
         ZBarSymbol.ISBN13,
         ZBarSymbol.QRCODE,
     ]
-except ImportError:
+except (ImportError, ModuleNotFoundError, AttributeError):
     pyzbar = None
     ALLOWED_SYMBOLS = None
 
