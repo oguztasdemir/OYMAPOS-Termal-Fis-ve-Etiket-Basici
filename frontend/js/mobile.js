@@ -967,8 +967,10 @@ function clearQueueWithConfirm() {
   }
 }
 
+let lastBatchPrintedCount = 0;
+
 /**
- * 🖨️ Toplu Kuyruk Yazdırma
+ * 🖨️ Toplu Kuyruk Yazdırma (Canlı İlerleme Çubuğu & Sonuç Onayı)
  */
 async function submitQueueBatchPrint() {
   if (mobileQueue.length === 0) {
@@ -976,7 +978,29 @@ async function submitQueueBatchPrint() {
     return;
   }
 
-  showToast("Toplu etiketler yazıcıya gönderiliyor...", "info");
+  const totalCount = mobileQueue.length;
+  lastBatchPrintedCount = totalCount;
+
+  // İlerleme Modalını Aç
+  const progModal = document.getElementById('batch-progress-modal');
+  const progFill = document.getElementById('batch-progress-bar-fill');
+  const progCount = document.getElementById('batch-progress-count');
+  const progStatus = document.getElementById('batch-progress-status-text');
+  const progTitle = document.getElementById('batch-progress-title');
+  const progDesc = document.getElementById('batch-progress-desc');
+  const progIcon = document.getElementById('batch-progress-icon');
+  const btnFinish = document.getElementById('btn-batch-progress-finish');
+
+  if (progModal) {
+    progModal.style.display = 'flex';
+    if (progFill) progFill.style.width = '10%';
+    if (progCount) progCount.textContent = `0 / ${totalCount}`;
+    if (progStatus) progStatus.textContent = 'Hazırlanıyor...';
+    if (progTitle) progTitle.textContent = 'Etiketler Yazdırılıyor...';
+    if (progDesc) progDesc.textContent = `${totalCount} adet etiket yazıcıya gönderiliyor.`;
+    if (progIcon) progIcon.textContent = '🖨️';
+    if (btnFinish) btnFinish.style.display = 'none';
+  }
 
   try {
     const chosenPrinter = getSelectedMobilePrinter();
@@ -990,46 +1014,92 @@ async function submitQueueBatchPrint() {
     };
     if (chosenPrinter) payload.printer = chosenPrinter;
 
+    // Canlı İlerleme Animasyonu Simülasyonu
+    let currentStep = 0;
+    const progressTimer = setInterval(() => {
+      if (currentStep < totalCount - 1) {
+        currentStep++;
+        const pct = Math.min(92, Math.floor((currentStep / totalCount) * 100));
+        if (progFill) progFill.style.width = `${pct}%`;
+        if (progCount) progCount.textContent = `${currentStep} / ${totalCount}`;
+        if (progStatus) progStatus.textContent = `İletiliyor (${pct}%)...`;
+      }
+    }, Math.max(30, Math.floor(1000 / totalCount)));
+
     const res = await fetch('/api/print/batch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
     const data = await res.json();
+    clearInterval(progressTimer);
 
     if (data.status === 'success') {
-      const printedCount = mobileQueue.length;
-      showToast(`✓ ${printedCount} etiket başarıyla basıldı!`, "success");
+      const printedCount = totalCount;
+      if (progFill) progFill.style.width = '100%';
+      if (progCount) progCount.textContent = `${printedCount} / ${totalCount}`;
+      if (progStatus) progStatus.textContent = 'Baskı Tamamlandı! ✅';
+      if (progTitle) progTitle.textContent = 'Tüm Etiketler İletildi!';
+      if (progDesc) progDesc.innerHTML = `<strong>${printedCount} adet</strong> ürün etiketi başarıyla yazıcıya aktarıldı.`;
+      if (progIcon) progIcon.textContent = '🎉';
+      if (btnFinish) btnFinish.style.display = 'block';
+
       mobileQueue = [];
       saveQueueToStorage();
       renderQueueList();
 
-      // Yazdırma sonrası onay ve bilgilendirme hatırlatıcısı
-      setTimeout(async () => {
-        try {
-          const todayStr = new Date().toISOString().split('T')[0];
-          const repRes = await fetch(`/api/reports/price-changes?date=${todayStr}&source_filter=all`);
-          const repData = await repRes.json();
-          const todayCount = repData.data?.total_count || 0;
-          
-          if (todayCount > 0) {
-            alert(
-              `🔔 HATIRLATMA & BİLGİLENDİRME:\n\n` +
-              `Bugün fiyatı değişen toplam ${todayCount} adet ürününüz bulunmaktadır.\n\n` +
-              `Lütfen bu ürünlerin raflardaki etiket fiyatlarını kontrol edip düzeltiniz.`
-            );
-          }
-        } catch(e) {}
-      }, 1200);
-
-      setTimeout(() => switchMobileTab('scan'), 1000);
+      playBeepSound();
+      if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
     } else {
-      showToast("⚠️ Yazdırma hatası: " + data.message, "error");
+      if (progTitle) progTitle.textContent = 'Yazdırma Hatası!';
+      if (progDesc) progDesc.textContent = data.message || 'Yazıcıya ulaşılamadı.';
+      if (progIcon) progIcon.textContent = '⚠️';
+      if (btnFinish) {
+        btnFinish.textContent = 'Kapat';
+        btnFinish.style.display = 'block';
+      }
     }
   } catch(e) {
-    showToast("⚠️ Hata: " + e.message, "error");
+    if (progTitle) progTitle.textContent = 'Bağlantı Hatası!';
+    if (progDesc) progDesc.textContent = e.message;
+    if (btnFinish) {
+      btnFinish.textContent = 'Kapat';
+      btnFinish.style.display = 'block';
+    }
   }
 }
+
+/**
+ * 🏁 İlerleme Modalını Kapatıp Onay ve Değişenler Raporuna Geçiş
+ */
+async function closeBatchProgressModal() {
+  const progModal = document.getElementById('batch-progress-modal');
+  if (progModal) progModal.style.display = 'none';
+
+  // Yazdırma sonrası onay ve fiyatı değişenler ekranına geçiş yönlendirmesi
+  try {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const repRes = await fetch(`/api/reports/price-changes?date=${todayStr}&source_filter=all`);
+    const repData = await repRes.json();
+    const todayCount = repData.data?.total_count || 0;
+
+    const proceedChanges = confirm(
+      `🖨️ ${lastBatchPrintedCount} Adet Etiket Başarıyla Yazdırıldı!\n\n` +
+      `Bugün fiyatı güncellenen toplam ${todayCount} ürün bulunmaktadır.\n\n` +
+      `Fiyatı Değişen Ürünler sekmesine geçip listeyi görmek ister misiniz?`
+    );
+
+    if (proceedChanges) {
+      switchMobileTab('changes');
+    } else {
+      switchMobileTab('scan');
+    }
+  } catch(e) {
+    switchMobileTab('scan');
+  }
+}
+
+window.closeBatchProgressModal = closeBatchProgressModal;
 
 /**
  * =========================================================================

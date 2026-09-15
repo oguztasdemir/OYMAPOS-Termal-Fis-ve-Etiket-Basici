@@ -1216,7 +1216,32 @@
     </div>
   </div>
 
-  <!-- 6. 📱 DETAYLI ÜRÜN DÜZENLEME & BARKOD MODALI -->
+  <!-- 6. 📱 TOPLU YAZDIRMA İLERLEME (PROGRESS) MODALI -->
+  <div id="batch-progress-modal" class="barcode-modal-overlay" style="z-index: 100000; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);">
+    <div class="barcode-modal-card" style="max-width: 380px; text-align: center; padding: 24px 20px; border-radius: 16px; background: #0f172a; border: 1px solid rgba(56, 189, 248, 0.35); box-shadow: 0 20px 40px rgba(0,0,0,0.8);">
+      <div style="font-size: 38px; margin-bottom: 8px;" id="batch-progress-icon">🖨️</div>
+      <h3 style="font-size: 16px; font-weight: 800; color: #fff; margin-bottom: 6px;" id="batch-progress-title">Etiketler Yazdırılıyor...</h3>
+      <p style="font-size: 12.5px; color: #94a3b8; margin-bottom: 16px;" id="batch-progress-desc">Yazıcıya etiket paketleri aktarılıyor, lütfen bekleyin.</p>
+      
+      <!-- İlerleme Çubuğu (Progress Bar) -->
+      <div style="width: 100%; background: #1e293b; height: 12px; border-radius: 10px; overflow: hidden; margin-bottom: 12px; border: 1px solid #334155; position: relative;">
+        <div id="batch-progress-bar-fill" style="width: 0%; height: 100%; background: linear-gradient(90deg, #0284c7, #38bdf8); border-radius: 10px; transition: width 0.3s ease;"></div>
+      </div>
+      
+      <!-- Sayısal Durum -->
+      <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 800; color: #38bdf8; font-family: 'JetBrains Mono', monospace; margin-bottom: 18px;">
+        <span id="batch-progress-status-text">İletiliyor...</span>
+        <span id="batch-progress-count">0 / 0</span>
+      </div>
+
+      <!-- Sonuç Onay Butonu (Yazma bitince aktif olur) -->
+      <button id="btn-batch-progress-finish" class="btn-action-camera" style="display: none; width: 100%; padding: 13px; font-size: 14px; font-weight: 800; border-radius: 10px;" onclick="closeBatchProgressModal()">
+        ✅ Tamamla ve Değişenleri Gör
+      </button>
+    </div>
+  </div>
+
+  <!-- 7. 📱 DETAYLI ÜRÜN DÜZENLEME & BARKOD MODALI -->
   <div id="barcode-display-modal" class="barcode-modal-overlay" onclick="closeBarcodeDisplayModal()">
     <div class="barcode-modal-card" onclick="event.stopPropagation()">
       <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
