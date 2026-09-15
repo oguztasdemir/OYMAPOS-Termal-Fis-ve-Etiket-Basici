@@ -247,15 +247,15 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
         # -------------------------------------------------------------
         # 3. BÖLÜM (ALT KATMAN): EAN-13 Barkod | Satış Fiyatı | BÜYÜK FİYAT
         # -------------------------------------------------------------
-        # Barkod 1 tık büyük (yükseklik 68 dot), yatayda basıklıktan kurtarılıp sağa doğru uzatıldı (BY3 genişlik)
+        # Barkod genişliği iki versiyonun tam ortası (BY2, 2.5 modül), yükseklik dengeli (65 dot)
         bc_start_y = start_y + 20
         clean_bc = re.sub(r'[^0-9A-Za-z]', '', barcode)
         if len(clean_bc) == 13 and clean_bc.isdigit():
-            zpl.append(f"^FO{ox + 31},{bc_start_y}^BY3,3,68^BER,68,Y,N^FD{clean_bc}^FS")
+            zpl.append(f"^FO{ox + 33},{bc_start_y}^BY2,2.5,65^BER,65,Y,N^FD{clean_bc}^FS")
         elif len(clean_bc) == 8 and clean_bc.isdigit():
-            zpl.append(f"^FO{ox + 31},{bc_start_y}^BY3,3,68^BER,68,Y,N^FD{clean_bc}^FS")
+            zpl.append(f"^FO{ox + 33},{bc_start_y}^BY2,2.5,65^BER,65,Y,N^FD{clean_bc}^FS")
         else:
-            zpl.append(f"^FO{ox + 31},{bc_start_y}^BY3,3,68^BCR,68,Y,N,N^FD{clean_bc or '00000000'}^FS")
+            zpl.append(f"^FO{ox + 33},{bc_start_y}^BY2,2.5,65^BCR,65,Y,N,N^FD{clean_bc or '00000000'}^FS")
 
         # Satış Fiyatı Dikey Ayracı (Kutu ve yazı) - Konumu korundu
         div_y = oy + int(line_w * 0.58)
