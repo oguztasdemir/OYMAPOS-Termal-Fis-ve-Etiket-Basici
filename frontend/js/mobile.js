@@ -611,18 +611,13 @@ async function lookupBarcode(barcode) {
   barcode = (barcode || '').trim();
   if (!barcode) return;
 
-  // 1. Eğer ürün basım listesinde zaten varsa kullanıcıyı uyar
+  // Scan sekmesini aktif yap
+  switchMobileTab('scan');
+
+  // 1. Eğer ürün basım listesinde zaten varsa kullanıcıyı bilgilendir
   const existingQueueItem = mobileQueue.find(x => x.barcode === barcode);
   if (existingQueueItem) {
-    const ok = confirm(
-      `⚠️ Bu ürün zaten basım listesinde mevcut!\n\n` +
-      `Ürün: ${existingQueueItem.title}\n` +
-      `Mevcut Liste Değeri: ₺ ${Number(existingQueueItem.price || 0).toFixed(2)}\n\n` +
-      `Yine de bu ürün açılsın / güncellensin mi?`
-    );
-    if (!ok) {
-      return;
-    }
+    showToast(`ℹ️ Bu ürün basım listenizde de mevcut: ${existingQueueItem.title}`, "info");
   }
 
   currentBarcode = barcode;
@@ -690,7 +685,12 @@ async function lookupBarcode(barcode) {
 
     if (emptyState) emptyState.style.display = 'none';
     if (addedCard) addedCard.style.display = 'none';
-    if (productCard) productCard.style.display = 'flex';
+    if (productCard) {
+      productCard.style.display = 'flex';
+      setTimeout(() => {
+        productCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 50);
+    }
   } catch (err) {
     showToast("Bağlantı hatası: " + err.message, "error");
   }
