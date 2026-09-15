@@ -247,8 +247,8 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
         # -------------------------------------------------------------
         # 3. BÖLÜM (ALT KATMAN): EAN-13 Barkod | Satış Fiyatı | BÜYÜK FİYAT
         # -------------------------------------------------------------
-        # Barkod çok az küçültüldü (yükseklik: 64 dot, BY2, oran: 2.5), genişlik ve konum tam dengelendi
-        bc_start_y = start_y + 16
+        # Barkod sağa doğru 0.5mm (4 dot) uzatıldı / kaydırıldı (bc_start_y = start_y + 20), boyutu artırılmadı (64 dot)
+        bc_start_y = start_y + 20
         clean_bc = re.sub(r'[^0-9A-Za-z]', '', barcode)
         if len(clean_bc) == 13 and clean_bc.isdigit():
             zpl.append(f"^FO{ox + 34},{bc_start_y}^BY2,2.5,64^BER,64,Y,N^FD{clean_bc}^FS")
