@@ -155,12 +155,116 @@ async def batch_blacklist_products(req: BatchBlacklistRequest):
         message=f"{len(raw_barcodes)} ürün başarıyla {action_text}."
     )
 
+class TogglePriceChangeRequest(BaseModel):
+    title: Optional[str] = None
+    price: Optional[float] = None
+    device_name: Optional[str] = "Mobil Reyon Terminali"
+
 @router.get("/products/{barcode}")
 async def get_product(barcode: str):
     prod = get_product_by_barcode(barcode)
     if not prod:
         return error_response(message="Ürün bulunamadı.", status_code=404)
+    
+    # Bugünün değişenlerinde var mı kontrol et
+    today_str = datetime.datetime.now().strftime("%Y-%m-%d")
+    with db_session() as conn:
+        c = conn.cursor()
+        c.execute("""
+            SELECT 1 FROM product_history 
+            WHERE barcode = ? AND substr(created_at, 1, 10) = ? AND sync_id IS NULL 
+            LIMIT 1;
+        """, (clean_barcode_text(barcode), today_str))
+        prod["is_in_today_changes"] = (c.fetchone() is not None)
+
     return success_response(data={"product": prod}, message="Ürün bulundu")
+
+@router.post("/products/{barcode}/toggle-price-change")
+async def toggle_product_price_change(barcode: str, req: Optional[TogglePriceChangeRequest] = None):
+    """
+    Ürünü bugünkü fiyat değişimleri raporuna manuel ekler veya varsa kaldırır (Toggle).
+    """
+    b = clean_barcode_text(barcode)
+    if not b:
+        return error_response(message="Geçersiz barkod.", status_code=400)
+    
+    today_str = datetime.datetime.now().strftime("%Y-%m-%d")
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    dev_name = req.device_name if req and req.device_name else "Mobil Reyon Terminali"
+
+    with db_session() as conn:
+        cursor = conn.cursor()
+        
+        # 1. Ürün veritabanında var mı?
+        cursor.execute("SELECT * FROM urunler WHERE barcode = ? LIMIT 1;", (b,))
+        prod = cursor.fetchone()
+
+        if not prod:
+            new_title = req.title.strip() if req and req.title and req.title.strip() else f"Yeni Ürün ({b})"
+            new_price = float(req.price) if req and req.price is not None else 0.0
+            cursor.execute("""
+                INSERT INTO urunler (
+                    barcode, stock_code, title, raw_system_title, price, label_price,
+                    brand, unit, source_device, is_new, is_blacklisted,
+                    created_at, updated_at, price_updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            """, (
+                b, b, new_title, new_title, new_price, 0.0,
+                "", "ADET", dev_name, 1, 0,
+                now_str, now_str, now_str
+            ))
+            cur_title = new_title
+            cur_price = new_price
+            label_p = 0.0
+        else:
+            p_dict = dict(prod)
+            cur_title = req.title.strip() if req and req.title and req.title.strip() else p_dict.get("title", b)
+            cur_price = float(req.price) if req and req.price is not None else float(p_dict.get("price") or 0.0)
+            label_p = float(p_dict.get("label_price") or cur_price)
+
+        # 2. Bugün için eklenmiş bir product_history kaydı var mı kontrol et
+        cursor.execute("""
+            SELECT id FROM product_history
+            WHERE barcode = ?
+              AND substr(created_at, 1, 10) = ?
+              AND sync_id IS NULL;
+        """, (b, today_str))
+        existing_rows = cursor.fetchall()
+
+        if existing_rows:
+            # Varsa bugün bu barkod için olan kayıtları sil (Toggle OFF)
+            ids = [r["id"] for r in existing_rows]
+            placeholders = ",".join("?" for _ in ids)
+            cursor.execute(f"DELETE FROM product_history WHERE id IN ({placeholders});", ids)
+            conn.commit()
+            return success_response(
+                data={"barcode": b, "is_in_changes": False},
+                message=f"'{cur_title}' bugünün değişenler listesinden kaldırıldı."
+            )
+        else:
+            # Yoksa bugünün değişenlerine ekle (Toggle ON)
+            diff = round(cur_price - label_p, 2) if label_p > 0 else cur_price
+            diff_pct = round((diff / label_p * 100) if label_p > 0 else (100.0 if cur_price > 0 else 0.0), 1)
+
+            cursor.execute("""
+                INSERT INTO product_history (
+                    barcode, event_type, old_title, new_title,
+                    old_price, new_price, diff_amount, diff_percent,
+                    source, device_name, details, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            """, (
+                b, "manual_flag", cur_title, cur_title,
+                label_p if label_p > 0 else 0.0, cur_price,
+                diff, diff_pct,
+                dev_name, dev_name,
+                "Kullanıcı tarafından değişenlere manuel eklendi.",
+                now_str
+            ))
+            conn.commit()
+            return success_response(
+                data={"barcode": b, "is_in_changes": True},
+                message=f"'{cur_title}' bugünün değişenler listesine eklendi! 📌"
+            )
 
 @router.put("/products/{barcode}")
 async def update_product(barcode: str, req: ProductUpdateRequest):

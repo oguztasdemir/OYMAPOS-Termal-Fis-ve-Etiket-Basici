@@ -666,6 +666,9 @@ async function lookupBarcode(barcode) {
         badge.innerText = "✓ Kayıtlı Ürün";
       }
 
+      // Değişenler durum butonunu ayarla
+      setChangesButtonState(!!p.is_in_today_changes);
+
       showToast(`✓ "${p.title}" getirildi.`, "success");
     } else {
       isNewProduct = true;
@@ -680,6 +683,7 @@ async function lookupBarcode(barcode) {
         badge.className = "product-status-pill new";
         badge.innerText = "➕ Yeni Ürün";
       }
+      setChangesButtonState(false);
       showToast("Ürün kayıtlı değil. Bilgilerini yazıp listeye ekleyin.", "info");
       if (inpTitle) inpTitle.focus();
     }
@@ -692,7 +696,87 @@ async function lookupBarcode(barcode) {
   }
 }
 
-function getSelectedMobilePrinter() {
+/**
+ * 📌 Değişenlere Ekle / Kaldır Butonunun Durumunu Ayarla
+ */
+function setChangesButtonState(isInChanges) {
+  const btn = document.getElementById('btn-toggle-changes');
+  const icon = document.getElementById('btn-toggle-changes-icon');
+  const text = document.getElementById('btn-toggle-changes-text');
+  if (!btn) return;
+
+  btn.dataset.inChanges = isInChanges ? 'true' : 'false';
+
+  if (isInChanges) {
+    btn.style.background = 'linear-gradient(135deg, #059669 0%, #047857 100%)';
+    btn.style.borderColor = '#10b981';
+    btn.style.color = '#ffffff';
+    btn.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.35)';
+    if (icon) icon.textContent = '✓';
+    if (text) text.textContent = 'Değişenlere Eklendi (Kaldırmak için dokunun)';
+  } else {
+    btn.style.background = '#1e293b';
+    btn.style.borderColor = 'rgba(56, 189, 248, 0.35)';
+    btn.style.color = '#38bdf8';
+    btn.style.boxShadow = 'none';
+    if (icon) icon.textContent = '📌';
+    if (text) text.textContent = 'Değişenlere Ekle';
+  }
+}
+
+/**
+ * 🔄 Ürünü Değişenler Listesine Ekle / Kaldır (Toggle)
+ */
+async function toggleCurrentProductPriceChange() {
+  if (!currentBarcode) {
+    showToast("Önce bir barkod okutun veya seçin.", "error");
+    return;
+  }
+
+  const title = (document.getElementById('inp-title')?.value || '').trim() || (currentProduct?.title || `Ürün (${currentBarcode})`);
+  const price = parseFloat(document.getElementById('inp-price')?.value) || (currentProduct?.price || 0.0);
+
+  const btn = document.getElementById('btn-toggle-changes');
+  if (btn) btn.style.opacity = '0.6';
+
+  try {
+    const res = await fetch(`/api/products/${encodeURIComponent(currentBarcode)}/toggle-price-change`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: title,
+        price: price,
+        device_name: "Mobil Reyon Terminali"
+      })
+    });
+    const data = await res.json();
+
+    if (btn) btn.style.opacity = '1';
+
+    if (data.status === 'success') {
+      const isNowIn = !!data.data?.is_in_changes;
+      setChangesButtonState(isNowIn);
+      showToast(data.message, isNowIn ? "success" : "info");
+      if (navigator.vibrate) navigator.vibrate(isNowIn ? [60, 40, 60] : [40]);
+
+      // Eğer Değişenler sekmesiyse arka planda orayı da güncelle
+      const secChanges = document.getElementById('section-changes');
+      if (secChanges && secChanges.style.display !== 'none') {
+        const selDate = document.getElementById('sel-report-date');
+        const selSource = document.getElementById('sel-report-source');
+        loadMobilePriceChanges(selDate?.value, selSource?.value);
+      }
+    } else {
+      showToast("İşlem başarısız: " + (data.message || 'Hata'), "error");
+    }
+  } catch (err) {
+    if (btn) btn.style.opacity = '1';
+    showToast("Bağlantı hatası: " + err.message, "error");
+  }
+}
+
+window.toggleCurrentProductPriceChange = toggleCurrentProductPriceChange;
+window.setChangesButtonState = setChangesButtonState;
   const sel = document.getElementById('mobilePrinterSelect');
   if (sel && sel.value) return sel.value;
   return localStorage.getItem('selected_printer') || null;
