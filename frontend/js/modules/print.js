@@ -340,27 +340,129 @@ function handleTopbarPrinterChange(newPrinter) {
   showToast(`Aktif Yazıcı: "${newPrinter}" olarak seçildi.`, 'info');
 }
 
+let selectedPrintHistoryDate = 'all';
+
+async function handlePrintHistoryDateChange(targetDate) {
+  selectedPrintHistoryDate = targetDate || 'all';
+  const picker = document.getElementById('printHistoryDatePicker');
+  if (picker) {
+    if (targetDate && targetDate !== 'all') {
+      if (targetDate.includes('.')) {
+        const p = targetDate.split('.');
+        picker.value = `${p[2]}-${p[1]}-${p[0]}`;
+      } else {
+        picker.value = targetDate;
+      }
+    } else {
+      picker.value = '';
+    }
+  }
+  await loadPrintHistoryTable();
+}
+
 async function loadPrintHistoryTable() {
   const tbody = document.getElementById('printHistoryTableBody');
   if (!tbody) return;
 
   try {
-    const res = await API.getPrintHistory(60);
-    const history = (res && res.data && res.data.history) || [];
+    const res = await API.getPrintHistory(200, selectedPrintHistoryDate);
+    const data = (res && res.data) || {};
+    const history = data.history || [];
+    const availableDates = data.available_dates || [];
+
+    // İstatistik ve sayaç güncellemesi
+    const dayCountEl = document.getElementById('histDayTotalPrints');
+    if (dayCountEl) {
+      const totalPrintsCount = history.reduce((sum, item) => sum + (item.copies || 1), 0);
+      dayCountEl.textContent = `${totalPrintsCount} Etiket (${history.length} İşlem)`;
+    }
+
+    // Tarih Hapları (Date Pills) Oluşturma
+    const pillsContainer = document.getElementById('printHistoryDatePills');
+    if (pillsContainer) {
+      if (availableDates.length === 0) {
+        pillsContainer.innerHTML = '';
+      } else {
+        let pillsHtml = `<span style="font-size:11.5px; font-weight:700; color:var(--text-muted);">Hızlı Günler:</span>`;
+        availableDates.slice(0, 6).forEach(d => {
+          const isActive = (selectedPrintHistoryDate === d || (selectedPrintHistoryDate && selectedPrintHistoryDate.split('-').reverse().join('.') === d));
+          const btnStyle = isActive
+            ? 'background: var(--primary); color: #fff; border-color: var(--primary); font-weight:800;'
+            : 'background: var(--card-inner); color: var(--text-main); border-color: var(--border-color);';
+          
+          pillsHtml += `
+            <button class="btn btn-sm" onclick="handlePrintHistoryDateChange('${escapeHtml(d)}')" style="${btnStyle} font-size:11px; padding:3px 9px; border-radius:14px; cursor:pointer;" title="${escapeHtml(d)} gününün baskılarını göster">
+              📅 ${escapeHtml(d)}
+            </button>
+          `;
+        });
+        pillsContainer.innerHTML = pillsHtml;
+      }
+    }
+
+    // "Tüm Günler" buton stilini güncelle
+    const btnAll = document.getElementById('btnHistShowAllDates');
+    if (btnAll) {
+      if (selectedPrintHistoryDate === 'all' || !selectedPrintHistoryDate) {
+        btnAll.style.background = 'var(--primary)';
+        btnAll.style.color = '#fff';
+        btnAll.style.fontWeight = '800';
+      } else {
+        btnAll.style.background = '';
+        btnAll.style.color = '';
+        btnAll.style.fontWeight = '';
+      }
+    }
 
     if (history.length === 0) {
       tbody.innerHTML = `
         <tr>
           <td colspan="8" style="text-align: center; padding: 40px; color: var(--text-muted);">
-            🖨️ Henüz kayıtlı bir etiket baskısı bulunmuyor. Herhangi bir ürün için "Yazdır" butonuna bastığınızda burada listelenecektir.
+            🖨️ ${selectedPrintHistoryDate !== 'all' ? selectedPrintHistoryDate + ' gününe ait baskı kaydı bulunamadı.' : 'Henüz kayıtlı bir etiket baskısı bulunmuyor.'}
           </td>
         </tr>
       `;
       return;
     }
 
+    // Gün gün ayırarak (Group by Date) HTML oluştur
     let html = '';
+    let currentDayGroup = null;
+    let rowIdxInDay = 0;
+
     history.forEach((item, idx) => {
+      const dateTimeParts = (item.printed_at || '').split(' ');
+      const itemDate = dateTimeParts[0] || 'Bilinmeyen Tarih';
+      const itemTime = dateTimeParts[1] || '';
+
+      // Yeni bir gün grubuna geçildiğinde ayırıcı başlık satırı bas
+      if (itemDate !== currentDayGroup) {
+        currentDayGroup = itemDate;
+        rowIdxInDay = 0;
+
+        // O güne ait toplam baskı sayısını hesapla
+        const dayItems = history.filter(h => (h.printed_at || '').startsWith(itemDate));
+        const dayTotalCopies = dayItems.reduce((acc, h) => acc + (h.copies || 1), 0);
+
+        html += `
+          <tr style="background: rgba(2, 132, 199, 0.12); border-top: 2px solid rgba(56, 189, 248, 0.4); border-bottom: 1px solid rgba(56, 189, 248, 0.2);">
+            <td colspan="8" style="padding: 9px 16px; font-weight: 800; color: #38bdf8; font-size: 13px;">
+              <div style="display:flex; align-items:center; justify-content:space-between;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="font-size:15px;">📅</span>
+                  <span>${escapeHtml(itemDate)}</span>
+                  <span style="font-size:11px; font-weight:600; background:rgba(56,189,248,0.2); color:#93c5fd; padding:2px 8px; border-radius:10px;">${dayItems.length} İşlem</span>
+                </div>
+                <div style="font-size:12px; color:#fbbf24; font-family:var(--font-mono); font-weight:700;">
+                  Toplam: ${dayTotalCopies} Adet Etiket
+                </div>
+              </div>
+            </td>
+          </tr>
+        `;
+      }
+
+      rowIdxInDay++;
       const isSuccess = item.status === 'success';
       const statusBadge = isSuccess
         ? `<span class="badge" style="background:rgba(16,185,129,0.15); color:#34d399; border:1px solid rgba(16,185,129,0.3); font-size:11px; padding:3px 8px; border-radius:6px; font-weight:700;">✅ Başarılı</span>`
@@ -370,8 +472,10 @@ async function loadPrintHistoryTable() {
 
       html += `
         <tr>
-          <td style="text-align: center; color: var(--text-muted); font-size: 11.5px;">${idx + 1}</td>
-          <td style="font-size: 12px; color: #38bdf8; font-family: var(--font-mono); font-weight: 700;">${escapeHtml(item.printed_at)}</td>
+          <td style="text-align: center; color: var(--text-muted); font-size: 11.5px;">${rowIdxInDay}</td>
+          <td style="font-size: 12px; color: #38bdf8; font-family: var(--font-mono); font-weight: 700;">
+            <span style="color:#94a3b8; font-size:11px; margin-right:4px;">🕒</span>${escapeHtml(itemTime || item.printed_at)}
+          </td>
           <td style="font-family: var(--font-mono); font-weight: 700; color: #818cf8; font-size: 12.5px;">${escapeHtml(item.barcode)}</td>
           <td style="font-weight: 700; color: #fff; font-size: 12.5px;">${escapeHtml(item.title)}</td>
           <td style="text-align: right; font-weight: 800; color: #fbbf24; font-family: var(--font-mono);">${escapeHtml(priceStr)}</td>

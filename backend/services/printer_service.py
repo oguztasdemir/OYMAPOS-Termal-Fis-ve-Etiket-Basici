@@ -127,16 +127,52 @@ def check_printer_connection(printer_name: str = None) -> dict:
 
 PRINT_HISTORY_FILE = os.path.join(DATA_DIR, "baski_gecmisi.json")
 
-def get_print_history(limit: int = 50) -> list:
-    """Son etiket baskı geçmişini döner."""
+def get_print_history(limit: int = 200, date_filter: str = None) -> list:
+    """Son etiket baskı geçmişini döner. date_filter (YYYY-MM-DD veya DD.MM.YYYY) belirtilirse o güne ait olanları döner."""
     if os.path.exists(PRINT_HISTORY_FILE):
         try:
             with open(PRINT_HISTORY_FILE, 'r', encoding='utf-8') as f:
                 history = json.load(f)
+                if date_filter:
+                    # Tarih filtresi uygula (YYYY-MM-DD formatını DD.MM.YYYY ile eşleştir)
+                    target_date = date_filter
+                    if "-" in date_filter and len(date_filter) == 10:
+                        parts = date_filter.split("-")
+                        target_date = f"{parts[2]}.{parts[1]}.{parts[0]}"
+                    filtered = []
+                    for h in history:
+                        p_date = (h.get("printed_at") or "").split(" ")[0]
+                        if p_date == target_date:
+                            filtered.append(h)
+                    return filtered[:limit]
                 return history[:limit]
         except Exception:
             return []
     return []
+
+def get_print_history_dates() -> list:
+    """Baskı geçmişinde kaydı bulunan günlerin listesini döner."""
+    if not os.path.exists(PRINT_HISTORY_FILE):
+        return []
+    try:
+        with open(PRINT_HISTORY_FILE, 'r', encoding='utf-8') as f:
+            history = json.load(f)
+            dates = set()
+            for h in history:
+                p_date = (h.get("printed_at") or "").split(" ")[0]
+                if p_date:
+                    dates.add(p_date)
+            # Tarihleri tersten sırala (en güncel en üstte)
+            def parse_d(d_str):
+                try:
+                    p = d_str.split(".")
+                    return f"{p[2]}-{p[1]}-{p[0]}"
+                except Exception:
+                    return d_str
+            sorted_dates = sorted(list(dates), key=parse_d, reverse=True)
+            return sorted_dates
+    except Exception:
+        return []
 
 def log_print_job(barcode: str, title: str, price, copies: int = 1, status: str = "success", message: str = ""):
     """Yapılan baskıyı geçmişe kaydeder."""

@@ -39,8 +39,12 @@ const API = {
     return await res.json();
   },
 
-  async getPrintHistory(limit = 50) {
-    const res = await fetch(`/api/printer/history?limit=${limit}`);
+  async getPrintHistory(limit = 200, date = null) {
+    let url = `/api/printer/history?limit=${limit}`;
+    if (date && date !== 'all') {
+      url += `&date=${encodeURIComponent(date)}`;
+    }
+    const res = await fetch(url);
     return await res.json();
   },
 

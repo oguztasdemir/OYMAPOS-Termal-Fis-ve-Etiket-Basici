@@ -8,7 +8,7 @@ from fastapi import APIRouter
 from backend.models.schemas import PrinterSettingsRequest
 from backend.services.printer_service import (
     get_installed_printers, load_settings, save_settings, print_single_label, purge_printer_queue,
-    check_printer_connection, get_print_history
+    check_printer_connection, get_print_history, get_print_history_dates
 )
 from backend.utils.response_utils import success_response, error_response
 
@@ -55,10 +55,16 @@ async def get_printer_status(printer: str = None):
     )
 
 @router.get("/printer/history")
-async def get_printer_history_endpoint(limit: int = 50):
-    history = get_print_history(limit)
+async def get_printer_history_endpoint(limit: int = 200, date: str = None):
+    history = get_print_history(limit, date_filter=date)
+    available_dates = get_print_history_dates()
     return success_response(
-        data={"history": history, "count": len(history)},
+        data={
+            "history": history,
+            "count": len(history),
+            "available_dates": available_dates,
+            "selected_date": date or "all"
+        },
         message="Baskı geçmişi listelendi"
     )
 
