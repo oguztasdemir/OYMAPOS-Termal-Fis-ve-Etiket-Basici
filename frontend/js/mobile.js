@@ -22,6 +22,74 @@ let isTorchOn = false;
 let currentZoomLevel = parseFloat(localStorage.getItem('oymapos_camera_zoom') || '1.0');
 if (isNaN(currentZoomLevel) || currentZoomLevel < 1.0) currentZoomLevel = 1.0;
 
+let isDecodingServerFrame = false;
+const roiCanvas = document.createElement('canvas');
+const roiCtx = roiCanvas.getContext('2d');
+
+/**
+ * 🔊 Bip ve Titreşim Sinyali
+ */
+function playBeepSound() {
+  try {
+    if (navigator.vibrate) {
+      navigator.vibrate(90);
+    }
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1400, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.09);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.09);
+  } catch(e) {}
+}
+
+/**
+ * 🎯 BARKOD GEÇERLİLİK KONTROLÜ
+ */
+function validateBarcodeChecksum(barcode) {
+  if (!barcode) return false;
+  const b = String(barcode).trim();
+  if (b.length < 2) return false;
+  return true;
+}
+
+/**
+ * 🍞 Toast Bildirim Gösterici
+ */
+function showToast(msg, type = "info") {
+  const toast = document.getElementById('toast');
+  if (!toast) return;
+  toast.className = `toast-box toast-${type}`;
+  toast.innerText = msg;
+  toast.style.display = "block";
+  setTimeout(() => {
+    toast.style.display = "none";
+  }, 3500);
+}
+
+/**
+ * 🛡️ Parlama & Yuvarlak Yüzey Filtresi Aç / Kapa
+ */
+function toggleGlareMode() {
+  isGlareModeActive = !isGlareModeActive;
+  const btn = document.getElementById('btn-fs-glare');
+  const txt = document.getElementById('txt-fs-glare');
+  if (btn && txt) {
+    if (isGlareModeActive) {
+      btn.classList.add('active');
+      txt.textContent = 'Parlama & Eğri: AÇIK';
+    } else {
+      btn.classList.remove('active');
+      txt.textContent = 'Parlama & Eğri: KAPALI';
+    }
+  }
+}
+
 /**
  * 🔍 Kamera Zoom Kontrolü (Donanım Seviyesi + Fallback & Hafızada Tutma)
  */
@@ -384,7 +452,7 @@ function closeFullscreenCamera() {
 }
 
 /**
- * 🔴 Barkod Algılandığında Tetiklenen Olay (Konsensüs & Yönlendirme - OYMAPOS 1-1)
+ * 🔴 Barkod Algılandığında Tetiklenen Olay (Anında Hızlı Algılama)
  */
 function onLiveBarcodeDetected(decodedText) {
   if (!decodedText || !isScanningLive) return;
@@ -394,19 +462,12 @@ function onLiveBarcodeDetected(decodedText) {
     return;
   }
 
-  const now = Date.now();
-  const isChecksumStrict = /^\d{8}$/.test(raw) || /^\d{12}$/.test(raw) || /^\d{13}$/.test(raw);
+  // Anında tetikle ve kamerayı kapatıp ürünü ekrana getir
+  playBeepSound();
+  if (navigator.vibrate) navigator.vibrate([100]);
 
-  if (isChecksumStrict || (barcodeCandidateBuffer.text === raw && now - barcodeCandidateBuffer.lastTime < 400)) {
-    barcodeCandidateBuffer = { text: '', count: 0, lastTime: 0 };
-    playBeepSound();
-    if (navigator.vibrate) navigator.vibrate([100]);
-
-    closeFullscreenCamera();
-    lookupBarcode(raw);
-  } else {
-    barcodeCandidateBuffer = { text: raw, count: 1, lastTime: now };
-  }
+  closeFullscreenCamera();
+  lookupBarcode(raw);
 }
 
 /**
