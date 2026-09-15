@@ -31,14 +31,15 @@ def clean_tr(text):
     res = res.replace('^', '-').replace('~', '-')
     return res
 
-def split_title_lines(title1, title2="", max_chars_per_line=38):
+def split_title_lines(title1, title2="", max_chars_per_line=34):
     """Ürün başlığını güvenli karakter sınırına göre 1 veya 2 satıra böler."""
     t1 = clean_tr(title1).strip().upper()
     t2 = clean_tr(title2).strip().upper()
     
     if t2:
-        return t1[:42], t2[:42]
+        return t1[:44], t2[:44]
     
+    # 32 karaktere kadar tek satırda büyük ve geniş bas
     if len(t1) <= max_chars_per_line:
         return t1, ""
         
@@ -62,7 +63,7 @@ def split_title_lines(title1, title2="", max_chars_per_line=38):
             line1 = " ".join(t1_words)
             line2 = " ".join(t2_words)
 
-    return line1[:42], line2[:42]
+    return line1[:44], line2[:44]
 
 def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, width_mm=76, height_mm=40, dpi=203, copies=1):
     """
@@ -141,11 +142,23 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
         # -------------------------------------------------------------
         if t2:
             zpl.extend([
-                f"^FO{ox + 272},{oy + 20}^A0R,28,24^FD{t1}^FS",
-                f"^FO{ox + 240},{oy + 20}^A0R,25,21^FD{t2}^FS",
+                f"^FO{ox + 270},{oy + 18}^A0R,30,26^FD{t1}^FS",
+                f"^FO{ox + 238},{oy + 18}^A0R,28,24^FD{t2}^FS",
             ])
         else:
-            zpl.append(f"^FO{ox + 252},{oy + 20}^A0R,38,34^FD{t1}^FS")
+            # Tek satırda büyük ve geniş basım (Karakter uzunluğuna göre maksimum okunabilirlik)
+            t1_len = len(t1)
+            if t1_len <= 20:
+                font_h, font_w = 44, 38
+                pos_x = ox + 248
+            elif t1_len <= 28:
+                font_h, font_w = 40, 34
+                pos_x = ox + 250
+            else:
+                font_h, font_w = 34, 28
+                pos_x = ox + 254
+
+            zpl.append(f"^FO{pos_x},{oy + 18}^A0R,{font_h},{font_w}^FD{t1}^FS")
 
         # Sağ Üst Köşe Özelleştirmeleri
         if top_right_mode == 'unit_price':

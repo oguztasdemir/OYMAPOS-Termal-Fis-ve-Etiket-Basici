@@ -460,19 +460,11 @@ def print_single_label(product: dict, copies=1, template_data=None, target_print
     try:
         from backend.services.zpl_etiket_kodlayici import generate_market_shelf_zpl
         full_title = str(product.get("title") or product.get("title1") or "").strip()
-        parts = full_title.split()
-        if len(full_title) > 25 and len(parts) > 1:
-            import math
-            mid = math.ceil(len(parts) / 2)
-            t1 = " ".join(parts[:mid])
-            t2 = " ".join(parts[mid:])
-        else:
-            t1 = full_title
-            t2 = str(product.get("title2") or "").strip()
+        t2_explicit = str(product.get("title2") or "").strip()
 
         zpl_data = {
-            "title1": t1,
-            "title2": t2,
+            "title1": full_title,
+            "title2": t2_explicit,
             "brand": product.get("brand") or settings.get("market_name", "YARENLER"),
             "origin": str(product.get("origin") or "TÜRKİYE"),
             "date": str(product.get("date") or datetime.datetime.now().strftime("%d.%m.%Y")),
