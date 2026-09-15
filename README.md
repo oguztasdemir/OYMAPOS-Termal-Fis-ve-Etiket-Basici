@@ -1,173 +1,87 @@
-
 # 🏷️ OYMAPOS - Kurumsal Etiket & Fiş Otomasyon Merkezi
 
-<div align="center">
+**OYMAPOS**, süpermarketler, şarküteriler, manavlar ve perakende satış noktaları için geliştirilmiş; bağımsız, yüksek performanslı ve modern bir **Etiket ve Fiş Baskı Kontrol Merkezi**dir.
+
+Herhangi bir özel POS veya ERP yazılımına bağımlı kalmadan; panodan kopyalanan listeleri, Excel/CSV dosyalarını, kasa verilerini veya barkod tarayıcı girişlerini **akıllı barkod algılama motoru** sayesinde otomatik ayrıştırır. Masaüstü yönetim paneli, reyon el terminali (mobil telefon kamerası) veya barkod okuyucu aracılığıyla tek tıkla termal / lazer yazıcılardan standartlara uygun etiket basılmasını sağlar.
 
 ---
 
-## 📌 Proje Genel Bakışı
+## 📖 Sistem Panelleri ve Kullanım Kılavuzu
 
-**OYMAPOS**, süpermarketler, şarküteriler, manavlar ve perakende satış noktaları için geliştirilmiş yüksek performanslı, bağımsız ve dayanıklı bir **Etiket ve Fiş Baskı Kontrol Merkezi**dir.
+### 1. 📦 Ürünler & Etiket Masası
+* **Arama & Filtreleme:** Ürün adı, barkod veya reyon kodu ile anında filtreleme.
+* **Ürün Detay Kartı:** Listede bir ürüne 1 kez tıklandığında ürünün detayları, fiyat geçmişi ve etiket önizlemesi görüntülenir.
+* **Hızlı Düzenleme:** Ürüne çift tıklandığında ürün adı, satış fiyatı, birim miktarı ve KDV oranı doğrudan düzenlenebilir.
+* **Çoklu Seçim:** `Shift + Tık` ile aralık seçimi, `Ctrl + Tık` ile bağımsız çoklu ürün seçimi yapılabilir.
+* **Fiyat Farkı Takibi:** "⚠️ Fiyatı Değişenler" filtresiyle, kasadaki güncel fiyatı ile basılı raf etiketi uyuşmayan ürünler tek tıkla listelenir.
+* **Kara Liste Filtresi:** Poşet, depozito vb. etiket basılmayacak ürünler tek tıkla gizlenir veya yönetilir.
 
-Herhangi bir özel POS veya ERP yazılımına bağımlı kalmadan; panodan kopyalanan listeleri, Excel/CSV dosyalarını veya barkod tarayıcı girişlerini **akıllı barkod algılama motoru** sayesinde otomatik ayrıştırır. Masaüstü yönetim paneli, reyon el terminali (mobil telefon kamerası) veya barkod okuyucu aracılığıyla tek tıkla termal / lazer yazıcılardan standartlara uygun etiket basılmasını sağlar.
+### 2. ⚡ Fiyat Güncelleme (Ctrl+V & Excel Masası)
+* **Panodan Doğrudan Yapıştırma (Ctrl + V):** Muhasebe programından veya Excel'den kopyalanan satırları doğrudan yapıştırarak saniyeler içinde içeri aktarma.
+* **Excel / CSV Yükleme:** Sürükle-bırak yöntemiyle dosya yükleme desteği.
+* **2 Aşamalı Güvenli Karşılaştırma Masası:** Zam gelenler, indirim yapılanlar ve yeni ürünler onay öncesinde renk kodlarıyla gösterilir.
+* **Geri Alma (Rollback / Undo):** İstenmeyen aktarımlarda tek tıkla önceki fiyatlara anında dönebilme.
 
----
+### 3. 📊 Fiyat Değişim Raporları & PDF Baskı
+* **Günlük ve Kaynak Bazlı Takip:** Mobil terminalden, masaüstünden veya toplu aktarımdan gelen fiyat değişimleri ayrı ayrı filtrelenir.
+* **A4 Büyük Barkodlu Değişim Raporu:** Reyon görevlisinin reyonda gezerken el tipi okuyucu veya telefonla okutabileceği büyük barkodlu A4 PDF dökümü oluşturulur.
+* **Otomatik Etiket Fiyatı Eşitleme:** PDF basıldıktan sonra sistem onay ister ve ürünlerin raf etiket fiyatları otomatik olarak güncellenir.
 
-## ✨ Özellikler & Yetenekler
+### 4. 🎨 Etiket Düzenle & Şablonlar (Stüdyo)
+* **Hazır Standart Boyutlar:** 76x40 mm (Standart Market Rafı), 60x40 mm (Kompakt), 40x20 mm ve özel ebatlar.
+* **Yasal Ögeler:** Resmi Yerli Üretim Logosu, Birim Fiyat Kutusu (1 KG / 1 LT), Gramaj/Miktar Rozeti, Reyon Kodu ve QR Kod desteği.
+* **Görsel Tasarım Masası:** Ögelerin yerleşimi canlı önizleme üzerinden anında kontrol edilir.
 
-### 🔍 Akıllı Barkod Algılama & Hızlı Veri Aktarımı
+### 5. 🔄 Dükkan & Kasa Veri Aktarımı
+* **Otomatik Dosya İzleme:** Kasa programının ürettiği `fiyat.xlsx` veya `urunler.csv` dosyası güncellendiğinde sistem fiyatları otomatik algılar.
+* **Yerel Ağ Senkronizasyonu:** Dükkandaki diğer bilgisayarlardan `http://[IP]:8000/sync` adresi üzerinden veri aktarımı.
+* **Terazi & Manav Barkodu:** 27, 28 ve 29 ile başlayan gramajlı ve tutarlı terazi barkodlarını otomatik ayrıştırma.
 
-- **Otomatik Barkod ve Fiyat Ayrıştırma:** Panodan yapıştırılan veya yüklenen metinlerde barkod (EAN-13, EAN-8, Code-128) ve fiyat bilgisi format bağımsız olarak anında tespit edilir.
-- **Panodan Doğrudan Aktarım (Ctrl + V):** Herhangi bir programdan veya tablodan kopyalanan ürün listesini ekrana yapıştırarak saniyeler içinde içeri alma.
-- **Esnek Dosya Yükleme:** Excel (`.xlsx`), CSV, metin dosyaları (`.txt`) veya veritabanı yedeklerini sürükle-bırak yöntemiyle sisteme aktarma.
-- **2 Aşamalı Güvenli Karşılaştırma Masası:** Aktarım öncesinde sistemdeki mevcut ürünler ve fiyatlar ile yeni veriler karşılaştırılır; zam, indirim ve yeni eklenen ürünler kullanıcı onayına sunulur.
-- **Tek Tıkla Geri Alma (Rollback / Undo):** Hatalı veya istenmeyen aktarımlarda tek tıkla önceki fiyatlara anında geri dönebilme güvencesi.
+### 6. 📱 Mobil Barkod Terminali (Reyon Asistanı)
+* **Uygulamasız Kullanım:** Tarayıcı üzerinden `http://[IP]:8000/mobile` adresine girilerek telefon kamerası lazer barkod okuyucuya dönüştürülür.
+* **Telefondan Fiyat Değiştirme:** Reyonda gezerken barkodu okutup tek tıkla yeni fiyat girilebilir.
+* **Ters Kronolojik Basım Listesi:** En son okutulan ürün daima en üstte listelenir, böylece reyon görevlisi işlemlerini anlık takip edebilir.
+* **Kasaya Gönder:** Telefondan seçilen etiketler kasadaki termal yazıcıya doğrudan kablosuz iletilir.
 
-### 🖨️ Hibrit Termal Baskı Motoru (ZPL + TSPL-II & A4 Grid)
-
-- **Doğrudan Windows RAW Spooler:** Yazıcı sürücüsü gecikmesi olmaksızın milisaniyeler içinde doğrudan termal donanıma ham komut iletimi.
-- **Çift Protokol Desteği (ZPL & TSPL-II):** Zebra, Xprinter, Argox, HPRT, Bixolon vb. piyasadaki tüm termal yazıcılarla tak-çalıştır uyumluluk.
-- **Dinamik Raf Etiketi Standartları:** Birim fiyat kutusu, gramaj/miktar rozeti, resmi Yerli Üretim logosu, reyon kodları ve kampanya alanları.
-- **Çoklu Boyut Desteği:** 40x20 mm, 60x40 mm, 76x40 mm (Standart Market), 85x45 mm ve özel şablonlar.
-- **A4 Çoklu Çıkartma Dizgisi:** Lazer veya mürekkep püskürtmeli ofis yazıcıları için A4 yapışkanlı etiket kağıtlarına (24'lü, 40'lı, 65'li) baskı imkanı.
-- **Canlı Baskı Geçmişi:** Yapılan tüm baskı işlemlerinin anlık loglanması ve arayüzdeki "Baskı Geçmişi" sekmesinden izlenebilmesi.
-
-### 📱 Mobil Barkod Terminali (Reyon Asistanı)
-
-- Herhangi bir uygulama yüklemeden, aynı Wi-Fi ağına bağlı akıllı telefon kamerasından barkod okutma.
-- Reyonda gezerken raf fiyatı ile güncel fiyatı denetleme ve tek tıkla kasadaki yazıcıya etiket gönderme.
-
-### ⚖️ Terazi / Manav Barkod Çözücü
-
-- `27`, `28` ve `29` prefixli terazi barkodlarını (`27[PLU][Gramaj/Tutar][C]`) otomatik ayrıştırma.
-- Gramajlı ürünlerin birim fiyatını ve paket tutarını otomatik hesaplama.
-
-### 🛡️ Kararlı ve Çökme Önleyici Mimari
-
-- **SQLite WAL (Write-Ahead Logging):** Eşzamanlı okuma/yazma kilitlenmelerini önleyen yüksek hızlı veritabanı motoru.
-- **Türkçe Karakter Katlaması (`fold_tr`):** `I/ı`, `İ/i`, `Ş/ş`, `Ğ/ğ`, `Ü/ü`, `Ö/ö`, `Ç/ç` harflerinde %100 arama doğruluğu.
-- **Zaman Damgalı Tek Tıkla Yedekleme:** Veritabanı ve ayarları `.zip` formatında yedekleme ve geri yükleme.
-
----
-
-## 🚀 Hızlı Başlatma (Tüm Windows Sürümleri)
-
-Windows 7, 8, 10 veya 11 (32-bit / 64-bit) fark etmeksizin sistemi çalıştırmak için:
-
-### 1. Tek Tıkla Başlatma (Tavsiye Edilen)
-
-Proje ana dizinindeki **`BASLAT.bat`** dosyasına çift tıklayın.
-
-> **Ne Yapar?**
->
-> * Bilgisayarınızda Python olup olmadığını otomatik kontrol eder.
-> * Eğer Python yoksa; Windows sürümünüze ve mimarinize (32/64-bit) uygun Python motorunu resmi kaynaktan arka planda sessizce kurar.
-> * Gerekli kütüphaneleri [requirements.txt](requirements.txt) üzerinden otomatik tamamlar.
-> * Web sunucusunu başlatır ve tarayıcınızı otomatik olarak açar.
-
-### 2. Geliştirici Modu (Manuel Kurulum)
-
-```bash
-# 1. Proje dizinine girin
-cd "Etiket Yazdirici"
-
-# 2. Gereksinimleri yukleyin
-pip install -r requirements.txt
-
-# 3. Sunucuyu calistirin
-python main.py
-```
-
-Tarayıcınızda arayüz otomatik olarak `http://localhost:8000` adresinde açılacaktır.
-
----
-
-## 🌐 Ağ ve Cihaz Erişimi
-
-| Modül                                                 | Yerel Adres                        | Açıklama                                                                            |
-| ------------------------------------------------------ | ---------------------------------- | ------------------------------------------------------------------------------------- |
-| 🖥️**Ana Yönetim & Etiket Masası**            | `http://localhost:8000/`         | Stok arama, tekli/toplu etiket basımı, baskı geçmişi.                            |
-| 💻**Veri Aktarım & Karşılaştırma Portalı** | `http://[IP_ADRESI]:8000/sync`   | Panodan yapıştırma (Ctrl+V) veya dosya yükleme ile hızlı veri aktarım masası. |
-| 📱**Reyon Mobil Terminali**                      | `http://[IP_ADRESI]:8000/mobile` | Telefon kamerası ile kablosuz reyon etiket denetimi.                                 |
-
----
-
-## 📂 Proje Mimarisi
-
-```
-Etiket Yazdırıcı/
-├── BASLAT.bat                      # Tüm Windows'lar için Otomatik Kurulum ve Başlatıcı
-├── main.py                         # Ana Başlatıcı & Dinamik Port Yönetimi
-├── requirements.txt                # Python Bağımlılıkları
-├── README.md                       # Proje Dokümantasyonu
-├── LICENSE                         # MIT Lisansı
-├── backend/
-│   ├── app.py                      # FastAPI Sunucusu & Anti-Cache Middleware
-│   ├── config.py                   # Uygulama Dizin ve Konfigürasyon Sabitleri
-│   ├── controllers/                # REST API Denetleyicileri
-│   │   ├── api_controller.py       # Router Birleştirici
-│   │   ├── network_controller.py   # Ağ Bilgisi & IP API
-│   │   ├── print_controller.py     # Tekli, Toplu ve Mobil Baskı API
-│   │   ├── printer_controller.py   # Yazıcı Donanım & Ayar API
-│   │   ├── product_controller.py   # Ürün Listeleme & Arama API
-│   │   ├── system_controller.py    # Yedekleme & Geri Yükleme API
-│   │   ├── template_controller.py  # Etiket Tasarım Şablonları API
-│   │   └── vegawin_controller.py   # Veri İçe Aktarım & Karşılaştırma API
-│   ├── models/
-│   │   └── schemas.py              # Pydantic Veri Modelleri
-│   ├── services/
-│   │   ├── db/                     # SQLite Veritabanı ve Repository Katmanı
-│   │   ├── printer_service.py      # RAW Spooler, ZPL & TSPL-II Baskı Servisi
-│   │   ├── zpl_etiket_kodlayici.py # Standart ZPL Raf Etiketi Kodlayıcı Motor
-│   │   ├── template_service.py     # Etiket Şablon Motoru
-│   │   └── vegawin/                # Veri Ayrıştırıcı & Akıllı Karşılaştırma Motoru
-│   └── utils/
-│       ├── network_utils.py        # Yerel IP & Dinamik QR Kod Üretici
-│       ├── response_utils.py       # Standart JSON Yanıt Yardımcıları
-│       └── text_utils.py           # Türkçe Karakter ve Metin Temizleyici
-├── frontend/
-│   ├── css/                        # Responsive Arayüz Tasarım Stilleri
-│   ├── js/
-│   │   ├── api.js                  # Backend REST API İstemcisi
-│   │   ├── main.js                 # Frontend Başlatıcı & Sekme Yönetimi
-│   │   ├── mobile.js               # Mobil Terminal Kamera Okuyucu
-│   │   └── modules/                # JS Modülleri (products, print, sync vb.)
-│   ├── partials/                   # Dinamik Sekmeler ve Modal Şablonları
-│   ├── index.html                  # Ana Masaüstü Kontrol Masası
-│   ├── sync.html                   # Veri Aktarım & Karşılaştırma Portalı
-│   └── mobile.html                 # Mobil Reyon Barkod Terminali
-└── data/
-    ├── ayarlar.json                # Yazıcı ve Kalibrasyon Ayarları
-    ├── etiket_sablonlari.json      # Etiket Tasarım Şablonları
-    ├── kara_liste.json             # Otomatik Temizleme Kuralları
-    └── uploads/                    # Geçici Yükleme Klasörü (.gitkeep ile korunur)
-```
+### 7. ⚙️ Yazıcı & Donanım Ayarları
+* **Termal Yazıcı Yönetimi:** Xprinter, Zebra, Argox, HPRT, Bixolon vb. tüm yazıcılarla doğrudan Windows RAW Spooler (ZPL / TSPL) entegrasyonu.
+* **Baskı Kalibrasyonu:** Koyuluk (Darkness) ve yatay/dikey ofset kaydırma ayarları.
+* **Tek Tıkla Yedekleme:** Veritabanı ve ayarları `.zip` formatında dışa aktarma ve geri yükleme.
 
 ---
 
 ## ⌨️ Klavye Kısayolları
 
-| Kısayol                | İşlev                                       |
-| ----------------------- | --------------------------------------------- |
-| `Ctrl + K` veya `/` | Ürün arama kutusuna anında odaklan         |
-| `Ctrl + S`            | Yazıcı ve kalibrasyon ayarlarını kaydet   |
-| `F2`                  | Hızlı test etiketi yazdır                  |
-| `Enter`               | Önizleme modalı açıkken doğrudan yazdır |
-| `Escape`              | Modalı kapat veya arama kutusunu temizle     |
+| Kısayol | Açıklama |
+| :--- | :--- |
+| **`F2`** | Hızlı Fiyat Gör & Barkod / Stok Sorgulama modalını açar. |
+| **`Shift + Tık`** | Ürün tablosunda seçilen iki ürün arasındaki tüm satırları seçer (Aralık Seçimi). |
+| **`Ctrl + Tık`** | Ürün tablosunda istenen ürünleri tek tek seçime ekler/çıkarır. |
+| **`ESC`** | Açık olan önizleme, düzenleme ve arama modallarını kapatır. |
 
 ---
 
-## 💡 Sorun Giderme
+## 🚀 Kurulum ve Başlatma
 
-1. **Yazıcı Çıktı Vermiyorsa:**
-   - Denetim Masası > Aygıtlar ve Yazıcılar bölümünden termal yazıcınızın adının arayüzdeki "Yazıcı Ayarları" sekmesindeki isimle birebir aynı olduğunu kontrol edin.
-2. **Kuyrukta Yazdırma İşi Takılı Kalırsa:**
-   - Arayüzdeki Yazıcı Ayarları bölümünden "Kuyruğu Temizle" butonunu kullanarak kilitlenmiş yazdırma işlerini tek tıkla boşaltabilirsiniz.
-3. **Diğer Cihazlardan Bağlanılamıyorsa:**
-   - Ana bilgisayarın Windows Güvenlik Duvarı ayarlarında Python için yerel ağ bağlantılarına izin verildiğinden emin olun.
+### 1. Tek Tıkla Başlatma (Tavsiye Edilen)
+Proje ana dizinindeki **`BASLAT.bat`** dosyasına çift tıklayın. Sistem ortamı otomatik hazırlar ve tarayıcıyı açar.
+
+### 2. Manuel Başlatma (Geliştirici Modu)
+```bash
+# Gerekli kütüphaneleri yükleyin
+pip install -r requirements.txt
+
+# Sunucuyu başlatın
+python main.py
+```
+Tarayıcınızda arayüz `http://localhost:8000` adresinde açılacaktır.
 
 ---
 
-## 📄 Lisans
+## 🌐 Ağ ve Cihaz Portalı
 
-Bu proje [MIT Lisansı](LICENSE) kapsamında lisanslanmıştır.
+| Modül | Yerel Adres | Açıklama |
+| :--- | :--- | :--- |
+| 🖥️ **Masaüstü Kontrol Merkezi** | `http://localhost:8000/` | Ürünler, şablonlar, fiyat değişimi ve raporlar. |
+| 💻 **Veri Aktarım Masası** | `http://[IP_ADRESI]:8000/sync` | Ağdaki diğer bilgisayarlardan dosya/pano aktarımı. |
+| 📱 **Reyon Mobil Terminali** | `http://[IP_ADRESI]:8000/mobile` | Telefon kamerasıyla kablosuz reyon denetimi ve etiket basımı. |

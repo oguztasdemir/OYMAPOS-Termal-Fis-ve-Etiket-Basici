@@ -1,0 +1,237 @@
+<!-- SEKME: NASIL KULLANILIR & SİSTEM KILAVUZU -->
+<section id="tab-guide" class="tab-pane">
+  
+  <!-- Üst Başlık ve Tanıtım Alanı -->
+  <div class="home-welcome-hero" style="margin-bottom: 24px;">
+    <div class="welcome-text-group">
+      <div class="welcome-badge">
+        <span class="badge-dot" style="background:#38bdf8;"></span>
+        <span>OYMAPOS Kullanım Kılavuzu & Pratik İpuçları</span>
+      </div>
+      <h1 class="welcome-title">
+        Sistem Nasıl Kullanılır? 📖
+      </h1>
+      <p class="welcome-subtitle">
+        Tüm panellerin çalışma mantığı, klavye kısayolları, mobil kullanım adımları ve etiket basım kuralları.
+      </p>
+    </div>
+    <div class="welcome-hero-action">
+      <button class="btn btn-secondary btn-hero" onclick="switchTab('tab-search')">
+        <span>📦 Ürünler Masasına Dön</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Hızlı Gezinme Kısayol Rozetleri -->
+  <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom: 24px;">
+    <a href="#rehber-kisayollar" class="btn btn-secondary btn-sm" style="border-radius:20px; text-decoration:none;">⌨️ Klavye Kısayolları</a>
+    <a href="#rehber-urunler" class="btn btn-secondary btn-sm" style="border-radius:20px; text-decoration:none;">📦 Ürünler & Etiket Masası</a>
+    <a href="#rehber-fiyat-guncelle" class="btn btn-secondary btn-sm" style="border-radius:20px; text-decoration:none;">⚡ Fiyat Güncelleme (Ctrl+V)</a>
+    <a href="#rehber-fiyat-rapor" class="btn btn-secondary btn-sm" style="border-radius:20px; text-decoration:none;">📊 Fiyat Değişim Raporları</a>
+    <a href="#rehber-etiket-sablon" class="btn btn-secondary btn-sm" style="border-radius:20px; text-decoration:none;">🎨 Etiket Düzenle & Şablonlar</a>
+    <a href="#rehber-kasa-aktarim" class="btn btn-secondary btn-sm" style="border-radius:20px; text-decoration:none;">🔄 Kasa & Veri Aktarımı</a>
+    <a href="#rehber-mobil-terminal" class="btn btn-secondary btn-sm" style="border-radius:20px; text-decoration:none;">📱 Mobil Barkod Terminali</a>
+    <a href="#rehber-yazici-ayarlar" class="btn btn-secondary btn-sm" style="border-radius:20px; text-decoration:none;">⚙️ Yazıcı & Donanım Ayarları</a>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:20px;">
+
+    <!-- KART: HIZLI KISAYOLLAR & PRATİK KULLANIM -->
+    <div class="card" id="rehber-kisayollar" style="border-left:4px solid #38bdf8;">
+      <div class="card-header">
+        <div class="card-title">
+          <span>⌨️ Klavye Kısayolları & Hızlı Tuşlar</span>
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:14px;">
+        <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:8px; padding:12px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+            <strong style="color:var(--text-main);">Fiyat Gör Ekranı</strong>
+            <kbd style="background:var(--primary); color:#fff; padding:2px 8px; border-radius:4px; font-weight:800; font-size:12px;">F2</kbd>
+          </div>
+          <p style="font-size:12.5px; color:var(--text-muted); margin:0;">
+            Programın neresinde olursanız olun F2 tuşuna basarak hızlı barkod/stok sorgulama modalını açabilirsiniz.
+          </p>
+        </div>
+
+        <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:8px; padding:12px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+            <strong style="color:var(--text-main);">Aralık Seçimi (Range)</strong>
+            <kbd style="background:#6366f1; color:#fff; padding:2px 8px; border-radius:4px; font-weight:800; font-size:12px;">Shift + Tık</kbd>
+          </div>
+          <p style="font-size:12.5px; color:var(--text-muted); margin:0;">
+            Bir ürünü seçtikten sonra Shift tuşuna basılı tutarak başka bir ürüne tıklarsanız aradaki tüm ürünler seçilir.
+          </p>
+        </div>
+
+        <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:8px; padding:12px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+            <strong style="color:var(--text-main);">Tekil Çoklu Seçim</strong>
+            <kbd style="background:#8b5cf6; color:#fff; padding:2px 8px; border-radius:4px; font-weight:800; font-size:12px;">Ctrl + Tık</kbd>
+          </div>
+          <p style="font-size:12.5px; color:var(--text-muted); margin:0;">
+            Listede gezinirken Ctrl tuşuna basılı tutarak istediğiniz ürünleri tek tek seçime ekleyebilir veya çıkarabilirsiniz.
+          </p>
+        </div>
+
+        <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:8px; padding:12px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+            <strong style="color:var(--text-main);">Modal / Açılır Pencere Kapat</strong>
+            <kbd style="background:#64748b; color:#fff; padding:2px 8px; border-radius:4px; font-weight:800; font-size:12px;">ESC</kbd>
+          </div>
+          <p style="font-size:12.5px; color:var(--text-muted); margin:0;">
+            Açık olan önizleme, düzenleme veya arama pencerelerini ESC tuşu ile hızla kapatabilirsiniz.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- PANEL 1: ÜRÜNLER & ETİKET MASASI -->
+    <div class="card" id="rehber-urunler">
+      <div class="card-header">
+        <div class="card-title">
+          <span>📦 1. Ürünler & Etiket Masası</span>
+        </div>
+        <span class="badge" style="background:rgba(56,189,248,0.15); color:#38bdf8;">Ana Çalışma Masası</span>
+      </div>
+      <div style="font-size:13.5px; line-height:1.7; color:var(--text-main);">
+        <p>
+          Tüm kayıtlı ürünlerin listelendiği, filtrelendiği ve tekli/toplu etiket basımlarının yapıldığı ana merkezdir.
+        </p>
+        <ul style="padding-left:20px; margin-bottom:12px;">
+          <li><strong>Arama & Barkod Okutma:</strong> Arama kutusuna ürün adı yazabilir veya el tipi barkod okuyucuyla doğrudan barkod okutabilirsiniz. Anında filtrelenir.</li>
+          <li><strong>Ürün Detayı Açma:</strong> Listede herhangi bir ürüne 1 kez tıkladığınızda sol/orta alanda ürünün tüm detay kartı, fiyat geçmişi ve etiket önizlemesi açılır.</li>
+          <li><strong>Ürün Düzenleme:</strong> Ürünün üzerine çift tıkladığınızda ya da detay kartındaki düzenle butonuna bastığınızda ürün adı, satış fiyatı, birim miktarı ve KDV oranı düzenleme penceresi açılır.</li>
+          <li><strong>Toplu Seçim İşlemleri:</strong> Kutucukları işaretleyerek veya <code>Shift + Tık</code> / <code>Ctrl + Tık</code> ile birden fazla ürün seçtiğinizde alt kısımda çoklu etiket basım çubuğu belirir.</li>
+          <li><strong>Fiyat Farkı Filtresi:</strong> Üstteki "⚠️ Fiyatı Değişenler" filtresine basarak kasadaki fiyatı ile basılı raf etiket fiyatı birbiriyle uyuşmayan ürünleri tek tıkla listeleyebilirsiniz.</li>
+          <li><strong>Kara Liste Filtresi:</strong> Etiketi basılmak istenmeyen poşet, depozito veya ara hizmet kalemlerini tek tıkla gizleyebilir veya yönetebilirsiniz.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- PANEL 2: FİYAT GÜNCELLEME (CTRL+V) -->
+    <div class="card" id="rehber-fiyat-guncelle">
+      <div class="card-header">
+        <div class="card-title">
+          <span>⚡ 2. Fiyat Güncelleme (Ctrl+V & Excel Masası)</span>
+        </div>
+        <span class="badge" style="background:rgba(245,158,11,0.15); color:#f59e0b;">Toplu Güncelleme</span>
+      </div>
+      <div style="font-size:13.5px; line-height:1.7; color:var(--text-main);">
+        <p>
+          Toptancılardan gelen yeni fiyat listelerini, Excel tablolarını veya muhasebe programından kopyalanan satırları sisteme aktarır.
+        </p>
+        <ul style="padding-left:20px; margin-bottom:12px;">
+          <li><strong>Panodan Doğrudan Yapıştırma (Ctrl + V):</strong> Excel'den veya herhangi bir ekrandan kopyaladığınız satırları bu paneldeki metin alanına yapıştırın. Sistem barkod, ürün adı ve fiyat sütunlarını otomatik olarak tespit eder.</li>
+          <li><strong>Excel / CSV Dosya Yükleme:</strong> Elinizdeki <code>.xlsx</code> veya <code>.csv</code> dosyasını sürükleyip bırakarak yükleyebilirsiniz.</li>
+          <li><strong>2 Aşamalı Güvenli Karşılaştırma:</strong> Veriler yüklendiğinde doğrudan veritabanına yazılmaz. Karşılaştırma masasında zam gelenler (yeşil), indirim yapılanlar (kırmızı) ve yeni eklenecek ürünler renklerle listelenir.</li>
+          <li><strong>Uygulama ve Geri Alma (Rollback):</strong> Onay verdiğinizde fiyatlar güncellenir. Eğer hatalı bir liste yüklerseniz "Fiyat Geçmişi & Geri Al" seçeneği ile tek tıkla önceki fiyatlara dönebilirsiniz.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- PANEL 3: FİYAT DEĞİŞİM RAPORLARI -->
+    <div class="card" id="rehber-fiyat-rapor">
+      <div class="card-header">
+        <div class="card-title">
+          <span>📊 3. Fiyat Değişim Raporları & PDF Baskı</span>
+        </div>
+        <span class="badge" style="background:rgba(16,185,129,0.15); color:#10b981;">Denetim & Raporlama</span>
+      </div>
+      <div style="font-size:13.5px; line-height:1.7; color:var(--text-main);">
+        <p>
+          Gün içinde veya belirli bir tarih aralığında reyonlarda ya da kasada fiyatı değişen ürünlerin tam dökümünü verir.
+        </p>
+        <ul style="padding-left:20px; margin-bottom:12px;">
+          <li><strong>Kaynak Filtreleme:</strong> Fiyat değişimlerini "Mobil Reyon Terminali", "Masaüstü Tekil Düzenleme" veya "Toplu Aktarım" bazında ayrı ayrı listeleyebilirsiniz.</li>
+          <li><strong>A4 Büyük Barkodlu Değişim Raporu:</strong> "PDF Raporu İndir" butonuna bastığınızda, reyon görevlisinin eline alıp reyonda gezebileceği, üzerinde büyük okunaklı barkodlar ve eski/yeni fiyatların yer aldığı A4 PDF dökümü oluşturulur.</li>
+          <li><strong>Otomatik Etiket Fiyatı Eşitleme:</strong> PDF raporunu yazdırdıktan veya indirdikten sonra sistem sizden onay ister. Onay verdiğinizde ürünlerin "basılı raf etiket fiyatı" güncel satış fiyatıyla eşitlenir ve reyon listeniz tertemiz hale gelir.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- PANEL 4: ETİKET DÜZENLE & ŞABLONLAR -->
+    <div class="card" id="rehber-etiket-sablon">
+      <div class="card-header">
+        <div class="card-title">
+          <span>🎨 4. Etiket Düzenle & Şablonlar (Stüdyo)</span>
+        </div>
+        <span class="badge" style="background:rgba(168,85,247,0.15); color:#a855f7;">Görsel Tasarım</span>
+      </div>
+      <div style="font-size:13.5px; line-height:1.7; color:var(--text-main);">
+        <p>
+          Raf etiketlerinin boyutlarını, yazı büyüklüklerini ve etiket üzerinde bulunacak yasal alanları özelleştirebilirsiniz.
+        </p>
+        <ul style="padding-left:20px; margin-bottom:12px;">
+          <li><strong>Hazır Boyut Seçenekleri:</strong> <code>76x40 mm</code> (Standart Market Rafı), <code>60x40 mm</code> (Kompakt), <code>40x20 mm</code> (Küçük Ürünler) ve özel ebatlar.</li>
+          <li><strong>Görsel Ögeleri Açma / Kapatma:</strong> Resmi Yerli Üretim Logosu, Birim Fiyat Kutusu (1 KG / 1 LT fiyatı), Gramaj/Miktar Rozeti, Reyon/Kategori Kodu ve QR Kod alanlarını açıp kapatabilirsiniz.</li>
+          <li><strong>Sürükle - Bırak veya Otomatik Hizalama:</strong> Tasarım alanında ögelerin yerleşimini canlı önizleme üzerinden anında kontrol edebilirsiniz.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- PANEL 5: DÜKKAN & KASA VERİ AKTARIMI -->
+    <div class="card" id="rehber-kasa-aktarim">
+      <div class="card-header">
+        <div class="card-title">
+          <span>🔄 5. Dükkan & Kasa Veri Aktarımı</span>
+        </div>
+        <span class="badge" style="background:rgba(59,130,246,0.15); color:#3b82f6;">Entegrasyon</span>
+      </div>
+      <div style="font-size:13.5px; line-height:1.7; color:var(--text-main);">
+        <p>
+          Kasa bilgisayarı veya ana sunucudaki stok verilerini yerel ağ üzerinden sisteme çekmek için kullanılır.
+        </p>
+        <ul style="padding-left:20px; margin-bottom:12px;">
+          <li><strong>Otomatik Dosya İzleme:</strong> Kasa programınızın dışa aktardığı <code>fiyat.xlsx</code> veya <code>urunler.csv</code> dosyasını seçtiğinizde dosya her güncellendiğinde sistem otomatik olarak yeni fiyatları algılar.</li>
+          <li><strong>Ağ Üzerinden Veri Paylaşımı:</strong> Dükkandaki diğer bilgisayarlardan <code>http://[IP]:8000/sync</code> adresine girilerek de dosya yüklemesi yapılabilir.</li>
+          <li><strong>Terazi / Manav Barkodu Uyumluluğu:</strong> 27, 28 ve 29 ile başlayan manav ve şarküteri terazi barkodları sistem tarafından otomatik olarak çözümlenir.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- PANEL 6: MOBİL BARKOD TERMİNALİ -->
+    <div class="card" id="rehber-mobil-terminal">
+      <div class="card-header">
+        <div class="card-title">
+          <span>📱 6. Mobil Barkod Terminali (Reyon Asistanı)</span>
+        </div>
+        <span class="badge" style="background:rgba(236,72,153,0.15); color:#ec4899;">Kablosuz Kullanım</span>
+      </div>
+      <div style="font-size:13.5px; line-height:1.7; color:var(--text-main);">
+        <p>
+          Herhangi bir mobil uygulama indirmeye gerek kalmadan, telefonunuzun kamerasını lazer hızında bir el terminaline dönüştürür.
+        </p>
+        <ul style="padding-left:20px; margin-bottom:12px;">
+          <li><strong>Telefondan Bağlanma:</strong> Telefonunuz dükkanın Wi-Fi ağına bağlıyken, "Bağlı Cihazlar & Ağ" sekmesindeki QR kodu okutun veya tarayıcınıza <code>http://[BİLGİSAYAR_IP]:8000/mobile</code> yazın.</li>
+          <li><strong>Kamera ile Barkod Okuma:</strong> Telefon kamerasını ürün barkoduna tuttuğunuz anda ürünün adı, mevcut satış fiyatı ve raf durumu ekrana gelir.</li>
+          <li><strong>Telefondan Tek Tıkla Fiyat Değiştirme:</strong> Ürün kartındaki fiyata dokunarak yeni fiyatı girebilir ve onaylayabilirsiniz. Fiyat hem sisteme işlenir hem de basım listesine eklenir.</li>
+          <li><strong>Basım Listesi & En Son Okutulanlar:</strong> Okutulan ürünler güncelden eskiye doğru sıralanır (en son okuttuğunuz ürün en üstte yer alır). Böylece hatalı okutma durumunda anında müdahale edebilirsiniz.</li>
+          <li><strong>Kasaya Etiket Gönderme:</strong> Telefondaki "Kasaya Gönder" butonuna bastığınızda seçili etiketler kasadaki termal yazıcıdan anında basılır.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- PANEL 7: YAZICI & DONANIM AYARLARI -->
+    <div class="card" id="rehber-yazici-ayarlar">
+      <div class="card-header">
+        <div class="card-title">
+          <span>⚙️ 7. Yazıcı & Donanım Ayarları</span>
+        </div>
+        <span class="badge" style="background:rgba(100,116,139,0.15); color:#94a3b8;">Kalibrasyon & Yedek</span>
+      </div>
+      <div style="font-size:13.5px; line-height:1.7; color:var(--text-main);">
+        <p>
+          Termal yazıcı bağlantısı, sayfa kenar boşlukları ve sistem yedekleme işlemleri buradan yönetilir.
+        </p>
+        <ul style="padding-left:20px; margin-bottom:12px;">
+          <li><strong>Yazıcı Seçimi:</strong> Windows'a bağlı termal yazıcınızı (Xprinter, Zebra, Argox, HPRT vb.) listeden seçin.</li>
+          <li><strong>Koyuluk & Hız Kalibrasyonu:</strong> Barkodların okuyucular tarafından daha net okunması için baskı koyuluğunu (Darkness) ve milimetrik yatay/dikey kaydırma (Offset) ayarlarını buradan yapabilirsiniz.</li>
+          <li><strong>Market / Mağaza Adı:</strong> Etiketlerin en üstünde çıkacak dükkan ismini (Örn: YARENLER SÜPERMARKET) belirleyebilirsiniz.</li>
+          <li><strong>Tek Tıkla Yedekleme & Geri Yükleme:</strong> Tüm ürün veritabanını ve ayarlarınızı tek bir <code>.zip</code> dosyası olarak bilgisayarınıza indirebilir veya geri yükleyebilirsiniz.</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+</section>
