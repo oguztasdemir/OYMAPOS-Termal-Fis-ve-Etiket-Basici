@@ -229,9 +229,9 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
         # -------------------------------------------------------------
         # 2. BÖLÜM (ORTA KATMAN): Marka (Sol) & 3 Satır Yasal Bilgi (Sağ)
         # -------------------------------------------------------------
-        # Yarenler yazısı biraz daha büyük (40x34), 0.2mm sağa (start_y + 2), 0.1mm aşağı (ox + 157)
-        brand_y = start_y + 2
-        zpl.append(f"^FO{ox + 157},{brand_y}^A0R,40,34^FD{brand}^FS")
+        # Yarenler 0.5mm sağa (start_y + 6), 0.2mm aşağı (ox + 155)
+        brand_y = start_y + 6
+        zpl.append(f"^FO{ox + 155},{brand_y}^A0R,40,34^FD{brand}^FS")
 
         # Üretim yeri, Kdv, Fiyat Değiştirme Tarihi 1cm (~80 dot) sağa kaydırıldı
         mid_y = start_y + 190 + 80 # ~302 dot
@@ -247,15 +247,15 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
         # -------------------------------------------------------------
         # 3. BÖLÜM (ALT KATMAN): EAN-13 Barkod | Satış Fiyatı | BÜYÜK FİYAT
         # -------------------------------------------------------------
-        # Barkod ortalaması tam korundu (bc_start_y = start_y + 14, ox + 36), boyutu biraz küçültüldü (58 dot, BY2)
-        bc_start_y = start_y + 14
+        # Barkod 0.2mm sağa kaydırıldı (bc_start_y = start_y + 16), boyutu tam orta seviyeye (61 dot) ayarlandı
+        bc_start_y = start_y + 16
         clean_bc = re.sub(r'[^0-9A-Za-z]', '', barcode)
         if len(clean_bc) == 13 and clean_bc.isdigit():
-            zpl.append(f"^FO{ox + 36},{bc_start_y}^BY2,3,58^BER,58,Y,N^FD{clean_bc}^FS")
+            zpl.append(f"^FO{ox + 35},{bc_start_y}^BY2,3,61^BER,61,Y,N^FD{clean_bc}^FS")
         elif len(clean_bc) == 8 and clean_bc.isdigit():
-            zpl.append(f"^FO{ox + 36},{bc_start_y}^BY2,3,58^BER,58,Y,N^FD{clean_bc}^FS")
+            zpl.append(f"^FO{ox + 35},{bc_start_y}^BY2,3,61^BER,61,Y,N^FD{clean_bc}^FS")
         else:
-            zpl.append(f"^FO{ox + 36},{bc_start_y}^BY2,3,58^BCR,58,Y,N,N^FD{clean_bc or '00000000'}^FS")
+            zpl.append(f"^FO{ox + 35},{bc_start_y}^BY2,3,61^BCR,61,Y,N,N^FD{clean_bc or '00000000'}^FS")
 
         # Satış Fiyatı Dikey Ayracı (Kutu ve yazı) - Konumu korundu
         div_y = oy + int(line_w * 0.58)
