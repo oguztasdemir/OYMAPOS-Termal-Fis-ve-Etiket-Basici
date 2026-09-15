@@ -968,18 +968,37 @@ function clearQueueWithConfirm() {
 }
 
 let lastBatchPrintedCount = 0;
+let isSubmittingBatch = false;
 
 /**
- * 🖨️ Toplu Kuyruk Yazdırma (Canlı İlerleme Çubuğu & Sonuç Onayı)
+ * 🖨️ Toplu Kuyruk Yazdırma (Çift Tıklama Kilidi & Canlı İlerleme Çubuğu)
  */
 async function submitQueueBatchPrint() {
+  if (isSubmittingBatch) {
+    return; // Zaten bir yazdırma işlemi devam ediyor, 2. veya 3. tıklamayı engelle
+  }
+
   if (mobileQueue.length === 0) {
     showToast("Basım listesi boş!", "error");
     return;
   }
 
-  const totalCount = mobileQueue.length;
+  isSubmittingBatch = true;
+  const btnBatch = document.querySelector('.btn-batch-print-mobile');
+  if (btnBatch) {
+    btnBatch.disabled = true;
+    btnBatch.style.opacity = '0.6';
+    btnBatch.style.pointerEvents = 'none';
+  }
+
+  const itemsToPrint = [...mobileQueue];
+  const totalCount = itemsToPrint.length;
   lastBatchPrintedCount = totalCount;
+
+  // Çift tıklamayı ve mükerrer yazdırmayı önlemek için kuyruğu derhal yerelde sıfırla
+  mobileQueue = [];
+  saveQueueToStorage();
+  renderQueueList();
 
   // İlerleme Modalını Aç
   const progModal = document.getElementById('batch-progress-modal');
@@ -1005,7 +1024,7 @@ async function submitQueueBatchPrint() {
   try {
     const chosenPrinter = getSelectedMobilePrinter();
     const payload = {
-      products: mobileQueue.map(item => ({
+      products: itemsToPrint.map(item => ({
         barcode: item.barcode,
         title: item.title,
         price: item.price
@@ -1073,6 +1092,14 @@ async function submitQueueBatchPrint() {
  * 🏁 İlerleme Modalını Kapatıp Onay ve Değişenler Raporuna Geçiş
  */
 async function closeBatchProgressModal() {
+  isSubmittingBatch = false;
+  const btnBatch = document.querySelector('.btn-batch-print-mobile');
+  if (btnBatch) {
+    btnBatch.disabled = false;
+    btnBatch.style.opacity = '1';
+    btnBatch.style.pointerEvents = 'auto';
+  }
+
   const progModal = document.getElementById('batch-progress-modal');
   if (progModal) progModal.style.display = 'none';
 
