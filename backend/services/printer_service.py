@@ -577,3 +577,87 @@ def print_single_label(product: dict, copies=1, template_data=None, target_print
             return False, err_msg
 
 
+def print_batch_labels(products: list, copies=1, template_data=None, target_printer: str = None) -> tuple:
+    """Çoklu etiketleri tek bir senkron iş (Single Multi-Page Spooler Job) olarak yazıcıya iletir.
+    Bu sayede yazıcı kafası ara boşlukları (GAP sensörünü) kaybetmez ve etiketler bölünmez/kaymaz.
+    """
+    if not products:
+        return False, "Yazdırılacak ürün bulunamadı."
+
+    settings = load_settings()
+    printer_name = target_printer or settings.get("printer", "Termal Etiket Yazici")
+
+    conn_info = check_printer_connection(printer_name)
+    if not conn_info.get("connected", False):
+        status_desc = conn_info.get("status_text") or "Bağlantı Belirsiz"
+        if "Bağlı Değil" in status_desc and ("error" in status_desc.lower() or "bulunamadı" in status_desc.lower()):
+            return False, f"'{printer_name}' yazıcısına ulaşılamıyor: {status_desc}."
+
+    from backend.services.template_service import get_default_template
+    tpl = template_data or get_default_template() or {}
+    w_mm = float(tpl.get("width_mm", settings.get("width_mm", 76)))
+    h_mm = float(tpl.get("height_mm", settings.get("height_mm", 40)))
+    x_off = int(settings.get("x_offset", 0))
+    y_off = int(settings.get("y_offset", 0))
+
+    from backend.services.zpl_etiket_kodlayici import generate_market_shelf_zpl
+
+    zpl_batch = []
+    tspl_batch = []
+
+    for prod in products:
+        full_title = str(prod.get("title") or prod.get("title1") or "").strip()
+        t2_explicit = str(prod.get("title2") or "").strip()
+        item_copies = int(prod.get("copies") or copies or 1)
+
+        zpl_data = {
+            "title1": full_title,
+            "title2": t2_explicit,
+            "brand": prod.get("brand") or settings.get("market_name", "YARENLER"),
+            "origin": str(prod.get("origin") or "TÜRKİYE"),
+            "date": str(prod.get("date") or datetime.datetime.now().strftime("%d.%m.%Y")),
+            "unit_price": str(prod.get("unit_price") or ""),
+            "barcode": str(prod.get("barcode") or ""),
+            "price": format_price_display(prod.get("price")),
+            "top_right_mode": tpl.get("top_right_mode", "empty"),
+            "top_right_text": tpl.get("top_right_text", "")
+        }
+
+        z_code = generate_market_shelf_zpl(
+            zpl_data,
+            orientation=settings.get("orientation", "POR"),
+            x_offset=x_off,
+            y_offset=y_off,
+            width_mm=w_mm,
+            height_mm=h_mm,
+            copies=item_copies
+        )
+        zpl_batch.append(z_code)
+
+        try:
+            t_code = generate_tspl_command(prod, copies=item_copies, template_data=template_data)
+            tspl_batch.append(t_code)
+        except Exception:
+            pass
+
+        log_print_job(
+            barcode=prod.get("barcode", ""),
+            title=full_title,
+            price=prod.get("price"),
+            copies=item_copies,
+            status="success",
+            message=f"'{printer_name}' toplu baskı kuyruğuna iletildi."
+        )
+
+    # 1. ZPL ile tek akışta gönder
+    combined_zpl = "\r\n".join(zpl_batch)
+    success, msg = print_raw_zpl(printer_name, combined_zpl, f"Toplu Etiket ({len(products)} Adet)")
+
+    # 2. ZPL başarısız olursa TSPL ile tek akışta dene
+    if not success and tspl_batch:
+        combined_tspl = b"".join(tspl_batch)
+        success, msg = send_raw_to_printer(printer_name, combined_tspl)
+
+    return success, msg
+
+

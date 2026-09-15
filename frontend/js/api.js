@@ -241,6 +241,11 @@ const API = {
     return await res.json();
   },
 
+  async printAllPendingkasa_aktarim() {
+    const res = await fetch('/api/kasa_aktarim/print_all_pending', { method: 'POST' });
+    return await res.json();
+  },
+
   async getSyncHistory(limit = 50) {
     const res = await fetch(`/api/kasa_aktarim/sync-history?limit=${limit}`);
     return await res.json();

@@ -64,24 +64,25 @@ async def print_single(req: PrintSingleRequest):
 async def print_batch(req: PrintBatchRequest):
     if not req.products:
         return error_response(message="Yazdırılacak ürün seçilmedi.", status_code=400)
-    
-    printed_count = 0
-    errors = []
+
     target_printer = req.printer
+    prod_list = []
     for item in req.products:
-        item_printer = item.printer or target_printer
-        prod = {
+        prod_list.append({
             "title": item.title,
             "price": item.price,
             "barcode": item.barcode or "",
             "brand": item.brand or "",
-            "date": time.strftime("%d.%m.%Y")
-        }
-        success, msg = print_single_label(prod, copies=req.copies or 1, target_printer=item_printer)
-        if success:
-            printed_count += 1
+            "date": time.strftime("%d.%m.%Y"),
+            "copies": req.copies or 1
+        })
+
+    from backend.services.printer_service import print_batch_labels
+    success, msg = print_batch_labels(prod_list, copies=req.copies or 1, target_printer=target_printer)
+
+    if success:
+        for item in req.products:
             if item.barcode:
-                # 1. Satış fiyatı ve isim güncellemesini yap
                 if item.price is not None or item.title:
                     try:
                         update_product_details(
@@ -93,18 +94,14 @@ async def print_batch(req: PrintBatchRequest):
                         )
                     except Exception:
                         pass
-                # 2. Raf etiket fiyatını ve son baskı zamanını güncelle
                 update_product_printed_time(item.barcode, printed_price=item.price)
-        else:
-            errors.append(f"{item.title}: {msg}")
-            
-    if printed_count == 0 and errors:
-        return error_response(message=f"Baskı başarısız: {errors[0]}", data={"errors": errors}, status_code=500)
 
-    return success_response(
-        data={"printed_count": printed_count, "errors": errors},
-        message=f"{printed_count} adet etiket yazdırıldı."
-    )
+        return success_response(
+            data={"printed_count": len(prod_list)},
+            message=f"{len(prod_list)} adet etiket başarıyla yazdırıldı."
+        )
+
+    return error_response(message=f"Baskı hatası: {msg}", status_code=500)
 
 @router.post("/mobile_scan")
 async def mobile_scan_print(req: MobileScanRequest):

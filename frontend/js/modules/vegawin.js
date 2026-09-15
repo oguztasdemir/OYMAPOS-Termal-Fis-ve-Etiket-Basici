@@ -215,6 +215,22 @@ async function printAllNewProdsLabels() {
   }
 }
 
+async function printAllPendingLabels() {
+  try {
+    showToast('Tüm bekleyen etiketler (Fiyat Değişenler + Yeni Ürünler) hazırlanıyor...', 'info');
+    const res = await API.printAllPendingkasa_aktarim();
+    if (res.status === 'success') {
+      showToast(res.message || 'Tüm etiketler başarıyla basıldı.', 'success');
+      loadPriceChanges();
+      loadNewProducts();
+    } else {
+      showToast('Hata: ' + res.message, 'error');
+    }
+  } catch (err) {
+    showToast('Yazdırma hatası: ' + err.message, 'error');
+  }
+}
+
 async function loadSyncHistory() {
   const tbody = document.getElementById('syncHistoryTableBody');
   if (!tbody) return;
@@ -505,6 +521,9 @@ window.uploadkasa_aktarimFile = uploadkasa_aktarimFile;
 window.switchSyncView = switchSyncView;
 window.loadPriceChanges = loadPriceChanges;
 window.loadNewProducts = loadNewProducts;
+window.printAllChangedLabels = printAllChangedLabels;
+window.printAllNewProdsLabels = printAllNewProdsLabels;
+window.printAllPendingLabels = printAllPendingLabels;
 window.loadSyncHistory = loadSyncHistory;
 window.rollbackSyncItem = rollbackSyncItem;
 window.clearAllSyncHistoryConfirm = clearAllSyncHistoryConfirm;

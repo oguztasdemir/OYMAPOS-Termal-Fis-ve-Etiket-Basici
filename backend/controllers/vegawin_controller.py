@@ -381,25 +381,28 @@ async def print_vegawin_changes():
     if not changes:
         return error_response(message="Basılacak yeni fiyat değişimi bulunamadı.", status_code=400)
 
-    printed = 0
+    products = []
     for c in changes:
-        prod = {
+        products.append({
             "title": c["title"],
             "price": c["new_price"],
             "barcode": c["barcode"],
-            "date": c["changed_at"].split(" ")[0] if " " in c["changed_at"] else c["changed_at"]
-        }
-        success, _ = print_single_label(prod)
-        if success:
-            printed += 1
+            "date": c["changed_at"].split(" ")[0] if " " in c["changed_at"] else c["changed_at"],
+            "copies": 1
+        })
+
+    from backend.services.printer_service import print_batch_labels
+    success, msg = print_batch_labels(products)
+    if success:
+        for c in changes:
             if c.get("barcode"):
                 update_product_printed_time(c["barcode"], printed_price=c["new_price"])
-
-    mark_changes_as_printed([c['id'] for c in changes])
-    return success_response(
-        data={"printed_count": printed},
-        message=f"{printed} adet fiyat etiketi yazdırıldı."
-    )
+        mark_changes_as_printed([c['id'] for c in changes])
+        return success_response(
+            data={"printed_count": len(products)},
+            message=f"{len(products)} adet fiyat etiketi başarıyla yazdırıldı."
+        )
+    return error_response(message=f"Toplu baskı hatası: {msg}", status_code=500)
 
 @router.post("/print_new_products")
 async def print_vegawin_new_products():
@@ -407,25 +410,75 @@ async def print_vegawin_new_products():
     if not new_prods:
         return error_response(message="Basılacak yeni ürün etiketi bulunamadı.", status_code=400)
 
-    printed = 0
+    products = []
     for np in new_prods:
-        prod = {
+        products.append({
             "title": np["title"],
             "price": np["price"],
             "barcode": np["barcode"],
-            "date": np["created_at"].split(" ")[0] if " " in np["created_at"] else np["created_at"]
-        }
-        success, _ = print_single_label(prod)
-        if success:
-            printed += 1
+            "date": np["created_at"].split(" ")[0] if " " in np["created_at"] else np["created_at"],
+            "copies": 1
+        })
+
+    from backend.services.printer_service import print_batch_labels
+    success, msg = print_batch_labels(products)
+    if success:
+        for np in new_prods:
             if np.get("barcode"):
                 update_product_printed_time(np["barcode"], printed_price=np["price"])
+        mark_new_products_as_printed([np['id'] for np in new_prods])
+        return success_response(
+            data={"printed_count": len(products)},
+            message=f"{len(products)} adet yeni ürün etiketi başarıyla yazdırıldı."
+        )
+    return error_response(message=f"Toplu baskı hatası: {msg}", status_code=500)
 
-    mark_new_products_as_printed([np['id'] for np in new_prods])
-    return success_response(
-        data={"printed_count": printed},
-        message=f"{printed} adet yeni ürün etiketi yazdırıldı."
-    )
+@router.post("/print_all_pending")
+async def print_all_pending_vegawin():
+    changes = get_price_changes_list(unprinted_only=True)
+    new_prods = get_new_products_list(unprinted_only=True)
+
+    if not changes and not new_prods:
+        return error_response(message="Basılacak bekleyen fiyat değişimi veya yeni ürün bulunamadı.", status_code=400)
+
+    products = []
+    for c in changes:
+        products.append({
+            "title": c["title"],
+            "price": c["new_price"],
+            "barcode": c["barcode"],
+            "date": c["changed_at"].split(" ")[0] if " " in c["changed_at"] else c["changed_at"],
+            "copies": 1
+        })
+    for np in new_prods:
+        products.append({
+            "title": np["title"],
+            "price": np["price"],
+            "barcode": np["barcode"],
+            "date": np["created_at"].split(" ")[0] if " " in np["created_at"] else np["created_at"],
+            "copies": 1
+        })
+
+    from backend.services.printer_service import print_batch_labels
+    success, msg = print_batch_labels(products)
+    if success:
+        for c in changes:
+            if c.get("barcode"):
+                update_product_printed_time(c["barcode"], printed_price=c["new_price"])
+        if changes:
+            mark_changes_as_printed([c['id'] for c in changes])
+
+        for np in new_prods:
+            if np.get("barcode"):
+                update_product_printed_time(np["barcode"], printed_price=np["price"])
+        if new_prods:
+            mark_new_products_as_printed([np['id'] for np in new_prods])
+
+        return success_response(
+            data={"printed_count": len(products), "changes_count": len(changes), "new_count": len(new_prods)},
+            message=f"Toplam {len(products)} etiket ({len(changes)} Değişen + {len(new_prods)} Yeni Ürün) yazdırıldı."
+        )
+    return error_response(message=f"Toplu baskı hatası: {msg}", status_code=500)
 
 @router.get("/export/changes/csv")
 async def export_changes_csv():

@@ -123,8 +123,8 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
         # =========================================================================
         # 90 DERECE YATAY BASKI MODU (Termal Rulo Uyumlu)
         # =========================================================================
-        pw = h_dots + ox + 30
-        ll = w_dots + oy + 40
+        pw = h_dots + ox + 10
+        ll = w_dots
         
         zpl = [
             "^XA",
