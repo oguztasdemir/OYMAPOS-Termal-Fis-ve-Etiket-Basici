@@ -138,7 +138,7 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
         zpl = [
             "^XA",
             "^CI28",                # UTF-8 Kod Sayfası
-            "~SD20",                # Koyu net termal kontrast
+            "~SD25",                # Yüksek Termal Kontrast (Sarı zemin & rafta lazer/kamera okuyucuların net algılaması için koyu net baskı)
             "^MNY",                 # Ara boşluk (Gap) algılama sensörü
             f"^PW{pw}",             # Kafa genişliği
             "^LH0,0",
