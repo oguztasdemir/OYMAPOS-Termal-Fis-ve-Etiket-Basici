@@ -66,6 +66,11 @@
         <span class="nav-icon">📊</span>
         <span class="nav-label">Fiyat Değişim Raporları</span>
       </button>
+      <button class="nav-item tab-btn" data-tab="tab-market-radar" style="color:#f59e0b;">
+        <span class="nav-icon">🕵️</span>
+        <span class="nav-label">Piyasa & Zam Radarı</span>
+        <span class="badge" id="sidebarMarketRadarBadge" style="display:none; background:#f43f5e; color:#fff; font-size:10px; font-weight:800; padding:2px 6px; border-radius:10px; margin-left:auto;">0</span>
+      </button>
       <button class="nav-item tab-btn" data-tab="tab-design">
         <span class="nav-icon">🎨</span>
         <span class="nav-label">Etiket Düzenle & Şablonlar</span>
@@ -162,6 +167,7 @@
       {{ include "partials/tabs/tab_products.html" }}
       {{ include "partials/tabs/tab_price_update.html" }}
       {{ include "partials/tabs/tab_price_reports.html" }}
+      {{ include "partials/tabs/tab_market_radar.html" }}
       {{ include "partials/tabs/tab_studio.html" }}
       {{ include "partials/tabs/tab_vegawin.html" }}
       {{ include "partials/tabs/tab_devices.html" }}
@@ -189,6 +195,7 @@
   <script src="/frontend/js/modules/products.js?v={{ cache_bust }}"></script>
   <script src="/frontend/js/modules/quick_update.js?v={{ cache_bust }}"></script>
   <script src="/frontend/js/modules/price_reports.js?v={{ cache_bust }}"></script>
+  <script src="/frontend/js/modules/market_radar.js?v={{ cache_bust }}"></script>
   <script src="/frontend/js/modules/studio.js?v={{ cache_bust }}"></script>
   <script src="/frontend/js/modules/studio_drag.js?v={{ cache_bust }}"></script>
   <script src="/frontend/js/modules/print.js?v={{ cache_bust }}"></script>

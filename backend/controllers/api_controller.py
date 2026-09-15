@@ -14,6 +14,7 @@ from backend.controllers.template_controller import router as template_router
 from backend.controllers.system_controller import router as system_router
 from backend.controllers.scanner_controller import router as scanner_router
 from backend.controllers.report_controller import router as report_router
+from backend.controllers.market_controller import router as market_router
 
 router = APIRouter()
 
@@ -27,3 +28,4 @@ router.include_router(template_router)
 router.include_router(system_router)
 router.include_router(scanner_router)
 router.include_router(report_router)
+router.include_router(market_router)

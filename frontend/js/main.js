@@ -18,6 +18,9 @@ document.addEventListener('DOMContentLoaded', () => {
   loadSyncHistory();
   initkasa_aktarimDropzone();
   initStudioDragAndDrop();
+  if (typeof initMarketRadarModule === 'function') {
+    initMarketRadarModule();
+  }
 
   // Canlı Yazıcı Durumunu Kontrol Et ve Periyodik Yenile
   if (typeof updateTopbarPrinterStatus === 'function') {
@@ -392,6 +395,9 @@ function switchTab(target) {
   if (target === 'tab-print-history') {
     if (typeof loadPrintHistoryTable === 'function') loadPrintHistoryTable();
     if (typeof updateTopbarPrinterStatus === 'function') updateTopbarPrinterStatus();
+  }
+  if (target === 'tab-market-radar') {
+    if (typeof loadMarketRadarData === 'function') loadMarketRadarData();
   }
 }
 

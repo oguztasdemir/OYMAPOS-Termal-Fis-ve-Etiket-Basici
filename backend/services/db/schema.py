@@ -163,7 +163,24 @@ def init_db():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_prod_history_barcode ON product_history(barcode);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_prod_history_sync_id ON product_history(sync_id);")
 
-        # 8. Otomatik Keşif (Sadece veritabanı tamamen boşken ilk kurulumda)
+        # 8. Piyasa Fiyat Radarı & Zam Denetimi (Market Price Audits)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS market_price_audits (
+            barcode TEXT PRIMARY KEY,
+            market_price REAL DEFAULT 0,
+            min_price REAL DEFAULT 0,
+            max_price REAL DEFAULT 0,
+            found_sources TEXT,
+            search_query TEXT,
+            last_scanned_at TEXT,
+            diff_amount REAL DEFAULT 0,
+            diff_percent REAL DEFAULT 0,
+            status TEXT DEFAULT 'scanned'
+        );
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_market_audits_diff ON market_price_audits(diff_percent);")
+
+        # 9. Otomatik Keşif (Sadece veritabanı tamamen boşken ilk kurulumda)
         cursor.execute("SELECT COUNT(*) as total FROM urunler;")
         if cursor.fetchone()["total"] == 0:
             auto_discover_and_import(conn)
