@@ -105,11 +105,16 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
     origin = clean_tr(data.get('origin', 'TURKIYE')).strip().upper()
     
     # Tarih belirleme (Yalnızca gün/ay/yıl tarihi - saat kaldırıldı)
-    custom_date = data.get('date')
+    custom_date = data.get('date') or data.get('price_updated_at')
     if custom_date and str(custom_date).strip():
         date_raw = str(custom_date).strip()
         # Eğer saat içeriyorsa (örn: '25.09.2025 21:00:41' veya '2026-09-09 17:33:33') sadece tarih kısmını al
         date_raw = date_raw.split()[0]
+        # YYYY-MM-DD formatındaysa DD.MM.YYYY yap
+        if '-' in date_raw:
+            parts = date_raw.split('-')
+            if len(parts) == 3 and len(parts[0]) == 4:
+                date_raw = f"{parts[2]}.{parts[1]}.{parts[0]}"
         date = clean_tr(date_raw).strip()
     else:
         date = get_online_or_system_date()

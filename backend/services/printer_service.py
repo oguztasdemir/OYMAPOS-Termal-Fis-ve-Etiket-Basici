@@ -310,8 +310,16 @@ def generate_tspl_command(data: dict, width_mm=None, height_mm=None, darkness=No
     default_market = clean_turkish(str(settings.get("market_name") or data.get("brand") or "MARKET").strip().upper())
     brand = default_market
     origin = clean_turkish((data.get('origin') or 'TURKIYE').strip().upper())
-    raw_d = str(data.get('date') or datetime.datetime.now().strftime("%d.%m.%Y")).strip()
-    date_str = raw_d.split()[0] if raw_d else datetime.datetime.now().strftime("%d.%m.%Y")
+    raw_d = str(data.get('price_updated_at') or data.get('date') or datetime.datetime.now().strftime("%d.%m.%Y")).strip()
+    if raw_d:
+        date_part = raw_d.split()[0]
+        if '-' in date_part:
+            dp = date_part.split('-')
+            if len(dp) == 3 and len(dp[0]) == 4:
+                date_part = f"{dp[2]}.{dp[1]}.{dp[0]}"
+        date_str = date_part
+    else:
+        date_str = datetime.datetime.now().strftime("%d.%m.%Y")
     barcode = str(data.get('barcode') or '').strip()
     price_str = format_price_display(data.get('price'))
 
@@ -512,12 +520,20 @@ def print_single_label(product: dict, copies=1, template_data=None, target_print
         full_title = str(product.get("title") or product.get("title1") or "").strip()
         t2_explicit = str(product.get("title2") or "").strip()
 
+        # Fiyat değişme tarihini belirle
+        prod_date = product.get("price_updated_at") or product.get("date") or product.get("updated_at") or product.get("created_at")
+        if not prod_date and product.get("barcode"):
+            from backend.services.db_service import get_product_by_barcode
+            db_p = get_product_by_barcode(product.get("barcode"))
+            if db_p:
+                prod_date = db_p.get("price_updated_at") or db_p.get("updated_at") or db_p.get("created_at")
+
         zpl_data = {
             "title1": full_title,
             "title2": t2_explicit,
             "brand": product.get("brand") or settings.get("market_name", "YARENLER"),
             "origin": str(product.get("origin") or "TÜRKİYE"),
-            "date": str(product.get("date") or datetime.datetime.now().strftime("%d.%m.%Y")),
+            "date": str(prod_date or datetime.datetime.now().strftime("%d.%m.%Y")),
             "unit_price": str(product.get("unit_price") or ""),
             "barcode": str(product.get("barcode") or ""),
             "price": format_price_display(product.get("price")),
@@ -610,12 +626,22 @@ def print_batch_labels(products: list, copies=1, template_data=None, target_prin
         t2_explicit = str(prod.get("title2") or "").strip()
         item_copies = int(prod.get("copies") or copies or 1)
 
+        # Fiyat değişme tarihini belirle
+        prod_date = prod.get("price_updated_at") or prod.get("date") or prod.get("updated_at") or prod.get("created_at")
+        if (not prod_date or prod_date == datetime.datetime.now().strftime("%d.%m.%Y")) and prod.get("barcode"):
+            from backend.services.db_service import get_product_by_barcode
+            db_p = get_product_by_barcode(prod.get("barcode"))
+            if db_p:
+                db_p_date = db_p.get("price_updated_at") or db_p.get("updated_at") or db_p.get("created_at")
+                if db_p_date:
+                    prod_date = db_p_date
+
         zpl_data = {
             "title1": full_title,
             "title2": t2_explicit,
             "brand": prod.get("brand") or settings.get("market_name", "YARENLER"),
             "origin": str(prod.get("origin") or "TÜRKİYE"),
-            "date": str(prod.get("date") or datetime.datetime.now().strftime("%d.%m.%Y")),
+            "date": str(prod_date or datetime.datetime.now().strftime("%d.%m.%Y")),
             "unit_price": str(prod.get("unit_price") or ""),
             "barcode": str(prod.get("barcode") or ""),
             "price": format_price_display(prod.get("price")),

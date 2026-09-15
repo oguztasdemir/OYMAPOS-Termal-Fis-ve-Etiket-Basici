@@ -68,12 +68,20 @@ async def print_batch(req: PrintBatchRequest):
     target_printer = req.printer
     prod_list = []
     for item in req.products:
+        item_prod = get_product_by_barcode(item.barcode) if item.barcode else None
+        item_date = ""
+        if item_prod:
+            raw_d = item_prod.get("price_updated_at") or item_prod.get("updated_at") or item_prod.get("created_at")
+            if raw_d:
+                item_date = str(raw_d).strip()
+        
         prod_list.append({
             "title": item.title,
             "price": item.price,
             "barcode": item.barcode or "",
-            "brand": item.brand or "",
-            "date": time.strftime("%d.%m.%Y"),
+            "brand": item.brand or (item_prod.get("brand") if item_prod else ""),
+            "date": item_date or time.strftime("%d.%m.%Y"),
+            "price_updated_at": item_date,
             "copies": req.copies or 1
         })
 
