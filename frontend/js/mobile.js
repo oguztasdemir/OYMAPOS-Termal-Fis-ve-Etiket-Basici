@@ -249,7 +249,7 @@ async function openFullscreenCamera() {
 }
 
 /**
- * 📷 30 FPS Canlı Barkod Algılama Motoru (OYMAPOS 1-1)
+ * 📷 30 FPS Canlı Barkod Algılama Motoru (OYMAPOS 1-1 Hibrit: Donanım + ZXing Canvas + OpenCV)
  */
 function startContinuousBarcodeEngine(videoElem) {
   if (frameDetectionInterval) clearInterval(frameDetectionInterval);
@@ -258,7 +258,7 @@ function startContinuousBarcodeEngine(videoElem) {
   frameDetectionInterval = setInterval(async () => {
     if (!isScanningLive || videoElem.readyState < 2) return;
 
-    // 1. İstemci Donanım BarcodeDetector (0ms gecikme)
+    // 1. İstemci Donanım BarcodeDetector (0ms gecikme - Chrome / Android / Safari son sürümler)
     if ('BarcodeDetector' in window) {
       try {
         const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'qr_code', 'itf'] });
@@ -273,27 +273,43 @@ function startContinuousBarcodeEngine(videoElem) {
       } catch(e) {}
     }
 
-    // 2. OpenCV + PyZBar Hibrit Çözücü
+    // 2. İstemci Tarafı ZXing Canvas Çözücü (Tarayıcıda anında çalışır)
+    if (typeof ZXing !== 'undefined' && zxingReader && isScanningLive) {
+      try {
+        const vw = videoElem.videoWidth || 1280;
+        const vh = videoElem.videoHeight || 720;
+        roiCanvas.width = 800;
+        roiCanvas.height = 450;
+        roiCtx.drawImage(videoElem, 0, 0, vw, vh, 0, 0, 800, 450);
+
+        try {
+          const lumSource = new ZXing.HTMLCanvasElementLuminanceSource(roiCanvas);
+          const binBitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(lumSource));
+          const zxResult = zxingReader.decodeBitmap(binBitmap);
+          if (zxResult && zxResult.getText() && isScanningLive) {
+            const raw = zxResult.getText().trim();
+            if (validateBarcodeChecksum(raw)) {
+              onLiveBarcodeDetected(raw);
+              return;
+            }
+          }
+        } catch(e) {}
+      } catch(e) {}
+    }
+
+    // 3. OpenCV + PyZBar Sunucu Hibrit Çözücü (Parlama, Eğim, Bozuk Etiket Filtresi)
     if (!isDecodingServerFrame && isScanningLive) {
       isDecodingServerFrame = true;
       try {
         const vw = videoElem.videoWidth || 1280;
         const vh = videoElem.videoHeight || 720;
         
-        const zoomRatio = currentZoomLevel > 1.0 ? currentZoomLevel : 1.0;
-        const baseCropW = Math.floor(vw * 0.85);
-        const baseCropH = Math.floor(vh * 0.55);
-        const cropW = Math.floor(baseCropW / zoomRatio);
-        const cropH = Math.floor(baseCropH / zoomRatio);
-        const cropX = Math.floor((vw - cropW) / 2);
-        const cropY = Math.floor((vh - cropH) / 2);
-
-        roiCanvas.width = 640;
-        roiCanvas.height = 360;
-        roiCtx.drawImage(videoElem, cropX, cropY, cropW, cropH, 0, 0, 640, 360);
+        roiCanvas.width = 720;
+        roiCanvas.height = 405;
+        roiCtx.drawImage(videoElem, 0, 0, vw, vh, 0, 0, 720, 405);
 
         if (isGlareModeActive) {
-          const imgData = roiCtx.getImageData(0, 0, 640, 360);
+          const imgData = roiCtx.getImageData(0, 0, 720, 405);
           const d = imgData.data;
           for (let i = 0; i < d.length; i += 4) {
             const lum = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
@@ -301,16 +317,12 @@ function startContinuousBarcodeEngine(videoElem) {
               d[i] = 190;
               d[i+1] = 190;
               d[i+2] = 190;
-            } else if (lum < 110) {
-              d[i] = Math.max(0, d[i] - 30);
-              d[i+1] = Math.max(0, d[i+1] - 30);
-              d[i+2] = Math.max(0, d[i+2] - 30);
             }
           }
           roiCtx.putImageData(imgData, 0, 0);
         }
 
-        const b64 = roiCanvas.toDataURL('image/jpeg', 0.85);
+        const b64 = roiCanvas.toDataURL('image/jpeg', 0.82);
         const res = await fetch('/api/scanner/decode-frame', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -328,7 +340,7 @@ function startContinuousBarcodeEngine(videoElem) {
         isDecodingServerFrame = false;
       }
     }
-  }, 35);
+  }, 30);
 }
 
 /**
