@@ -493,7 +493,7 @@ async function resetPrintHistoryFilters() {
 
 function _updateHistDayStats(history, allHistory = []) {
   const dayCountEl = document.getElementById('histDayTotalPrints');
-  const todayPrintsEl = document.getElementById('histTodayPrints');
+  const monthPrintsEl = document.getElementById('histMonthPrints');
   
   if (dayCountEl) {
     const totalPrintsCount = history.reduce((sum, item) => sum + (item.copies || 1), 0);
@@ -508,14 +508,18 @@ function _updateHistDayStats(history, allHistory = []) {
     dayCountEl.textContent = `${totalPrintsCount} Etiket (${history.length} İşlem) [${(filterLabel || 'Tümü').trim()}]`;
   }
 
-  // Bugün basılan toplam etiket adedini hesapla (GG.AA.YYYY formatında bugünün tarihi)
-  if (todayPrintsEl) {
+  // Bu ay basılan toplam etiket adedini hesapla (Örn: .09.2026)
+  if (monthPrintsEl) {
     const now = new Date();
-    const todayStr = `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}.${now.getFullYear()}`;
+    const currentMonthStr = `.${String(now.getMonth() + 1).padStart(2, '0')}.${now.getFullYear()}`;
     const dataset = (allHistory && allHistory.length > 0) ? allHistory : history;
-    const todayItems = dataset.filter(item => (item.printed_at || '').startsWith(todayStr));
-    const todayTotalCount = todayItems.reduce((sum, item) => sum + (item.copies || 1), 0);
-    todayPrintsEl.textContent = `${todayTotalCount} Etiket (${todayItems.length} İşlem)`;
+    const monthItems = dataset.filter(item => {
+      const pDate = (item.printed_at || '').split(' ')[0] || '';
+      return pDate.endsWith(currentMonthStr) || pDate.includes(currentMonthStr);
+    });
+    const monthTotalCount = monthItems.reduce((sum, item) => sum + (item.copies || 1), 0);
+    const monthName = MONTH_NAMES_TR[String(now.getMonth() + 1).padStart(2, '0')] || '';
+    monthPrintsEl.textContent = `${monthTotalCount} Etiket (${monthItems.length} İşlem)`;
   }
 }
 
