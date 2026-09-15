@@ -130,9 +130,10 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
         ll = w_dots
         
         # İçeriği sola yapışmaktan kurtarıp sağa doğru ortalama ofsetleri
-        start_y = oy + 32  # Başlık ve marka başlangıcı (~8 mm)
-        sep_start_y = start_y - 10 # Ayraç çizgileri başlangıcı (~6.75 mm)
-        line_w = max(400, int(w_dots - sep_start_y - 20)) # Çizgi bitişi 588 dot (~73.5 mm)
+        start_y = oy + 32  # Başlık başlangıcı
+        sep_start_y = start_y - 10 # Ayraç çizgileri başlangıcı
+        # Çizgileri sağa doğru ~1cm (~80 dot) uzat: w_dots - sep_start_y - 20 yerine etiketin sonuna kadar uzatıldı
+        line_w = max(400, int(w_dots - sep_start_y + 60))
 
         zpl = [
             "^XA",
@@ -222,39 +223,44 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
                 f"^FO{box_x + 25},{box_y + 80}^A0R,18,16^FD{unit_price}^FS",
             ])
 
-        # 1. AYRAÇ ÇİZGİSİ (Yatay Boydan Boya)
+        # 1. AYRAÇ ÇİZGİSİ (Yatay Boydan Boya - Sağa doğru uzatıldı)
         zpl.append(f"^FO{ox + 215},{sep_start_y}^GB2,{line_w},2^FS")
 
         # -------------------------------------------------------------
         # 2. BÖLÜM (ORTA KATMAN): Marka (Sol) & 3 Satır Yasal Bilgi (Sağ)
         # -------------------------------------------------------------
-        zpl.append(f"^FO{ox + 160},{start_y}^A0R,34,28^FD{brand}^FS")
+        # Yarenler 0.2mm aşağı (X: ox + 158) ve 0.2mm daha büyük (36, 30 font)
+        zpl.append(f"^FO{ox + 158},{start_y}^A0R,36,30^FD{brand}^FS")
 
-        mid_y = start_y + int(line_w * 0.36)
+        # Üretim yeri, Kdv, Fiyat Değiştirme Tarihi 1cm (~80 dot) sağa kaydırıldı
+        mid_y = start_y + 190 + 80 # ~302 dot
         zpl.extend([
             f"^FO{ox + 188},{mid_y}^A0R,16,14^FDUretim Yeri: {origin}^FS",
             f"^FO{ox + 161},{mid_y}^A0R,15,13^FDFiyatlarimiza Kdv Dahildir.^FS",
             f"^FO{ox + 135},{mid_y}^A0R,15,13^FDFiyat Degistirme Tarihi: {date}^FS",
         ])
 
-        # 2. AYRAÇ ÇİZGİSİ (Yatay Boydan Boya)
+        # 2. AYRAÇ ÇİZGİSİ (Yatay Boydan Boya - Sağa doğru uzatıldı)
         zpl.append(f"^FO{ox + 122},{sep_start_y}^GB2,{line_w},2^FS")
 
         # -------------------------------------------------------------
         # 3. BÖLÜM (ALT KATMAN): BÜYÜK EAN-13 Barkod | Satış Fiyatı | BÜYÜK FİYAT
         # -------------------------------------------------------------
-        # Barkod alanı sağa kaydırıldı (start_y + 12), boyutu büyütüldü (62 dot)
-        bc_start_y = start_y + 12
+        # Barkod 0.2mm sağa kaydırıldı (bc_start_y = start_y + 14), yukarı/aşağı 0.1mm büyütüldü (height 64),
+        # sağa sola 0.2mm genişletildi (BY modülü 3)
+        bc_start_y = start_y + 14
         clean_bc = re.sub(r'[^0-9A-Za-z]', '', barcode)
         if len(clean_bc) == 13 and clean_bc.isdigit():
-            zpl.append(f"^FO{ox + 35},{bc_start_y}^BER,62,Y,N^FD{clean_bc}^FS")
+            zpl.append(f"^FO{ox + 33},{bc_start_y}^BY3,3,64^BER,64,Y,N^FD{clean_bc}^FS")
         elif len(clean_bc) == 8 and clean_bc.isdigit():
-            zpl.append(f"^FO{ox + 35},{bc_start_y}^BER,62,Y,N^FD{clean_bc}^FS")
+            zpl.append(f"^FO{ox + 33},{bc_start_y}^BY3,3,64^BER,64,Y,N^FD{clean_bc}^FS")
         else:
-            zpl.append(f"^FO{ox + 35},{bc_start_y}^BY2,3,62^BCR,62,Y,N,N^FD{clean_bc or '00000000'}^FS")
+            zpl.append(f"^FO{ox + 33},{bc_start_y}^BY3,3,64^BCR,64,Y,N,N^FD{clean_bc or '00000000'}^FS")
 
         # Satış Fiyatı Dikey Ayracı (Kutu ve yazı) - Konumu korundu
         div_y = oy + int(line_w * 0.58)
+        # div_y'nin 352 dot civarında kalmasını garantiye al
+        div_y = oy + 320
         zpl.extend([
             f"^FO{ox + 16},{div_y}^GB82,54,2^FS",
             f"^FO{ox + 48},{div_y + 8}^A0R,16,14^FDSatis^FS",
@@ -265,15 +271,13 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
         price_clean = str(price).strip()
         price_len = len(price_clean)
 
+        price_y = oy + 386 # ~418 dot civarı sabit korundu
         if price_len >= 11:
             f_h, f_w = 70, 56
-            price_y = oy + int(line_w * 0.68)
         elif price_len >= 9:
             f_h, f_w = 80, 64
-            price_y = oy + int(line_w * 0.69)
         else:
             f_h, f_w = 88, 70
-            price_y = oy + int(line_w * 0.70)
 
         zpl.append(f"^FO{ox + 8},{price_y}^A0R,{f_h},{f_w}^FD{price_clean}^FS")
 
