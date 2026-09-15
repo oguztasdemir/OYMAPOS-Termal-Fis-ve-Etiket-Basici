@@ -1058,7 +1058,7 @@ function renderQueueList() {
           <span class="queue-barcode">${item.barcode}</span>
           <div style="display:flex; align-items:center; gap:6px;" onclick="event.stopPropagation()">
             <span style="font-size:12px; color:#38bdf8; font-weight:800;">₺</span>
-            <input type="number" step="0.01" class="queue-price-inp" value="${pVal}" 
+            <input type="number" step="0.01" inputmode="decimal" class="queue-price-inp" value="${pVal}" 
                    onclick="this.select()" 
                    onchange="updateQueuePrice(${idx}, this.value)">
           </div>
