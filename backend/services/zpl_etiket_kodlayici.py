@@ -89,8 +89,8 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
 
     # Eğer sağ üst doluysa başlık karakter limitini ayarla
     max_title_chars = 26 if top_right_mode != 'empty' else 38
-    raw_t1 = data.get('title1', 'ULK 398-6 PIKO PORTAKAL')
-    raw_t2 = data.get('title2', 'PIR PAT KAP')
+    raw_t1 = str(data.get('title1') or data.get('title') or '').strip()
+    raw_t2 = str(data.get('title2') or '').strip()
     t1, t2 = split_title_lines(raw_t1, raw_t2, max_chars_per_line=max_title_chars)
 
     from backend.services.printer_service import load_settings
@@ -115,15 +115,15 @@ def generate_market_shelf_zpl(data, orientation="POR", x_offset=0, y_offset=0, w
     barcode = str(data.get('barcode', '8690504114925')).strip()
     price = str(data.get('price', '10,00 TL')).replace('₺', 'TL').strip()
 
-    # Kalibrasyon Ofsetleri
-    oy = int(y_offset) + 100
-    ox = int(x_offset) + 28
+    # Kalibrasyon Ofsetleri (Milimetrik etiket içine tam oturtma)
+    oy = int(y_offset) + 12
+    ox = int(x_offset) + 10
 
     if orientation in ["POR", "90", "YATAY", "horizontal"]:
         # =========================================================================
         # 90 DERECE YATAY BASKI MODU (Termal Rulo Uyumlu)
         # =========================================================================
-        pw = h_dots + ox + 10
+        pw = h_dots + ox + 6
         ll = w_dots
         
         zpl = [
