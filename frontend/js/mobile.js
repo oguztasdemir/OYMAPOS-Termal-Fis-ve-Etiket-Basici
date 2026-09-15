@@ -1479,7 +1479,14 @@ function closeBarcodeDisplayModal() {
   activeModalBarcode = null;
 }
 
-async function downloadMobileReportPdf() {
+let currentActivePdfUrl = "";
+let currentActivePdfDate = "";
+let currentActivePdfSource = "";
+
+/**
+ * 📄 Mobil PDF Önizleme Modalını Açma
+ */
+function openMobilePdfPreviewModal() {
   const selDate = document.getElementById('sel-report-date');
   const selSource = document.getElementById('sel-report-source');
   const targetDate = (selDate && selDate.value) ? selDate.value : currentReportDate;
@@ -1490,52 +1497,106 @@ async function downloadMobileReportPdf() {
     return;
   }
 
-  showToast("PDF hazırlanıyor...", "info");
-  const url = `/api/reports/price-changes/pdf?date=${encodeURIComponent(targetDate)}&source_filter=${encodeURIComponent(targetSource)}`;
+  currentActivePdfDate = targetDate;
+  currentActivePdfSource = targetSource;
+  currentActivePdfUrl = `/api/reports/price-changes/pdf?date=${encodeURIComponent(targetDate)}&source_filter=${encodeURIComponent(targetSource)}`;
+
+  const modal = document.getElementById('pdf-preview-modal');
+  const iframe = document.getElementById('pdf-preview-iframe');
+  const spinner = document.getElementById('pdf-loading-spinner');
+  const title = document.getElementById('pdf-modal-title');
+  const subtitle = document.getElementById('pdf-modal-subtitle');
+
+  if (title) title.textContent = `Fiyat Değişim Raporu (${targetDate})`;
+  if (subtitle) subtitle.textContent = targetSource === 'mobile' ? 'Mobil Kaynaklı Değişimler' : (targetSource === 'desktop' ? 'Masaüstü Kaynaklı Değişimler' : 'Tüm Kaynaklar');
+
+  if (spinner) spinner.style.display = 'flex';
+  if (iframe) iframe.src = currentActivePdfUrl;
+  if (modal) modal.style.display = 'flex';
+}
+
+/**
+ * ❌ Mobil PDF Önizleme Modalını Kapatma
+ */
+function closeMobilePdfModal() {
+  const modal = document.getElementById('pdf-preview-modal');
+  const iframe = document.getElementById('pdf-preview-iframe');
+  if (modal) modal.style.display = 'none';
+  if (iframe) iframe.src = 'about:blank';
+}
+
+/**
+ * 📤 PDF Paylaşma (Web Share API - WhatsApp, AirDrop, Mail vb.)
+ */
+async function shareCurrentPdfReport() {
+  if (!currentActivePdfUrl) return;
+  showToast("Paylaşım hazırlanıyor...", "info");
 
   try {
-    // iOS Safari / iPhone paylaşım desteği: fetch ile blob al, navigator.share ile paylaş
-    if (navigator.share && navigator.canShare) {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('PDF alınamadı: ' + response.status);
-      const blob = await response.blob();
-      const fileName = `fiyat-raporu-${targetDate}.pdf`;
-      const file = new File([blob], fileName, { type: 'application/pdf' });
+    const response = await fetch(currentActivePdfUrl);
+    if (!response.ok) throw new Error('PDF alınamadı: ' + response.status);
+    const blob = await response.blob();
+    const fileName = `fiyat-raporu-${currentActivePdfDate || 'gunluk'}.pdf`;
+    const file = new File([blob], fileName, { type: 'application/pdf' });
 
-      if (navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          title: `Fiyat Değişim Raporu - ${targetDate}`,
-          text: `${targetDate} tarihli fiyat değişim raporu`,
-          files: [file]
-        });
-        // Paylaşım başarılı ise onay yönelt
-        await _promptMobileReportConfirm(targetDate, targetSource);
-        return;
-      }
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        title: `Fiyat Değişim Raporu - ${currentActivePdfDate}`,
+        text: `${currentActivePdfDate} tarihli fiyat değişim raporu`,
+        files: [file]
+      });
+      showToast("Paylaşıldı ✅", "success");
+    } else if (navigator.share) {
+      await navigator.share({
+        title: `Fiyat Değişim Raporu - ${currentActivePdfDate}`,
+        text: `${currentActivePdfDate} tarihli fiyat değişim raporu`,
+        url: window.location.origin + currentActivePdfUrl
+      });
+    } else {
+      // Paylaşım API'si yoksa doğrudan indir
+      downloadCurrentPdfFile();
+      showToast("Tarayıcı doğrudan paylaşımı desteklemiyor, dosya indirildi.", "info");
     }
+  } catch(e) {
+    if (e.name !== 'AbortError') {
+      showToast("Paylaşılamadı: " + e.message, "error");
+    }
+  }
+}
 
-    // iOS Safari'de dosya paylaşımı desteklenmiyorsa veya diğer tarayıcılarda
-    // Blob ile güvenilir indirme linkini aç
-    const response = await fetch(url);
+/**
+ * 📥 PDF İndirme (Cihaz Dosyalarına / İndirilenler Klasörüne)
+ */
+async function downloadCurrentPdfFile() {
+  if (!currentActivePdfUrl) return;
+  showToast("PDF indiriliyor...", "info");
+
+  try {
+    const response = await fetch(currentActivePdfUrl);
     if (!response.ok) throw new Error('PDF alınamadı: ' + response.status);
     const blob = await response.blob();
     const blobUrl = URL.createObjectURL(blob);
+    const fileName = `fiyat-raporu-${currentActivePdfDate || 'gunluk'}.pdf`;
+
     const a = document.createElement('a');
     a.href = blobUrl;
-    a.download = `fiyat-raporu-${targetDate}.pdf`;
-    a.target = '_blank'; // iOS için önce yeni sekme, PDF görüntüleyici açılır
+    a.download = fileName;
+    a.target = '_blank';
     document.body.appendChild(a);
     a.click();
-    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(blobUrl); }, 2000);
-
-  } catch (err) {
-    // Fetch veya paylaşım hatasında son çare: doğrudan URL'yi aç
-    showToast("PDF hazırlanamadı, doğrudan açılıyor...", "warning");
-    window.open(url, '_blank');
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+      showToast("PDF başarıyla indirildi! 📥", "success");
+    }, 1500);
+  } catch(e) {
+    window.open(currentActivePdfUrl, '_blank');
+    showToast("PDF yeni sekmede açıldı.", "info");
   }
+}
 
-  // Kısa bir bekleme sonrası onay yönelt
-  setTimeout(() => _promptMobileReportConfirm(targetDate, targetSource), 1500);
+async function downloadMobileReportPdf() {
+  openMobilePdfPreviewModal();
 }
 
 async function _promptMobileReportConfirm(targetDate, targetSource) {
@@ -1578,6 +1639,10 @@ window.handleMobileReportSourceChange = handleMobileReportSourceChange;
 window.openProductEditFromQueue = openProductEditFromQueue;
 window.saveModalProductEdit = saveModalProductEdit;
 window.downloadMobileReportPdf = downloadMobileReportPdf;
+window.openMobilePdfPreviewModal = openMobilePdfPreviewModal;
+window.closeMobilePdfModal = closeMobilePdfModal;
+window.shareCurrentPdfReport = shareCurrentPdfReport;
+window.downloadCurrentPdfFile = downloadCurrentPdfFile;
 window.openBarcodeDisplayModal = openBarcodeDisplayModal;
 window.openBarcodeDisplayModalByIndex = openBarcodeDisplayModalByIndex;
 window.closeBarcodeDisplayModal = closeBarcodeDisplayModal;
