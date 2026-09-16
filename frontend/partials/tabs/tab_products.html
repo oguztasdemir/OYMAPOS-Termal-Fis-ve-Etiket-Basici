@@ -58,17 +58,23 @@
         <span style="font-size:13px; font-weight:800; color:#fff;">
           <strong id="multiSelectCountText" style="color:#38bdf8;">0 Ürün</strong> Seçildi
         </span>
-        <span style="font-size:11.5px; color:#94a3b8;">(Aralık için <strong>Shift</strong>, tek tek için <strong>Ctrl</strong> ile satırlara tıklayın)</span>
+        <span style="font-size:11.5px; color:#94a3b8;">(Aralık için <strong>Shift + Tık</strong>, tek tek için <strong>Ctrl + Tık</strong>)</span>
       </div>
-      <div style="display:flex; align-items:center; gap:8px;">
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <button id="btnBatchPrintSelected" class="btn btn-primary btn-sm" onclick="executeBatchPrintSelected()" style="font-weight:800; padding:6px 14px; font-size:12px;">
+          🖨️ Seçilenleri Yazdır
+        </button>
         <button id="btnBatchAddToBlacklist" class="btn btn-secondary btn-sm" onclick="executeBatchBlacklist('add')" style="background:rgba(239,68,68,0.2); color:#fca5a5; border-color:rgba(239,68,68,0.4); font-weight:700; padding:6px 12px; font-size:12px;">
-          🚫 Seçilenleri Kara Listeye Ekle
+          🚫 Kara Listeye Ekle
         </button>
         <button id="btnBatchRemoveFromBlacklist" class="btn btn-secondary btn-sm" onclick="executeBatchBlacklist('remove')" style="background:rgba(16,185,129,0.2); color:#34d399; border-color:rgba(16,185,129,0.4); font-weight:700; padding:6px 12px; font-size:12px;">
-          ✓ Seçilenleri Kara Listeden Çıkar
+          ✓ Kara Listeden Çıkar
+        </button>
+        <button id="btnBatchArchiveSelected" class="btn btn-secondary btn-sm" onclick="executeBatchArchiveSelected()" style="background:rgba(245,158,11,0.15); color:#fbbf24; border-color:rgba(245,158,11,0.35); font-weight:700; padding:6px 12px; font-size:12px;">
+          ⏸️ Satışı Bırakıldı Yap
         </button>
         <button class="btn btn-secondary btn-sm" onclick="clearProductSelection()" style="padding:6px 10px; font-size:12px; color:#94a3b8;">
-          Seçimi Temizle (Esc)
+          Temizle (Esc)
         </button>
       </div>
     </div>
@@ -77,13 +83,12 @@
       <table id="productsTable" class="table-excel">
         <colgroup>
           <col style="width: 32px;">
-          <col style="width: 110px;">
+          <col style="width: 120px;">
           <col style="width: auto;">
-          <col style="width: 90px;">
-          <col style="width: 90px;">
-          <col style="width: 85px;">
+          <col style="width: 100px;">
+          <col style="width: 100px;">
           <col style="width: 95px;">
-          <col style="width: 105px;">
+          <col style="width: 115px;">
           <col style="width: 110px;">
         </colgroup>
         <thead>
@@ -104,9 +109,6 @@
             <th class="col-price-date" onclick="sortTable('date')" style="cursor: pointer; user-select: none;" title="Fiyat değişim tarihine göre sırala">
               <span>Tarih</span> <span id="sort-icon-date" class="sort-indicator">↕️</span>
             </th>
-            <th class="col-print-date" onclick="sortTable('print_date')" style="cursor: pointer; user-select: none;" title="Yazdırma tarihine göre sırala">
-              <span>Baskı Tarihi</span> <span id="sort-icon-print_date" class="sort-indicator">↕️</span>
-            </th>
             <th class="col-status" onclick="sortTable('status')" style="cursor: pointer; user-select: none;" title="Duruma göre sırala">
               <span>Durum</span> <span id="sort-icon-status" class="sort-indicator">↕️</span>
             </th>
@@ -117,6 +119,42 @@
           <!-- JS Dinamik Doldurur -->
         </tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- SAĞ TIK CONTEXT MENÜSÜ -->
+  <div id="productContextMenu" style="display:none; position:fixed; z-index:999999; background:#0f172a; border:1px solid rgba(56,189,248,0.3); border-radius:10px; box-shadow:0 15px 35px rgba(0,0,0,0.85), 0 0 0 1px rgba(255,255,255,0.06); min-width:210px; padding:6px; backdrop-filter:blur(10px); font-size:12.5px; user-select:none;">
+    <div id="ctxMenuProductHeader" style="padding:6px 10px 8px 10px; border-bottom:1px solid rgba(255,255,255,0.08); margin-bottom:4px;">
+      <div id="ctxMenuTitle" style="font-weight:800; color:#f8fafc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:190px;">-</div>
+      <div id="ctxMenuBarcode" style="font-size:11px; font-family:'JetBrains Mono', monospace; color:#38bdf8; font-weight:700;">-</div>
+    </div>
+    
+    <div style="display:flex; flex-direction:column; gap:2px;">
+      <div class="ctx-item" onclick="handleCtxAction('print')" style="padding:7px 10px; border-radius:6px; color:#f8fafc; cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:600; transition:background 0.15s;" onmouseover="this.style.background='rgba(56,189,248,0.15)'; this.style.color='#38bdf8';" onmouseout="this.style.background='transparent'; this.style.color='#f8fafc';">
+        <span>🖨️</span> <span>Hızlı Etiket Yazdır</span>
+      </div>
+      
+      <div class="ctx-item" onclick="handleCtxAction('edit')" style="padding:7px 10px; border-radius:6px; color:#f8fafc; cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:600; transition:background 0.15s;" onmouseover="this.style.background='rgba(56,189,248,0.15)'; this.style.color='#38bdf8';" onmouseout="this.style.background='transparent'; this.style.color='#f8fafc';">
+        <span>✏️</span> <span>Ürün Detayı ve Düzenle</span>
+      </div>
+
+      <div class="ctx-item" onclick="handleCtxAction('confirm_printed')" style="padding:7px 10px; border-radius:6px; color:#f8fafc; cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:600; transition:background 0.15s;" onmouseover="this.style.background='rgba(16,185,129,0.15)'; this.style.color='#34d399';" onmouseout="this.style.background='transparent'; this.style.color='#f8fafc';">
+        <span>✅</span> <span>Etiket Güncel Olarak Onayla</span>
+      </div>
+
+      <div class="ctx-item" onclick="handleCtxAction('copy_barcode')" style="padding:7px 10px; border-radius:6px; color:#f8fafc; cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:600; transition:background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.06)'; this.style.color='#f8fafc';" onmouseout="this.style.background='transparent'; this.style.color='#f8fafc';">
+        <span>📋</span> <span>Barkodu Kopyala</span>
+      </div>
+
+      <div style="height:1px; background:rgba(255,255,255,0.08); margin:4px 0;"></div>
+
+      <div id="ctxItemBlacklist" class="ctx-item" onclick="handleCtxAction('blacklist')" style="padding:7px 10px; border-radius:6px; color:#fca5a5; cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:700; transition:background 0.15s;" onmouseover="this.style.background='rgba(239,68,68,0.2)';" onmouseout="this.style.background='transparent';">
+        <span id="ctxBlacklistIcon">🚫</span> <span id="ctxBlacklistText">Kara Listeye Ekle</span>
+      </div>
+
+      <div class="ctx-item" onclick="handleCtxAction('archive')" style="padding:7px 10px; border-radius:6px; color:#fbbf24; cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:700; transition:background 0.15s;" onmouseover="this.style.background='rgba(245,158,11,0.2)';" onmouseout="this.style.background='transparent';">
+        <span>⏸️</span> <span>Satışı Bırakıldı (Pasif Yap)</span>
+      </div>
     </div>
   </div>
 </section>

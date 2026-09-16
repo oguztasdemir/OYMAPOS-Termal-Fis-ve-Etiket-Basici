@@ -66,14 +66,25 @@ def clean_title_for_market_search(raw_title: str) -> str:
 
 
 def generate_market_direct_links(barcode: str, title: str) -> List[Dict]:
-    """Kullanıcının tek tıkla canlı fiyatı görebileceği Rüyam Market arama linkini üretir."""
+    """Kullanıcının tek tıkla canlı fiyatı görebileceği market arama linklerini üretir."""
     q_search = clean_title_for_market_search(title) or barcode
     encoded_bc = urllib.parse.quote(barcode) if barcode else urllib.parse.quote(q_search)
+    encoded_title = urllib.parse.quote(q_search)
 
     return [
         {
             "name": "Rüyam Market",
             "url": f"https://www.ruyammarket.com/arama?q={encoded_bc}",
+            "is_search": True
+        },
+        {
+            "name": "Migros",
+            "url": f"https://www.migros.com.tr/arama?q={encoded_bc if barcode else encoded_title}",
+            "is_search": True
+        },
+        {
+            "name": "CarrefourSA",
+            "url": f"https://www.carrefoursa.com/search/?text={encoded_title or encoded_bc}",
             "is_search": True
         }
     ]
@@ -143,7 +154,7 @@ class MarketScannerService:
                 m.status as audit_status
             FROM urunler u
             LEFT JOIN market_price_audits m ON u.barcode = m.barcode
-            WHERE COALESCE(u.is_blacklisted, 0) = 0
+            WHERE COALESCE(u.is_blacklisted, 0) = 0 AND COALESCE(u.is_archived, 0) = 0
             """
             params = []
 
@@ -159,44 +170,34 @@ class MarketScannerService:
             for r in rows:
                 row_dict = dict(r)
                 
-                # 🚫 KARA LİSTE KONTROLÜ: Kara listedeki ürünler radarda listelenmez ve taranmaz
                 bc_str = str(row_dict.get("barcode", "")).strip()
-                if bc_str in blacklist_barcodes or row_dict.get("is_blacklisted") == 1:
+                if bc_str in blacklist_barcodes or row_dict.get("is_blacklisted") == 1 or row_dict.get("is_archived") == 1:
                     continue
                 
-                # Gün farkı ve cutoff filtreleme
                 last_update_raw = row_dict.get("price_updated_at") or row_dict.get("updated_at") or row_dict.get("created_at")
                 dt = parse_db_datetime(last_update_raw)
                 
                 if dt:
                     days_elapsed = (now - dt).days
                     if dt > cutoff_dt:
-                        continue  # Seçili gün eşiğinden daha yeni güncellenmiş, bu listeye girmez
+                        continue
                 else:
-                    days_elapsed = 999  # Tarih yoksa eski kabul edilir
+                    days_elapsed = 999
 
                 row_dict["days_since_update"] = max(0, days_elapsed)
 
-                # Bulunan kaynakları JSON'dan listeye çevir ve SADECE Rüyam Market linklerini tut
                 if row_dict.get("found_sources"):
                     try:
                         raw_sources = json.loads(row_dict["found_sources"])
-                        valid_ruyam = [
-                            s for s in raw_sources 
-                            if isinstance(s, dict) and ("ruyammarket" in (s.get("url") or "") or s.get("name") == "Rüyam Market")
-                        ]
-                        row_dict["sources_list"] = valid_ruyam if valid_ruyam else generate_market_direct_links(row_dict.get("barcode", ""), row_dict.get("title", ""))
+                        row_dict["sources_list"] = raw_sources if raw_sources else generate_market_direct_links(row_dict.get("barcode", ""), row_dict.get("title", ""))
                     except Exception:
                         row_dict["sources_list"] = generate_market_direct_links(row_dict.get("barcode", ""), row_dict.get("title", ""))
                 else:
                     row_dict["sources_list"] = generate_market_direct_links(row_dict.get("barcode", ""), row_dict.get("title", ""))
 
-                # Hızlı 1-tıkla arama linkleri
                 row_dict["quick_links"] = generate_market_direct_links(row_dict.get("barcode", ""), row_dict.get("title", ""))
-
                 result.append(row_dict)
 
-            # Sıralama: Önce piyasadan ucuz kalanlar (diff_percent DESC), sonra en eski ürünler
             result.sort(key=lambda x: (
                 0 if (x.get("diff_percent") is not None and x.get("diff_percent") > 0) else 1,
                 -(x.get("diff_percent") or 0),
@@ -245,8 +246,7 @@ class MarketScannerService:
     def scrape_ruyam_market(self, barcode: str, title: str) -> Optional[Dict]:
         """
         Rüyam Market (https://www.ruyammarket.com/) üzerinden barkod ve ürün adı ile
-        doğrudan ürün sayfası, barkod doğrulaması ve canlı piyasa satış fiyatı tarar.
-        Yalnızca STOKTA OLAN ve BİREBİR EŞLEŞEN gerçek ürünleri kabul eder.
+        doğrudan ürün sayfası, barkod doğrulaması, görseli ve canlı piyasa satış fiyatı tarar.
         """
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -264,7 +264,6 @@ class MarketScannerService:
                     html = r.read().decode('utf-8', errors='ignore')
                     cards = re.findall(r'<article class="product-card">(.*?)</article>', html, re.DOTALL)
                     for c in cards:
-                        # Stok Kontrolü
                         if bool(re.search(r'(stokta\s*yok|stok\s*yok|t[üu]kendi|disabled[^>]*>.*?stok)', c, re.IGNORECASE)):
                             continue
 
@@ -275,7 +274,12 @@ class MarketScannerService:
                         bc_match = re.search(r'Barkod:\s*([0-9a-zA-Z_-]+)', c)
                         found_bc = bc_match.group(1).strip() if bc_match else ""
 
-                        # Birebir barkod kontrolü
+                        img_match = re.search(r'<img[^>]+(?:data-src|src)="([^"]+)"', c)
+                        img_url = ""
+                        if img_match:
+                            raw_img = img_match.group(1).strip()
+                            img_url = f"https://www.ruyammarket.com{raw_img}" if raw_img.startswith('/') else raw_img
+
                         if found_bc == clean_bc or prod_link.endswith(f"-{clean_bc}"):
                             price_match = re.search(r'<div class="price">\s*<strong>\s*([\d\.,]+)\s*TL', c)
                             if price_match:
@@ -287,6 +291,7 @@ class MarketScannerService:
                                         "title": prod_title or title,
                                         "barcode": found_bc,
                                         "price": p_val,
+                                        "image_url": img_url,
                                         "url": prod_link,
                                         "is_exact_barcode": True,
                                         "is_in_stock": True
@@ -294,7 +299,7 @@ class MarketScannerService:
             except Exception:
                 pass
 
-        # 2. AŞAMA: Başlık ile Anlamsal Eşleşme (Sadece gerçek benzerlik varsa)
+        # 2. AŞAMA: Başlık ile Anlamsal Eşleşme
         if title:
             t_upper = re.sub(r'[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ\s]', ' ', title.upper())
             stop_words = {'MNV', 'GR', 'GRAM', 'KG', 'LT', 'ML', 'ADET', 'LI', 'LU', 'LÜ', 'Lİ', 'TEK', 'PAKET', 'SİŞE', 'SISE', 'CAM'}
@@ -316,7 +321,12 @@ class MarketScannerService:
                             prod_link = ("https://www.ruyammarket.com" + title_match.group(1)) if title_match else url
                             prod_title = title_match.group(2).strip() if title_match else ""
 
-                            # Kelime benzerliği kontrolü: Bizim kelimelerimizin en az %60'ı bulunmalı
+                            img_match = re.search(r'<img[^>]+(?:data-src|src)="([^"]+)"', c)
+                            img_url = ""
+                            if img_match:
+                                raw_img = img_match.group(1).strip()
+                                img_url = f"https://www.ruyammarket.com{raw_img}" if raw_img.startswith('/') else raw_img
+
                             f_upper = re.sub(r'[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ\s]', ' ', prod_title.upper())
                             found_words = set(w for w in f_upper.split() if len(w) >= 2)
                             matched_words = [w for w in title_words if w in found_words]
@@ -332,6 +342,7 @@ class MarketScannerService:
                                             "title": prod_title,
                                             "barcode": "",
                                             "price": p_val,
+                                            "image_url": img_url,
                                             "url": prod_link,
                                             "is_exact_barcode": False,
                                             "is_in_stock": True
@@ -341,98 +352,200 @@ class MarketScannerService:
 
         return None
 
+    def scrape_migros_market(self, barcode: str, title: str) -> Optional[Dict]:
+        """
+        Migros (https://www.migros.com.tr/) üzerinden canlı fiyat, ürün adı, görsel ve link tarar.
+        """
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'tr-TR,tr;q=0.9'
+        }
+        clean_bc = str(barcode).strip() if barcode else ""
+        queries = []
+        if clean_bc and len(clean_bc) >= 6 and not clean_bc.startswith("27") and not clean_bc.startswith("28"):
+            queries.append(clean_bc)
+        if title:
+            words = [w for w in re.sub(r'[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ\s]', ' ', title).split() if len(w) >= 2]
+            if words:
+                queries.append(" ".join(words[:4]))
+
+        for q in queries:
+            try:
+                url = f"https://www.migros.com.tr/rest/search/screens/products?q={urllib.parse.quote(q)}"
+                req = urllib.request.Request(url, headers=headers)
+                with urllib.request.urlopen(req, timeout=4) as r:
+                    data = json.loads(r.read().decode('utf-8'))
+                    items = data.get('data', {}).get('searchInfo', {}).get('storeProductInfos', [])
+                    if items:
+                        p = items[0]
+                        raw_price = p.get('shownPrice') or p.get('regularPrice') or 0
+                        price_val = round(float(raw_price) / 100.0, 2)
+                        if price_val <= 0:
+                            continue
+                        images = p.get('images', [])
+                        img_url = ""
+                        if images and isinstance(images, list) and isinstance(images[0], dict):
+                            urls_map = images[0].get('urls', {})
+                            img_url = urls_map.get('PRODUCT_DETAIL') or urls_map.get('PRODUCT_LIST') or ""
+                        pretty = p.get('prettyName') or ''
+                        prod_url = f"https://www.migros.com.tr/{pretty}" if pretty else f"https://www.migros.com.tr/arama?q={urllib.parse.quote(q)}"
+                        return {
+                            "name": "Migros",
+                            "title": p.get('name') or title,
+                            "barcode": clean_bc,
+                            "price": price_val,
+                            "image_url": img_url,
+                            "url": prod_url,
+                            "is_in_stock": True
+                        }
+            except Exception:
+                continue
+        return None
+
     def scrape_online_market_price(self, barcode: str, title: str) -> Dict:
         """
-        Doğrudan ve SADECE Rüyam Market (https://www.ruyammarket.com/) üzerinden
-        ürünün barkodunu veya temizlenmiş ürün adını tarayarak canlı satış fiyatını ve ürün sayfa linkini çeker.
+        Rüyam Market ve Migros üzerinden eşzamanlı/sıralı canlı piyasa fiyatı ve görsel tarar.
+        CarrefourSA için 1-tıkla arama linki sağlar.
         """
-        ruyam_direct_links = generate_market_direct_links(barcode, title)
-        
+        direct_links = generate_market_direct_links(barcode, title)
+        sources = []
+        found_prices = []
+        primary_image = ""
+        market_details = {
+            "ruyam": None,
+            "migros": None,
+            "carrefour": {
+                "name": "CarrefourSA",
+                "url": f"https://www.carrefoursa.com/search/?text={urllib.parse.quote(clean_title_for_market_search(title) or barcode)}"
+            }
+        }
+
+        # 1. Rüyam Market
         try:
             ruyam_res = self.scrape_ruyam_market(barcode, title)
             if ruyam_res and ruyam_res.get("price", 0) > 0:
                 p_val = float(ruyam_res["price"])
-                return {
-                    "success": True,
-                    "market_price": round(p_val, 2),
-                    "min_price": round(p_val, 2),
-                    "max_price": round(p_val, 2),
-                    "sources": [
-                        {
-                            "name": "Rüyam Market",
-                            "url": ruyam_res["url"],
-                            "title": ruyam_res.get("title", title)[:60]
-                        }
-                    ],
-                    "all_prices_count": 1
-                }
+                found_prices.append(p_val)
+                if not primary_image and ruyam_res.get("image_url"):
+                    primary_image = ruyam_res["image_url"]
+                sources.append({
+                    "name": "Rüyam Market",
+                    "url": ruyam_res["url"],
+                    "title": ruyam_res.get("title", title)[:60],
+                    "price": p_val,
+                    "image_url": ruyam_res.get("image_url", "")
+                })
+                market_details["ruyam"] = ruyam_res
         except Exception:
             pass
+
+        # 2. Migros
+        try:
+            migros_res = self.scrape_migros_market(barcode, title)
+            if migros_res and migros_res.get("price", 0) > 0:
+                p_val = float(migros_res["price"])
+                found_prices.append(p_val)
+                if not primary_image and migros_res.get("image_url"):
+                    primary_image = migros_res["image_url"]
+                sources.append({
+                    "name": "Migros",
+                    "url": migros_res["url"],
+                    "title": migros_res.get("title", title)[:60],
+                    "price": p_val,
+                    "image_url": migros_res.get("image_url", "")
+                })
+                market_details["migros"] = migros_res
+        except Exception:
+            pass
+
+        if found_prices:
+            avg_p = round(sum(found_prices) / len(found_prices), 2)
+            return {
+                "success": True,
+                "market_price": found_prices[0] if len(found_prices) == 1 else avg_p,
+                "min_price": min(found_prices),
+                "max_price": max(found_prices),
+                "image_url": primary_image,
+                "sources": sources,
+                "market_details": market_details,
+                "all_prices_count": len(found_prices)
+            }
 
         return {
             "success": False,
             "market_price": 0.0,
             "min_price": 0.0,
             "max_price": 0.0,
-            "sources": ruyam_direct_links,
-            "message": "Rüyam Market'te bulunamadı"
+            "image_url": "",
+            "sources": direct_links,
+            "market_details": market_details,
+            "message": "Piyasa fiyatı bulunamadı"
         }
 
-    def audit_single_product(self, barcode: str) -> Dict:
+    def audit_single_product(self, barcode: str, title: str = "") -> Dict:
         """Tek bir ürün için anlık piyasa fiyat taraması yapar ve DB'ye kaydeder."""
+        prod_title = title
+        our_price = 0.0
         with db_session() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT barcode, title, price FROM urunler WHERE barcode = ?;", (barcode,))
             prod = cursor.fetchone()
-            if not prod:
-                return {"success": False, "error": "Ürün bulunamadı"}
+            if prod:
+                prod_title = prod["title"] or prod_title
+                our_price = float(prod["price"] or 0)
 
-            res = self.scrape_online_market_price(prod["barcode"], prod["title"])
-            
-            market_price = res.get("market_price", 0.0)
-            our_price = float(prod["price"] or 0)
-            diff_amt = round(market_price - our_price, 2) if market_price > 0 else 0.0
-            diff_pct = round(((market_price - our_price) / our_price * 100), 1) if (our_price > 0 and market_price > 0) else 0.0
-            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        res = self.scrape_online_market_price(barcode, prod_title)
+        market_price = res.get("market_price", 0.0)
+        image_url = res.get("image_url", "")
+        diff_amt = round(market_price - our_price, 2) if (market_price > 0 and our_price > 0) else 0.0
+        diff_pct = round(((market_price - our_price) / our_price * 100), 1) if (our_price > 0 and market_price > 0) else 0.0
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-            cursor.execute("""
-                INSERT INTO market_price_audits (barcode, market_price, min_price, max_price, found_sources, search_query, last_scanned_at, diff_amount, diff_percent, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(barcode) DO UPDATE SET
-                    market_price = excluded.market_price,
-                    min_price = excluded.min_price,
-                    max_price = excluded.max_price,
-                    found_sources = excluded.found_sources,
-                    last_scanned_at = excluded.last_scanned_at,
-                    diff_amount = excluded.diff_amount,
-                    diff_percent = excluded.diff_percent,
-                    status = excluded.status;
-            """, (
-                barcode,
-                market_price,
-                res.get("min_price", 0.0),
-                res.get("max_price", 0.0),
-                json.dumps(res.get("sources", []), ensure_ascii=False),
-                prod["title"],
-                now_str,
-                diff_amt,
-                diff_pct,
-                "scanned" if res.get("success") else "not_found"
-            ))
+        try:
+            with db_session() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO market_price_audits (barcode, market_price, min_price, max_price, found_sources, search_query, last_scanned_at, diff_amount, diff_percent, status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(barcode) DO UPDATE SET
+                        market_price = excluded.market_price,
+                        min_price = excluded.min_price,
+                        max_price = excluded.max_price,
+                        found_sources = excluded.found_sources,
+                        last_scanned_at = excluded.last_scanned_at,
+                        diff_amount = excluded.diff_amount,
+                        diff_percent = excluded.diff_percent,
+                        status = excluded.status;
+                """, (
+                    barcode,
+                    market_price,
+                    res.get("min_price", 0.0),
+                    res.get("max_price", 0.0),
+                    json.dumps(res.get("sources", []), ensure_ascii=False),
+                    prod_title or barcode,
+                    now_str,
+                    diff_amt,
+                    diff_pct,
+                    "scanned" if res.get("success") else "not_found"
+                ))
+        except Exception:
+            pass
 
-            return {
-                "success": res.get("success", False),
-                "barcode": barcode,
-                "title": prod["title"],
-                "current_price": our_price,
-                "market_price": market_price,
-                "min_price": res.get("min_price", 0.0),
-                "max_price": res.get("max_price", 0.0),
-                "diff_amount": diff_amt,
-                "diff_percent": diff_pct,
-                "sources": res.get("sources", []),
-                "message": res.get("message")
-            }
+        return {
+            "success": res.get("success", False),
+            "barcode": barcode,
+            "title": prod_title,
+            "current_price": our_price,
+            "market_price": market_price,
+            "image_url": image_url,
+            "min_price": res.get("min_price", 0.0),
+            "max_price": res.get("max_price", 0.0),
+            "diff_amount": diff_amt,
+            "diff_percent": diff_pct,
+            "sources": res.get("sources", []),
+            "message": res.get("message")
+        }
 
     def start_background_scan(self, days: int = 45, resume: bool = True):
         """

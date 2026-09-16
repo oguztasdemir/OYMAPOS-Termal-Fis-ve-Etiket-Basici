@@ -17,7 +17,7 @@ from backend.services.db_service import (
     get_all_products, search_products, get_product_by_barcode, get_products_count,
     sync_all_label_prices_to_pos_price, get_full_product_history, revert_product_history,
     update_product_details, update_products_by_clipboard_data, update_product_printed_time,
-    preview_clipboard_price_update
+    preview_clipboard_price_update, set_product_archived, restore_archived_product_if_needed
 )
 from backend.services.vegawin_service import parse_raw_text_products, parse_vegawin_file
 from backend.utils.response_utils import success_response, error_response
@@ -29,15 +29,15 @@ from pydantic import BaseModel
 router = APIRouter(prefix="/api", tags=["Products"])
 
 @router.get("/products")
-async def get_products(q: str = "", only_new: bool = False, only_diff: bool = False, only_blacklist: bool = False, limit: int = 0):
+async def get_products(q: str = "", only_new: bool = False, only_diff: bool = False, only_blacklist: bool = False, only_archived: bool = False, limit: int = 0):
     effective_limit = limit if limit > 0 else None
     bl_data = get_blacklist_data()
     blacklist_barcodes = set(str(b).strip() for b in bl_data.get("barcodes", []) if str(b).strip())
 
     if q.strip():
-        items = search_products(q.strip(), limit=effective_limit, only_new=only_new, only_diff=only_diff, only_blacklist=only_blacklist, blacklist_barcodes=blacklist_barcodes)
+        items = search_products(q.strip(), limit=effective_limit, only_new=only_new, only_diff=only_diff, only_blacklist=only_blacklist, only_archived=only_archived, blacklist_barcodes=blacklist_barcodes)
     else:
-        items = get_all_products(limit=effective_limit, only_new=only_new, only_diff=only_diff, only_blacklist=only_blacklist, blacklist_barcodes=blacklist_barcodes)
+        items = get_all_products(limit=effective_limit, only_new=only_new, only_diff=only_diff, only_blacklist=only_blacklist, only_archived=only_archived, blacklist_barcodes=blacklist_barcodes)
     
     # Her ürüne kara listede olup olmadığını ekle
     for item in items:
@@ -49,18 +49,81 @@ async def get_products(q: str = "", only_new: bool = False, only_diff: bool = Fa
         "total": get_products_count(blacklist_barcodes=blacklist_barcodes),
         "diff": get_products_count(only_diff=True, blacklist_barcodes=blacklist_barcodes),
         "new": get_products_count(only_new=True, blacklist_barcodes=blacklist_barcodes),
-        "blacklist": get_products_count(only_blacklist=True, blacklist_barcodes=blacklist_barcodes)
+        "blacklist": get_products_count(only_blacklist=True, blacklist_barcodes=blacklist_barcodes),
+        "archived": get_products_count(only_archived=True, blacklist_barcodes=blacklist_barcodes)
     }
 
     return success_response(
         data={
             "products": items,
-            "total": get_products_count(only_new=only_new, only_diff=only_diff, only_blacklist=only_blacklist, blacklist_barcodes=blacklist_barcodes),
+            "total": get_products_count(only_new=only_new, only_diff=only_diff, only_blacklist=only_blacklist, only_archived=only_archived, blacklist_barcodes=blacklist_barcodes),
             "counts": counts,
             "blacklist_barcodes": list(blacklist_barcodes)
         },
         message="Ürünler listelendi"
     )
+
+@router.post("/products/{barcode}/toggle-archive")
+async def toggle_product_archive(barcode: str):
+    """Ürünü satışı bırakıldı (pasif) yapar veya tekrar aktife alır."""
+    b = clean_barcode_text(barcode)
+    if not b:
+        return error_response(message="Geçersiz barkod.", status_code=400)
+    
+    with db_session() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT is_archived, title FROM urunler WHERE barcode = ?;", (b,))
+        row = cursor.fetchone()
+        if not row:
+            return error_response(message="Ürün bulunamadı.", status_code=404)
+        
+        current_archived = row["is_archived"] == 1
+        new_state = not current_archived
+        
+    set_product_archived(b, archived=new_state)
+    state_msg = "satışı durduruldu (pasife alındı)" if new_state else "tekrar satışa açıldı (aktif edildi)"
+    
+    bl_data = get_blacklist_data()
+    b_set = set(str(x).strip() for x in bl_data.get("barcodes", []) if str(x).strip())
+    counts = {
+        "total": get_products_count(blacklist_barcodes=b_set),
+        "diff": get_products_count(only_diff=True, blacklist_barcodes=b_set),
+        "new": get_products_count(only_new=True, blacklist_barcodes=b_set),
+        "blacklist": get_products_count(only_blacklist=True, blacklist_barcodes=b_set),
+        "archived": get_products_count(only_archived=True, blacklist_barcodes=b_set)
+    }
+
+    return success_response(
+        data={"barcode": b, "is_archived": new_state, "counts": counts},
+        message=f"'{row['title'] or b}' {state_msg}."
+    )
+
+class BatchArchiveRequest(BaseModel):
+    barcodes: list
+    archived: bool = True
+
+@router.post("/products/batch-archive")
+async def batch_archive_products(req: BatchArchiveRequest):
+    """Seçilen birden fazla ürünü topluca satışı durduruldu (pasif) yapar veya tekrar aktifleştirir."""
+    raw_barcodes = [clean_barcode_text(b) for b in req.barcodes if clean_barcode_text(b)]
+    if not raw_barcodes:
+        return error_response(message="İşlem yapılacak ürün seçilmedi.", status_code=400)
+
+    for b in raw_barcodes:
+        set_product_archived(b, archived=req.archived)
+
+    bl_data = get_blacklist_data()
+    b_set = set(str(x).strip() for x in bl_data.get("barcodes", []) if str(x).strip())
+    counts = {
+        "total": get_products_count(blacklist_barcodes=b_set),
+        "diff": get_products_count(only_diff=True, blacklist_barcodes=b_set),
+        "new": get_products_count(only_new=True, blacklist_barcodes=b_set),
+        "blacklist": get_products_count(only_blacklist=True, blacklist_barcodes=b_set),
+        "archived": get_products_count(only_archived=True, blacklist_barcodes=b_set)
+    }
+
+    msg = f"{len(raw_barcodes)} adet ürün satışı durduruldu (pasife alındı)." if req.archived else f"{len(raw_barcodes)} adet ürün tekrar satışa açıldı."
+    return success_response(data={"counts": counts, "count": len(raw_barcodes)}, message=msg)
 
 @router.post("/products/{barcode}/toggle-blacklist")
 async def toggle_product_blacklist(barcode: str):
@@ -96,7 +159,8 @@ async def toggle_product_blacklist(barcode: str):
         "total": get_products_count(blacklist_barcodes=b_set),
         "diff": get_products_count(only_diff=True, blacklist_barcodes=b_set),
         "new": get_products_count(only_new=True, blacklist_barcodes=b_set),
-        "blacklist": get_products_count(only_blacklist=True, blacklist_barcodes=b_set)
+        "blacklist": get_products_count(only_blacklist=True, blacklist_barcodes=b_set),
+        "archived": get_products_count(only_archived=True, blacklist_barcodes=b_set)
     }
 
     return success_response(

@@ -157,12 +157,15 @@
         </div>
 
         <!-- Toplu İşlem Butonları -->
-        <div style="display: flex; gap: 8px;">
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
           <button class="btn btn-success btn-sm" onclick="bulkApplySelectedMarketPrices()" title="Seçilen / Piyasadan ucuz ürünlerin fiyatını piyasa fiyatına eşitle" style="font-weight: 700; display: flex; align-items: center; gap: 5px;">
             ⚡ Fiyatları Eşitle
           </button>
           <button class="btn btn-primary btn-sm" onclick="sendSelectedToPrintDesk()" title="Seçili ürünleri Etiket Masasına aktar" style="font-weight: 700; display: flex; align-items: center; gap: 5px;">
             🖨️ Etikete Gönder
+          </button>
+          <button class="btn btn-secondary btn-sm" onclick="bulkArchiveSelectedProducts()" title="Seçilen ürünleri satışı bırakıldı (pasif) olarak işaretle" style="font-weight: 700; display: flex; align-items: center; gap: 5px; color: #f59e0b; border-color: rgba(245, 158, 11, 0.35);">
+            🚫 Satışı Bırakıldı
           </button>
         </div>
 

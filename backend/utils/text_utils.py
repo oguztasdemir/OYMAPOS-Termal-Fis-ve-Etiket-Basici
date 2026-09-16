@@ -1060,5 +1060,68 @@ def parse_date_string(val) -> str:
         
     return s
 
+def parse_db_datetime(val):
+    """Her türlü tarih formatını güvenle datetime nesnesine çevirir."""
+    if not val:
+        return None
+    import datetime
+    if isinstance(val, datetime.datetime):
+        return val
+    if isinstance(val, datetime.date):
+        return datetime.datetime.combine(val, datetime.time.min)
+    s = str(val).strip()
+    if not s:
+        return None
+    for fmt in (
+        "%Y-%m-%d %H:%M:%S",
+        "%d.%m.%Y %H:%M:%S",
+        "%Y-%m-%dT%H:%M:%S",
+        "%d.%m.%Y",
+        "%Y-%m-%d",
+        "%Y/%m/%d %H:%M:%S",
+        "%d/%m/%Y %H:%M:%S",
+        "%d/%m/%Y",
+        "%Y/%m/%d"
+    ):
+        try:
+            return datetime.datetime.strptime(s[:19], fmt)
+        except Exception:
+            continue
+    return None
+
+def resolve_price_update_timestamp(incoming_date=None, existing_db_date=None) -> str:
+    """
+    Fiyat güncelleme / aktarım tarihini belirler.
+    Kural:
+    - Öncelik bu bilgisayarın anlık yerel saatidir (now).
+    - Eğer aktarırken gelen tarih (incoming_date), bu bilgisayardaki mevcut kayıtlı tarihten
+      veya anlık saatten daha YENİ bir tarih ise o yeni tarih kabul edilir.
+    - Eğer gelen tarih eski/takılı kalmış bir tarihse veya boşsa, bu bilgisayarın anlık tarihi (now) kullanılır.
+    """
+    import datetime
+    now_dt = datetime.datetime.now()
+    now_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
+
+    if not incoming_date:
+        return now_str
+
+    inc_dt = parse_db_datetime(incoming_date)
+    if not inc_dt:
+        return now_str
+
+    # 1. Eğer gelen tarih bu bilgisayarın anlık saatinden daha yeni/ileri bir saatse:
+    if inc_dt > now_dt:
+        return inc_dt.strftime("%Y-%m-%d %H:%M:%S")
+
+    # 2. Eğer bu bilgisayarda mevcut kayıtlı bir tarih varsa ve gelen tarih o mevcut tarihten daha yeniyse:
+    if existing_db_date:
+        exist_dt = parse_db_datetime(existing_db_date)
+        if exist_dt and inc_dt > exist_dt:
+            return inc_dt.strftime("%Y-%m-%d %H:%M:%S")
+
+    # 3. Gelen tarih eski veya takılı kalmışsa bu bilgisayarın anlık güncel tarihi önceliklidir
+    return now_str
+
+
 
 

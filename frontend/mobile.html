@@ -1090,6 +1090,53 @@
         </div>
       </div>
 
+      <!-- 🏪 CANLI PİYASA FİYAT & GÖRSEL RADARI (RÜYAM + MİGROS + CARREFOURSA) -->
+      <div id="market-radar-live-card" style="background: #0b1329; border: 1.5px solid rgba(56, 189, 248, 0.35); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;">
+        <!-- Üst Başlık & Durum -->
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 15px;">🏪</span>
+            <span style="font-size: 12px; font-weight: 800; color: #38bdf8; letter-spacing: 0.3px;">CANLI PİYASA FİYATLARI</span>
+          </div>
+          <span id="market-status-badge" style="font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: rgba(56, 189, 248, 0.15); color: #38bdf8;">⏳ Taranıyor...</span>
+        </div>
+
+        <!-- Ürün Görseli ve Genel Başlık -->
+        <div style="display: flex; gap: 10px; align-items: center; background: #0f172a; border-radius: 8px; padding: 8px 10px; border: 1px solid rgba(255,255,255,0.06);">
+          <div style="width: 48px; height: 48px; min-width: 48px; border-radius: 8px; background: #1e293b; border: 1px solid rgba(255,255,255,0.12); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative;">
+            <img id="market-product-img" src="" alt="Ürün Görseli" style="width: 100%; height: 100%; object-fit: contain; display: none;" onload="this.style.display='block'; var p1=document.getElementById('market-img-placeholder'); if(p1) p1.style.display='none';" onerror="this.style.display='none'; var p2=document.getElementById('market-img-placeholder'); if(p2) p2.style.display='block';">
+            <span id="market-img-placeholder" style="font-size: 22px;">🛒</span>
+          </div>
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+            <div id="market-product-title" style="font-size: 12px; font-weight: 700; color: #f1f5f9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+              Piyasa fiyatları taranıyor...
+            </div>
+            <div style="font-size: 10.5px; color: #94a3b8;">Rüyam Market • Migros • CarrefourSA</div>
+          </div>
+        </div>
+
+        <!-- Market Fiyat Grid Kutuları (Rüyam | Migros | CarrefourSA) -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;">
+          <!-- 1. Rüyam Market Kutusu -->
+          <div style="background: #1e293b; border-radius: 8px; padding: 8px 4px; text-align: center; border: 1px solid rgba(56, 189, 248, 0.3); display: flex; flex-direction: column; gap: 2px;">
+            <span style="font-size: 10.5px; font-weight: 800; color: #38bdf8;">🏪 Rüyam</span>
+            <span id="price-box-ruyam" style="font-family: 'JetBrains Mono', monospace; font-size: 13.5px; font-weight: 900; color: #10b981;">-</span>
+          </div>
+
+          <!-- 2. Migros Kutusu -->
+          <div style="background: #1e293b; border-radius: 8px; padding: 8px 4px; text-align: center; border: 1px solid rgba(249, 115, 22, 0.35); display: flex; flex-direction: column; gap: 2px;">
+            <span style="font-size: 10.5px; font-weight: 800; color: #fb923c;">🟠 Migros</span>
+            <span id="price-box-migros" style="font-family: 'JetBrains Mono', monospace; font-size: 13.5px; font-weight: 900; color: #10b981;">-</span>
+          </div>
+
+          <!-- 3. CarrefourSA Kutusu (Direkt Arama Linki) -->
+          <a id="link-box-carrefour" href="#" target="_blank" style="background: #1e293b; border-radius: 8px; padding: 8px 4px; text-align: center; border: 1px solid rgba(59, 130, 246, 0.35); display: flex; flex-direction: column; gap: 2px; text-decoration: none; cursor: pointer;">
+            <span style="font-size: 10.5px; font-weight: 800; color: #60a5fa;">🔵 Carrefour</span>
+            <span id="price-box-carrefour" style="font-size: 11.5px; font-weight: 800; color: #93c5fd;">🔍 Gör</span>
+          </a>
+        </div>
+      </div>
+
       <!-- En Son Fiyat Değişim ve En Son Yazdırma Tarihleri -->
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: #0b1120; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border);">
         <div style="display: flex; flex-direction: column; gap: 3px;">
@@ -1104,6 +1151,12 @@
           </span>
           <span id="txt-last-printed-at" style="font-size: 11.5px; font-weight: 800; color: #38bdf8; font-family: 'JetBrains Mono', monospace;">-</span>
         </div>
+      </div>
+
+      <!-- Basım Listesinde Durum Uyarısı -->
+      <div id="product-in-queue-alert" style="display: none; align-items: center; gap: 8px; background: rgba(245, 158, 11, 0.15); border: 1.5px solid #f59e0b; color: #fbbf24; padding: 10px 12px; border-radius: 10px; font-size: 12.5px; font-weight: 700; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.15);">
+        <span style="font-size: 18px;">⚠️</span>
+        <div>Bu ürün şu anda <strong>basım listenizde bekliyor</strong>.</div>
       </div>
 
       <!-- LİSTEYE EKLE BUTONU (OYMAPOS 1-1) -->
@@ -1384,6 +1437,44 @@
         </button>
         <button onclick="closeMobilePdfModal()" style="padding: 12px 14px; background: #1e293b; color: #94a3b8; border: 1px solid #334155; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer;">
           Kapat
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9. ⚠️ MÜKERRER / ZATEN BASIM LİSTESİNDE UYARI MODALI -->
+  <div id="duplicate-warning-modal" class="barcode-modal-overlay" style="z-index: 100002; background: rgba(0,0,0,0.88); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; padding: 16px;">
+    <div class="barcode-modal-card" style="max-width: 390px; text-align: center; padding: 22px 18px; border-radius: 16px; background: #0f172a; border: 1.5px solid #f59e0b; box-shadow: 0 20px 45px rgba(245, 158, 11, 0.25);" onclick="event.stopPropagation()">
+      <div style="font-size: 40px; margin-bottom: 6px; filter: drop-shadow(0 0 10px rgba(245, 158, 11, 0.5));">⚠️</div>
+      <h3 style="font-size: 16.5px; font-weight: 800; color: #fbbf24; margin-bottom: 6px;">Ürün Zaten Basım Listesinde!</h3>
+      <p style="font-size: 12.5px; color: #cbd5e1; margin-bottom: 12px; line-height: 1.4;">Bu ürünü daha önce okuttunuz ve henüz yazdırılmadı (basım listenizde bekliyor).</p>
+      
+      <!-- Ürün Bilgi Özeti Kartı -->
+      <div style="width: 100%; background: #1e293b; border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 10px; padding: 12px; margin-bottom: 16px; text-align: left; box-sizing: border-box;">
+        <div id="dup-modal-title" style="font-size: 14px; font-weight: 800; color: #ffffff; line-height: 1.3; margin-bottom: 6px;">-</div>
+        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 6px; font-size: 12px;">
+          <span id="dup-modal-barcode" style="font-family: 'JetBrains Mono', monospace; color: #94a3b8; font-weight: 700;">-</span>
+          <span id="dup-modal-price" style="font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 900; color: #38bdf8;">₺ 0.00</span>
+        </div>
+      </div>
+
+      <div style="font-size: 12px; color: #94a3b8; margin-bottom: 14px; font-weight: 600;">
+        Yine de bu ürünle ilgili işlem yapmak / tekrar eklemek istiyor musunuz?
+      </div>
+
+      <!-- Eylem Butonları -->
+      <div style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
+        <button class="btn-action-camera" style="width: 100%; padding: 13px; font-size: 13.5px; font-weight: 800; border-radius: 10px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #000; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35); cursor: pointer;" onclick="confirmDuplicateOpen()">
+          <span>✓</span>
+          <span>Evet, Ürünü Aç & Düzenle</span>
+        </button>
+        <button style="width: 100%; padding: 12px; font-size: 13px; font-weight: 700; border-radius: 10px; background: #1e293b; color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35); cursor: pointer;" onclick="goToQueueFromDuplicate()">
+          <span>📋</span>
+          <span>Basım Listesine Git</span>
+        </button>
+        <button style="width: 100%; padding: 11px; font-size: 12.5px; font-weight: 700; border-radius: 10px; background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); cursor: pointer;" onclick="cancelDuplicateScan()">
+          <span>✕</span>
+          <span>İptal (Sıradaki Ürünü Tara)</span>
         </button>
       </div>
     </div>

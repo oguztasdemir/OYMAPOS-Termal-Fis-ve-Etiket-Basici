@@ -7,7 +7,7 @@ import time
 from fastapi import APIRouter
 
 from backend.models.schemas import PrintSingleRequest, PrintBatchRequest, MobileScanRequest
-from backend.services.db_service import get_product_by_barcode, update_product_printed_time, update_product_details
+from backend.services.db_service import get_product_by_barcode, update_product_printed_time, update_product_details, restore_archived_product_if_needed
 from backend.services.printer_service import print_single_label, load_settings
 from backend.utils.response_utils import success_response, error_response
 
@@ -17,6 +17,7 @@ router = APIRouter(prefix="/api/print", tags=["Print Operations"])
 async def print_single(req: PrintSingleRequest):
     prod = None
     if req.barcode:
+        restore_archived_product_if_needed(req.barcode, reason="Tekli Etiket Baskısı")
         prod = get_product_by_barcode(req.barcode)
     
     if prod and req.barcode:
@@ -91,6 +92,7 @@ async def print_batch(req: PrintBatchRequest):
     if success:
         for item in req.products:
             if item.barcode:
+                restore_archived_product_if_needed(item.barcode, reason="Toplu Etiket Baskısı")
                 if item.price is not None or item.title:
                     try:
                         update_product_details(
@@ -114,6 +116,7 @@ async def print_batch(req: PrintBatchRequest):
 @router.post("/mobile_scan")
 async def mobile_scan_print(req: MobileScanRequest):
     barcode = req.barcode.strip()
+    restore_archived_product_if_needed(barcode, reason="Mobil Reyon Okutma")
     prod = get_product_by_barcode(barcode)
     if not prod:
         return error_response(message=f"Barkod veritabanında bulunamadı: {barcode}", status_code=404)

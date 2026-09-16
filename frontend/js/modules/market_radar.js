@@ -487,18 +487,21 @@ function renderMarketRadarTable() {
         <td style="padding: 10px 12px; text-align: center; width: 160px;">
           ${diffBadge}
         </td>
-        <td style="padding: 10px 12px; text-align: center; width: 130px;">
-          <div style="display: flex; gap: 6px; justify-content: center; align-items: center;">
+        <td style="padding: 10px 12px; text-align: center; width: 145px;">
+          <div style="display: flex; gap: 5px; justify-content: center; align-items: center;">
             ${hasAudit && isCheaper ? `
-              <button class="btn btn-success btn-sm" onclick="applySingleMarketPrice('${item.barcode}', ${marketPrice})" title="Fiyatı ${marketPrice.toFixed(2)} ₺ yap" style="padding: 4px 8px; font-size: 11.5px; font-weight: 700;">
+              <button class="btn btn-success btn-sm" onclick="applySingleMarketPrice('${item.barcode}', ${marketPrice})" title="Fiyatı ${marketPrice.toFixed(2)} ₺ yap" style="padding: 4px 7px; font-size: 11.5px; font-weight: 700;">
                 ⚡ Eşitle
               </button>
             ` : ''}
-            <button class="btn btn-secondary btn-sm" onclick="quickEditItemPrice('${item.barcode}', ${ourPrice})" title="Yeni Fiyat Gir" style="padding: 4px 8px; font-size: 11px;">
+            <button class="btn btn-secondary btn-sm" onclick="quickEditItemPrice('${item.barcode}', ${ourPrice})" title="Yeni Fiyat Gir" style="padding: 4px 7px; font-size: 11px;">
               ✏️
             </button>
-            <button class="btn btn-secondary btn-sm" onclick="sendSingleToPrintQueue('${item.barcode}', '${encodeURIComponent(item.title)}', ${ourPrice})" title="Etiket Masasına Gönder" style="padding: 4px 8px; font-size: 11px; color: #a78bfa;">
+            <button class="btn btn-secondary btn-sm" onclick="sendSingleToPrintQueue('${item.barcode}', '${encodeURIComponent(item.title)}', ${ourPrice})" title="Etiket Masasına Gönder" style="padding: 4px 7px; font-size: 11px; color: #a78bfa;">
               🖨️
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="archiveMarketProduct('${item.barcode}', '${encodeURIComponent(item.title)}')" title="Satışı Bırakıldı (Listeden ve Radardan Çıkar)" style="padding: 4px 7px; font-size: 11px; color: #f59e0b; border-color: rgba(245, 158, 11, 0.3);">
+              🚫
             </button>
           </div>
         </td>
@@ -818,5 +821,64 @@ async function clearMarketAuditCache() {
     }
   } catch (err) {
     if (typeof showToast === 'function') showToast("Hata: " + err.message, 'error');
+  }
+}
+
+/**
+ * Tek bir ürünü satışı durduruldu (pasife al) yapar
+ */
+async function archiveMarketProduct(barcode, encodedTitle) {
+  const title = decodeURIComponent(encodedTitle || barcode);
+  const ok = confirm(`"${title}" ürününü satışı bırakıldı (pasif) olarak işaretlemek istiyor musunuz?\n\n- Bu ürün piyasa radarı ve listelerden gizlenecektir.\n- Ürün silinmez; dükkanda yeni fiyat girildiğinde veya mobilden okutulduğunda otomatik tekrar aktifleşir.`);
+  if (!ok) return;
+
+  try {
+    const res = await fetch(`/api/products/${encodeURIComponent(barcode)}/toggle-archive`, { method: 'POST' });
+    const data = await res.json();
+    if (data.status === 'success') {
+      if (typeof showToast === 'function') showToast(`🚫 "${title}" satışı bırakıldı olarak işaretlendi.`, 'info');
+      // Lokal listeden anında çıkar
+      marketRadarProducts = marketRadarProducts.filter(p => String(p.barcode) !== String(barcode));
+      renderMarketRadarTable();
+    } else {
+      if (typeof showToast === 'function') showToast("Hata: " + data.message, 'error');
+    }
+  } catch (err) {
+    if (typeof showToast === 'function') showToast("Bağlantı hatası: " + err.message, 'error');
+  }
+}
+
+/**
+ * Seçili ürünleri topluca satışı durduruldu (pasif) yapar
+ */
+async function bulkArchiveSelectedProducts() {
+  const checkboxes = Array.from(document.querySelectorAll('.market-row-checkbox:checked'));
+  if (checkboxes.length === 0) {
+    if (typeof showToast === 'function') showToast("Lütfen satışı bırakıldı olarak işaretlemek için en az bir ürün seçin.", 'warning');
+    return;
+  }
+
+  const ok = confirm(`Seçilen ${checkboxes.length} adet ürünü satışı bırakıldı (pasif) olarak işaretlemek istiyor musunuz?\n\n- Bu ürünler piyasa radarı ve listelerden gizlenecektir.\n- Dükkanda yeni fiyat girildiğinde veya mobilden okutulduğunda otomatik tekrar aktifleşeceklerdir.`);
+  if (!ok) return;
+
+  const barcodes = checkboxes.map(cb => cb.getAttribute('data-barcode')).filter(Boolean);
+
+  try {
+    const res = await fetch('/api/products/batch-archive', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ barcodes: barcodes, archived: true })
+    });
+    const data = await res.json();
+    if (data.status === 'success') {
+      if (typeof showToast === 'function') showToast(`🚫 ${barcodes.length} ürün satışı bırakıldı olarak işaretlendi.`, 'info');
+      const bSet = new Set(barcodes.map(String));
+      marketRadarProducts = marketRadarProducts.filter(p => !bSet.has(String(p.barcode)));
+      renderMarketRadarTable();
+    } else {
+      if (typeof showToast === 'function') showToast("Hata: " + data.message, 'error');
+    }
+  } catch (err) {
+    if (typeof showToast === 'function') showToast("Bağlantı hatası: " + err.message, 'error');
   }
 }

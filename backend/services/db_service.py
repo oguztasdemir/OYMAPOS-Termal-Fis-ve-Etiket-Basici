@@ -13,7 +13,8 @@ from backend.services.db.schema import init_db, cleanup_all_existing_titles_in_d
 from backend.services.db.product_repo import (
     get_all_products, search_products, get_product_by_barcode,
     get_product_price_history, get_products_count, get_new_products_list,
-    mark_new_products_as_printed, update_product_printed_time, sync_all_label_prices_to_pos_price
+    mark_new_products_as_printed, update_product_printed_time, sync_all_label_prices_to_pos_price,
+    set_product_archived, restore_archived_product_if_needed
 )
 from backend.services.db.history_repo import (
     record_product_history, get_full_product_history, revert_product_history, update_product_details

@@ -21,6 +21,7 @@ class StartScanRequest(BaseModel):
 
 class ScanSingleRequest(BaseModel):
     barcode: str
+    title: Optional[str] = ""
 
 
 class ApplyPriceRequest(BaseModel):
@@ -103,7 +104,7 @@ async def scan_single(req: ScanSingleRequest):
     if not barcode:
         return error_response("Barkod boş olamaz", status_code=400)
 
-    result = market_scanner_service.audit_single_product(barcode)
+    result = market_scanner_service.audit_single_product(barcode, title=req.title or "")
     if result.get("success"):
         return success_response(data=result, message=f"{result.get('title')} için piyasa fiyatı bulundu.")
     return error_response(result.get("message", "Piyasa fiyatı bulunamadı"), status_code=404, data=result)

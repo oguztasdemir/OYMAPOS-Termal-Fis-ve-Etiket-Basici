@@ -604,21 +604,92 @@ function formatDateTime(dtStr) {
   }
 }
 
+let pendingDuplicateBarcode = null;
+
+/**
+ * ⚠️ Basım Listesinde Zaten Mevcut Olan Ürün İçin Uyarı Modalı Göster
+ */
+function showDuplicateWarningModal(barcode, queueItem) {
+  pendingDuplicateBarcode = barcode;
+  const modal = document.getElementById('duplicate-warning-modal');
+  const titleEl = document.getElementById('dup-modal-title');
+  const barcodeEl = document.getElementById('dup-modal-barcode');
+  const priceEl = document.getElementById('dup-modal-price');
+
+  if (titleEl) titleEl.textContent = queueItem?.title || 'Kayıtlı Ürün';
+  if (barcodeEl) barcodeEl.textContent = `Barkod: ${barcode}`;
+  if (priceEl) priceEl.textContent = `₺ ${Number(queueItem?.price || 0).toFixed(2)}`;
+
+  if (modal) {
+    modal.style.display = 'flex';
+  } else {
+    // Fallback if modal DOM element is not found
+    const ok = confirm(
+      `⚠️ DİKKAT: Bu ürün zaten basım listenizde bulunuyor!\n\n` +
+      `Ürün: ${queueItem?.title || barcode}\n` +
+      `Fiyat: ₺${Number(queueItem?.price || 0).toFixed(2)}\n\n` +
+      `Bu ürün henüz yazdırılmadı. Yine de açmak ve düzenlemek istiyor musunuz?`
+    );
+    if (ok) {
+      lookupBarcode(barcode, true);
+    } else {
+      prepareForNextScan();
+    }
+  }
+
+  try {
+    if (navigator.vibrate) navigator.vibrate([120, 80, 120]);
+  } catch(e) {}
+}
+
+function closeDuplicateModal() {
+  const modal = document.getElementById('duplicate-warning-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function confirmDuplicateOpen() {
+  closeDuplicateModal();
+  if (pendingDuplicateBarcode) {
+    const code = pendingDuplicateBarcode;
+    pendingDuplicateBarcode = null;
+    lookupBarcode(code, true);
+  }
+}
+
+function goToQueueFromDuplicate() {
+  closeDuplicateModal();
+  pendingDuplicateBarcode = null;
+  switchMobileTab('queue');
+}
+
+function cancelDuplicateScan() {
+  closeDuplicateModal();
+  pendingDuplicateBarcode = null;
+  prepareForNextScan();
+}
+
+window.showDuplicateWarningModal = showDuplicateWarningModal;
+window.closeDuplicateModal = closeDuplicateModal;
+window.confirmDuplicateOpen = confirmDuplicateOpen;
+window.goToQueueFromDuplicate = goToQueueFromDuplicate;
+window.cancelDuplicateScan = cancelDuplicateScan;
+
 /**
  * 🔎 Barkod Sorgulama & Ekrana Getirme (OYMAPOS Standart)
  */
-async function lookupBarcode(barcode) {
+async function lookupBarcode(barcode, forceOpen = false) {
   barcode = (barcode || '').trim();
   if (!barcode) return;
 
+  // 1. Eğer ürün basım listesinde zaten varsa ve kullanıcı henüz onaylamadıysa uyarı modalını göster!
+  const existingQueueItem = mobileQueue.find(x => x.barcode === barcode);
+  if (existingQueueItem && !forceOpen) {
+    showDuplicateWarningModal(barcode, existingQueueItem);
+    return;
+  }
+
   // Scan sekmesini aktif yap
   switchMobileTab('scan');
-
-  // 1. Eğer ürün basım listesinde zaten varsa kullanıcıyı bilgilendir
-  const existingQueueItem = mobileQueue.find(x => x.barcode === barcode);
-  if (existingQueueItem) {
-    showToast(`ℹ️ Bu ürün basım listenizde de mevcut: ${existingQueueItem.title}`, "info");
-  }
 
   currentBarcode = barcode;
   const emptyState = document.getElementById('empty-state');
@@ -630,6 +701,19 @@ async function lookupBarcode(barcode) {
   const inpPrice = document.getElementById('inp-price');
   const txtPriceDate = document.getElementById('txt-price-updated-at');
   const txtPrintDate = document.getElementById('txt-last-printed-at');
+  const queueAlert = document.getElementById('product-in-queue-alert');
+  const btnAddQueue = document.getElementById('btn-add-queue');
+
+  if (queueAlert) {
+    queueAlert.style.display = existingQueueItem ? 'flex' : 'none';
+  }
+  if (btnAddQueue) {
+    if (existingQueueItem) {
+      btnAddQueue.innerHTML = '<span style="font-size: 18px;">🔄</span><span>LİSTEYİ GÜNCELLE</span>';
+    } else {
+      btnAddQueue.innerHTML = '<span style="font-size: 18px;">➕</span><span>LİSTEYE EKLE</span>';
+    }
+  }
 
   if (txtBarcode) txtBarcode.innerText = barcode;
   const manualInp = document.getElementById('inp-manual-barcode');
@@ -664,7 +748,11 @@ async function lookupBarcode(barcode) {
       // Değişenler durum butonunu ayarla
       setChangesButtonState(!!p.is_in_today_changes);
 
-      showToast(`✓ "${p.title}" getirildi.`, "success");
+      if (existingQueueItem) {
+        showToast(`⚠️ "${p.title}" basım listenizde de mevcut!`, "info");
+      } else {
+        showToast(`✓ "${p.title}" getirildi.`, "success");
+      }
     } else {
       isNewProduct = true;
       currentProduct = { barcode: barcode, price: 0, title: '' };
@@ -687,10 +775,135 @@ async function lookupBarcode(barcode) {
     if (productCard) {
       productCard.style.display = 'flex';
     }
+
+    // 🏪 Canlı Piyasa Fiyat & Görsel Taramasını Başlat (Rüyam Market + Migros + CarrefourSA)
+    const searchTitle = (data.status === 'success' && data.data && data.data.product) ? (data.data.product.title || '') : (inpTitle?.value || '');
+    fetchMarketRadarLivePrices(barcode, searchTitle);
   } catch (err) {
     showToast("Bağlantı hatası: " + err.message, "error");
   }
 }
+
+let currentMarketScanAbortCtrl = null;
+
+/**
+ * 🏪 Canlı Piyasa Fiyat & Görsel Sorgulama (Rüyam Market + Migros + CarrefourSA)
+ */
+async function fetchMarketRadarLivePrices(barcode, title = "") {
+  const badgeEl = document.getElementById('market-status-badge');
+  const titleEl = document.getElementById('market-product-title');
+  const imgEl = document.getElementById('market-product-img');
+  const phEl = document.getElementById('market-img-placeholder');
+  const ruyamBox = document.getElementById('price-box-ruyam');
+  const migrosBox = document.getElementById('price-box-migros');
+  const carrefourLink = document.getElementById('link-box-carrefour');
+
+  if (currentMarketScanAbortCtrl) {
+    try { currentMarketScanAbortCtrl.abort(); } catch(e) {}
+  }
+  currentMarketScanAbortCtrl = new AbortController();
+
+  if (badgeEl) {
+    badgeEl.textContent = "⏳ Taranıyor...";
+    badgeEl.style.background = "rgba(56, 189, 248, 0.15)";
+    badgeEl.style.color = "#38bdf8";
+  }
+  if (titleEl) titleEl.textContent = "Piyasa fiyatları taranıyor...";
+  if (ruyamBox) { ruyamBox.textContent = "..."; ruyamBox.style.color = "#94a3b8"; }
+  if (migrosBox) { migrosBox.textContent = "..."; migrosBox.style.color = "#94a3b8"; }
+  if (imgEl) {
+    imgEl.style.display = "none";
+    imgEl.src = "";
+  }
+  if (phEl) phEl.style.display = "block";
+
+  const safeQ = encodeURIComponent(title || barcode || "");
+  if (carrefourLink) {
+    carrefourLink.href = `https://www.carrefoursa.com/search/?text=${safeQ}`;
+  }
+
+  try {
+    const res = await fetch('/api/market-radar/scan-single', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ barcode: barcode, title: title || "" }),
+      signal: currentMarketScanAbortCtrl.signal
+    });
+    const json = await res.json();
+    const data = json.data || {};
+    const details = data.market_details || {};
+
+    let hasAnyPrice = false;
+
+    // 1. Rüyam Market Fiyatı
+    if (details.ruyam && details.ruyam.price && details.ruyam.price > 0) {
+      hasAnyPrice = true;
+      if (ruyamBox) {
+        ruyamBox.textContent = `₺ ${Number(details.ruyam.price).toFixed(2)}`;
+        ruyamBox.style.color = "#10b981";
+      }
+    } else {
+      if (ruyamBox) {
+        ruyamBox.textContent = "Yok";
+        ruyamBox.style.color = "#64748b";
+      }
+    }
+
+    // 2. Migros Fiyatı
+    if (details.migros && details.migros.price && details.migros.price > 0) {
+      hasAnyPrice = true;
+      if (migrosBox) {
+        migrosBox.textContent = `₺ ${Number(details.migros.price).toFixed(2)}`;
+        migrosBox.style.color = "#10b981";
+      }
+    } else {
+      if (migrosBox) {
+        migrosBox.textContent = "Yok";
+        migrosBox.style.color = "#64748b";
+      }
+    }
+
+    // 3. Ürün Başlığı & Görsel
+    const foundTitle = (details.ruyam && details.ruyam.title) || (details.migros && details.migros.title) || (data.sources && data.sources[0]?.title) || title || "Piyasa Ürünü";
+    if (titleEl) titleEl.textContent = foundTitle;
+
+    if (data.image_url) {
+      if (imgEl) {
+        imgEl.src = data.image_url;
+        imgEl.style.display = "block";
+      }
+      if (phEl) phEl.style.display = "none";
+    } else {
+      if (imgEl) imgEl.style.display = "none";
+      if (phEl) phEl.style.display = "block";
+    }
+
+    // 4. Durum Rozeti
+    if (badgeEl) {
+      if (hasAnyPrice) {
+        badgeEl.textContent = "✓ Canlı Fiyat";
+        badgeEl.style.background = "rgba(16, 185, 129, 0.2)";
+        badgeEl.style.color = "#34d399";
+      } else {
+        badgeEl.textContent = "Bulunamadı";
+        badgeEl.style.background = "rgba(148, 163, 184, 0.15)";
+        badgeEl.style.color = "#94a3b8";
+      }
+    }
+  } catch (err) {
+    if (err.name === 'AbortError') return;
+    if (badgeEl) {
+      badgeEl.textContent = "Hata";
+      badgeEl.style.background = "rgba(239, 68, 68, 0.15)";
+      badgeEl.style.color = "#f87171";
+    }
+    if (titleEl) titleEl.textContent = "Piyasa fiyatı sorgulanamadı";
+    if (ruyamBox) ruyamBox.textContent = "-";
+    if (migrosBox) migrosBox.textContent = "-";
+  }
+}
+
+window.fetchMarketRadarLivePrices = fetchMarketRadarLivePrices;
 
 /**
  * 📌 Değişenlere Ekle / Kaldır Butonunun Durumunu Ayarla
@@ -959,6 +1172,8 @@ async function addItemToQueue() {
  * 📷 Sıradaki Okutmaya Hazırlan
  */
 function prepareForNextScan() {
+  closeDuplicateModal();
+  pendingDuplicateBarcode = null;
   if (document.getElementById('empty-state')) document.getElementById('empty-state').style.display = 'none';
   if (document.getElementById('product-card')) document.getElementById('product-card').style.display = 'none';
   if (document.getElementById('added-success-card')) document.getElementById('added-success-card').style.display = 'none';

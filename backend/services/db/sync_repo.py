@@ -11,7 +11,8 @@ from backend.services.db.connection import db_session
 from backend.services.db.schema import init_db
 from backend.services.db.history_repo import record_product_history
 from backend.utils.text_utils import (
-    clean_barcode_text, clean_product_title, parse_price, fix_turkish_corrupted_chars, is_invalid_or_blacklisted_product
+    clean_barcode_text, clean_product_title, parse_price, fix_turkish_corrupted_chars, is_invalid_or_blacklisted_product,
+    resolve_price_update_timestamp
 )
 
 def get_sync_history_list(limit: int = 50) -> list:
@@ -319,6 +320,13 @@ def import_all_from_source_db(source_db_path: str = None, device_name: str = "D�
                     diff_amt = round(p - old_p, 2)
                     diff_pct = round((diff_amt / old_p * 100) if old_p > 0 else 0, 1)
 
+                    # 🕒 Fiyat Güncelleme Tarihi Kuralı:
+                    # Öncelik bu bilgisayarın anlık yerel saatidir. Eğer gelen tarih daha yeni ise o kullanılır.
+                    item_date = resolve_price_update_timestamp(
+                        d.get("price_updated_at") or d.get("updated_at") or d.get("date"),
+                        old.get("price_updated_at") or old.get("updated_at")
+                    )
+
                     price_changes.append({
                         "sync_id": sync_id,
                         "barcode": b,
@@ -327,13 +335,13 @@ def import_all_from_source_db(source_db_path: str = None, device_name: str = "D�
                         "new_price": p,
                         "diff_amount": diff_amt,
                         "diff_percent": diff_pct,
-                        "changed_at": now_str
+                        "changed_at": item_date
                     })
 
                     cursor.execute("""
                     INSERT INTO vegawin_price_changes (sync_id, barcode, title, old_price, new_price, diff_amount, diff_percent, changed_at, source_device)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-                    """, (sync_id, b, t, old_p, p, diff_amt, diff_pct, now_str, device_name))
+                    """, (sync_id, b, t, old_p, p, diff_amt, diff_pct, item_date, device_name))
 
                     cursor.execute("""
                     UPDATE urunler 
@@ -341,7 +349,7 @@ def import_all_from_source_db(source_db_path: str = None, device_name: str = "D�
                         brand = COALESCE(NULLIF(?, ''), brand), updated_at = ?, price_updated_at = ?, 
                         label_price = COALESCE(label_price, ?)
                     WHERE barcode = ?;
-                    """, (t, p, sc, brand, now_str, now_str, old_p, b))
+                    """, (t, p, sc, brand, now_str, item_date, old_p, b))
 
                     record_product_history(
                         conn,
@@ -357,7 +365,7 @@ def import_all_from_source_db(source_db_path: str = None, device_name: str = "D�
                         device_name=device_name,
                         details="Dükkan PC'sinden doğrudan veri gönderildi",
                         sync_id=sync_id,
-                        timestamp=now_str
+                        timestamp=item_date
                     )
                 elif has_title_diff:
                     title_change_count += 1
@@ -572,7 +580,13 @@ def update_products_by_clipboard_data(items: list, device_name: str = "Ana PC - 
                 old_p = parse_price(old.get("price"))
                 old_t = str(old.get("title") or "")
                 actual_p = p if has_incoming_price else old_p
-                item_date = item.get("price_updated_at") or now_str
+
+                # 🕒 Fiyat Güncelleme Tarihi Kuralı:
+                # Öncelik bu bilgisayarın anlık yerel saatidir. Eğer gelen tarih daha yeni ise o kullanılır.
+                item_date = resolve_price_update_timestamp(
+                    item.get("price_updated_at") or item.get("updated_at") or item.get("date"),
+                    old.get("price_updated_at") or old.get("updated_at")
+                )
 
                 has_price_diff = has_incoming_price and (abs(old_p - actual_p) > 0.001)
                 has_title_diff = (old_t != clean_t) or (raw_t and raw_t != str(old.get("raw_system_title") or ""))
@@ -648,7 +662,9 @@ def update_products_by_clipboard_data(items: list, device_name: str = "Ana PC - 
                     unchanged_count += 1
             else:
                 new_count += 1
-                item_date = item.get("price_updated_at") or now_str
+                item_date = resolve_price_update_timestamp(
+                    item.get("price_updated_at") or item.get("updated_at") or item.get("date")
+                )
                 cursor.execute("""
                 INSERT INTO urunler (barcode, stock_code, title, raw_system_title, price, price_num, label_price, brand, unit, is_new, created_at, updated_at, price_updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, 1, ?, ?, ?);

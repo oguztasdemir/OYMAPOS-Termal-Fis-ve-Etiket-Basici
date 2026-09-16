@@ -313,6 +313,16 @@ function openProductEditModal(barcode) {
   document.getElementById('editModalPrice').value = priceVal;
   document.getElementById('editModalBrand').value = brandVal;
 
+  const priceDateEl = document.getElementById('editModalPriceDate');
+  if (priceDateEl) {
+    priceDateEl.value = prod ? formatTrDate(prod.price_updated_at || prod.updated_at || prod.created_at) : '-';
+  }
+
+  const printDateEl = document.getElementById('editModalPrintDate');
+  if (printDateEl) {
+    printDateEl.value = (prod && prod.last_printed_at) ? prod.last_printed_at : 'Henüz Basılmadı';
+  }
+
   // Kara liste buton durumunu güncelle
   updateEditModalBlacklistBtnState(prod ? !!prod.is_blacklisted : false);
 

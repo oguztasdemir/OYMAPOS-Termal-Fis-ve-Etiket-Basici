@@ -11,7 +11,7 @@ from backend.utils.text_utils import (
     fold_turkish_text, clean_barcode_text, decode_scale_barcode, format_product_dict, parse_price
 )
 
-def get_all_products(limit=None, offset=0, only_new=False, only_diff=False, only_blacklist=False, blacklist_barcodes=None):
+def get_all_products(limit=None, offset=0, only_new=False, only_diff=False, only_blacklist=False, only_archived=False, blacklist_barcodes=None):
     with db_session() as conn:
         cursor = conn.cursor()
         clauses = []
@@ -22,7 +22,9 @@ def get_all_products(limit=None, offset=0, only_new=False, only_diff=False, only
             clauses.append("(label_price IS NOT NULL AND ABS(parse_price(price) - parse_price(label_price)) > 0.001)")
         
         bl_list = list(blacklist_barcodes or [])
-        if only_blacklist:
+        if only_archived:
+            clauses.append("COALESCE(is_archived, 0) = 1")
+        elif only_blacklist:
             if bl_list:
                 placeholders = ",".join("?" for _ in bl_list)
                 clauses.append(f"(barcode IN ({placeholders}) OR is_blacklisted = 1)")
@@ -30,7 +32,8 @@ def get_all_products(limit=None, offset=0, only_new=False, only_diff=False, only
             else:
                 clauses.append("is_blacklisted = 1")
         else:
-            # Normal listelemede kara listedeki ürünleri gizle
+            # Normal listelemede kara listedeki ve pasife/arşive alınmış ürünleri gizle
+            clauses.append("COALESCE(is_archived, 0) = 0")
             if bl_list:
                 placeholders = ",".join("?" for _ in bl_list)
                 clauses.append(f"(barcode NOT IN ({placeholders}) AND COALESCE(is_blacklisted, 0) = 0)")
@@ -46,10 +49,10 @@ def get_all_products(limit=None, offset=0, only_new=False, only_diff=False, only
             cursor.execute(f"SELECT * FROM urunler {where_clause} ORDER BY title ASC;", tuple(params))
         return [format_product_dict(r) for r in cursor.fetchall()]
 
-def search_products(query: str, limit=None, only_new=False, only_diff=False, only_blacklist=False, blacklist_barcodes=None):
+def search_products(query: str, limit=None, only_new=False, only_diff=False, only_blacklist=False, only_archived=False, blacklist_barcodes=None):
     cleaned_query = query.strip()
     if not cleaned_query:
-        return get_all_products(limit=limit, only_new=only_new, only_diff=only_diff, only_blacklist=only_blacklist, blacklist_barcodes=blacklist_barcodes)
+        return get_all_products(limit=limit, only_new=only_new, only_diff=only_diff, only_blacklist=only_blacklist, only_archived=only_archived, blacklist_barcodes=blacklist_barcodes)
         
     tokens = [t for t in re.split(r'[\s\-_.,/]+', cleaned_query) if t]
     
@@ -64,7 +67,9 @@ def search_products(query: str, limit=None, only_new=False, only_diff=False, onl
             clauses.append("(label_price IS NOT NULL AND ABS(parse_price(price) - parse_price(label_price)) > 0.001)")
         
         bl_list = list(blacklist_barcodes or [])
-        if only_blacklist:
+        if only_archived:
+            clauses.append("COALESCE(is_archived, 0) = 1")
+        elif only_blacklist:
             if bl_list:
                 placeholders = ",".join("?" for _ in bl_list)
                 clauses.append(f"(barcode IN ({placeholders}) OR is_blacklisted = 1)")
@@ -72,6 +77,7 @@ def search_products(query: str, limit=None, only_new=False, only_diff=False, onl
             else:
                 clauses.append("is_blacklisted = 1")
         else:
+            clauses.append("COALESCE(is_archived, 0) = 0")
             if bl_list:
                 placeholders = ",".join("?" for _ in bl_list)
                 clauses.append(f"(barcode NOT IN ({placeholders}) AND COALESCE(is_blacklisted, 0) = 0)")
@@ -244,7 +250,7 @@ def get_product_price_history(barcode: str, limit: int = 50) -> list:
         """, (b, limit))
         return [dict(r) for r in cursor.fetchall()]
 
-def get_products_count(only_new=False, only_diff=False, only_blacklist=False, blacklist_barcodes=None):
+def get_products_count(only_new=False, only_diff=False, only_blacklist=False, only_archived=False, blacklist_barcodes=None):
     with db_session() as conn:
         cursor = conn.cursor()
         clauses = []
@@ -255,7 +261,9 @@ def get_products_count(only_new=False, only_diff=False, only_blacklist=False, bl
             clauses.append("(label_price IS NOT NULL AND ABS(parse_price(price) - parse_price(label_price)) > 0.001)")
         
         bl_list = list(blacklist_barcodes or [])
-        if only_blacklist:
+        if only_archived:
+            clauses.append("COALESCE(is_archived, 0) = 1")
+        elif only_blacklist:
             if bl_list:
                 placeholders = ",".join("?" for _ in bl_list)
                 clauses.append(f"(barcode IN ({placeholders}) OR is_blacklisted = 1)")
@@ -263,6 +271,7 @@ def get_products_count(only_new=False, only_diff=False, only_blacklist=False, bl
             else:
                 clauses.append("is_blacklisted = 1")
         else:
+            clauses.append("COALESCE(is_archived, 0) = 0")
             if bl_list:
                 placeholders = ",".join("?" for _ in bl_list)
                 clauses.append(f"(barcode NOT IN ({placeholders}) AND COALESCE(is_blacklisted, 0) = 0)")
@@ -312,3 +321,31 @@ def sync_all_label_prices_to_pos_price() -> int:
         cursor = conn.cursor()
         cursor.execute("UPDATE urunler SET label_price = price;")
         return cursor.rowcount
+
+def set_product_archived(barcode: str, archived: bool = True) -> bool:
+    """Ürünü pasife / satışı durduruldu (is_archived = 1) durumuna alır veya aktif eder."""
+    b = clean_barcode_text(barcode)
+    if not b:
+        return False
+    now_str = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
+    with db_session() as conn:
+        cursor = conn.cursor()
+        val = 1 if archived else 0
+        arch_date = now_str if archived else None
+        cursor.execute("UPDATE urunler SET is_archived = ?, archived_at = ? WHERE barcode = ?;", (val, arch_date, b))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def restore_archived_product_if_needed(barcode: str, reason: str = ""):
+    """Eğer ürün pasifteyse (satışı bırakılmışsa) otomatik olarak aktif duruma geri getirir."""
+    b = clean_barcode_text(barcode)
+    if not b:
+        return
+    with db_session() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT is_archived, title FROM urunler WHERE barcode = ?;", (b,))
+        row = cursor.fetchone()
+        if row and row["is_archived"] == 1:
+            cursor.execute("UPDATE urunler SET is_archived = 0, archived_at = NULL WHERE barcode = ?;", (b,))
+            conn.commit()
+            print(f"✨ [Otomatik Canlanma] '{row['title']}' ({b}) tekrar aktife alındı. Sebep: {reason}")

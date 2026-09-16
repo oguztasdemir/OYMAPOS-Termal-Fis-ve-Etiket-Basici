@@ -293,7 +293,7 @@ async function markProductAsPrintedManual(barcode, btnElement) {
 
       const statusCell = document.getElementById(`status-cell-${barcode}`);
       if (statusCell) {
-        statusCell.innerHTML = `<span class="badge" style="background:rgba(16,185,129,0.15); color:#34d399; border:1px solid rgba(16,185,129,0.3); font-size:10.5px; padding:3px 8px; border-radius:6px; font-weight:700;">✅ Etiket Güncel</span>`;
+        statusCell.innerHTML = `<span class="badge" style="background:rgba(16,185,129,0.15); color:#34d399; border:1px solid rgba(16,185,129,0.3); font-size:11px; padding:3px 8px; border-radius:6px; font-weight:700;">✅ Güncel</span>`;
       }
 
       const row = document.getElementById(`row-${barcode}`);
@@ -486,21 +486,20 @@ function handleProductRowClick(event, barcode, globalIndex) {
   const isCtrl = !!(event.ctrlKey || event.metaKey);
   const bStr = String(barcode);
 
-  // 1. SHIFT İLE ARALIK SEÇİMİ
+  // 1. SHIFT İLE ARALIK SEÇİMİ (Anchor ile globalIndex arasındaki tüm ürünleri seç)
   if (isShift) {
     if (window.getSelection) {
       window.getSelection().removeAllRanges();
     }
     event.preventDefault();
 
-    const anchor = (lastAnchorIndex !== null) ? lastAnchorIndex : globalIndex;
+    const anchor = (lastAnchorIndex !== null) ? lastAnchorIndex : 0;
     const start = Math.min(anchor, globalIndex);
     const end = Math.max(anchor, globalIndex);
 
-    // Temel seçimin bir kopyasını al (önceki seçimleri korumak için)
+    // Temel seçimin üzerine aralığı ekle
     selectedBarcodes = new Set(selectionBase);
     
-    // Anchor ile tıklanan index arasındaki tüm ürünleri seç
     for (let i = start; i <= end; i++) {
       if (cachedProductsList[i] && cachedProductsList[i].barcode) {
         selectedBarcodes.add(String(cachedProductsList[i].barcode));
@@ -511,7 +510,7 @@ function handleProductRowClick(event, barcode, globalIndex) {
     return;
   }
 
-  // 2. CTRL İLE SEÇİM (Hiç seçim yokken de 1 kez basıldığında seçili kalsın veya ekle/çıkar yapsın)
+  // 2. CTRL İLE TEKİL EKLE/ÇIKAR
   if (isCtrl) {
     event.preventDefault();
     if (selectedBarcodes.has(bStr)) {
@@ -526,25 +525,14 @@ function handleProductRowClick(event, barcode, globalIndex) {
     return;
   }
 
-  // 3. NORMAL TIKLAMA (SHIFT VEYA CTRL OLMADAN)
-  // Eğer zaten seçimler yapılmışsa (selectedBarcodes > 0), normal tıklama seçim toggle/işlemi yapar
-  if (selectedBarcodes.size > 0) {
-    if (selectedBarcodes.has(bStr)) {
-      selectedBarcodes.delete(bStr);
-      selectionBase.delete(bStr);
-    } else {
-      selectedBarcodes.add(bStr);
-      selectionBase.add(bStr);
-    }
-    lastAnchorIndex = globalIndex;
-    updateMultiSelectUI();
-    return;
-  }
-
-  // 4. EĞER HİÇBİR SEÇİM YAPILMAMIŞSA: 1 KERE TIKLAYINCA DETAY AÇILMALIDIR
-  if (typeof openProductEditModal === 'function') {
-    openProductEditModal(bStr);
-  }
+  // 3. NORMAL TIKLAMA (Shift/Ctrl olmadan):
+  // Yeni bir seçim başlatır ve Shift için başlangıç noktası (Anchor) olarak bu satırı belirler
+  selectedBarcodes.clear();
+  selectedBarcodes.add(bStr);
+  selectionBase.clear();
+  selectionBase.add(bStr);
+  lastAnchorIndex = globalIndex;
+  updateMultiSelectUI();
 }
 
 function clearProductSelection() {
@@ -633,6 +621,94 @@ async function executeBatchBlacklist(action) {
   }
 }
 
+async function executeBatchPrintSelected() {
+  if (selectedBarcodes.size === 0) {
+    showToast('Lütfen önce yazdırılacak ürünleri seçin.', 'warning');
+    return;
+  }
+
+  const selectedList = cachedProductsList.filter(p => selectedBarcodes.has(String(p.barcode)));
+  if (selectedList.length === 0) return;
+
+  const count = selectedList.length;
+  const ok = await showAppConfirmModal({
+    title: "Toplu Etiket Yazdır",
+    message: `Seçili ${count} adet ürün için etiket yazdırmak istiyor musunuz?`,
+    confirmText: "🖨️ Yazdır",
+    cancelText: "Vazgeç",
+    type: "primary",
+    icon: "🖨️"
+  });
+
+  if (!ok) return;
+
+  try {
+    const itemsToPrint = selectedList.map(p => ({
+      barcode: p.barcode,
+      title: cleanProductTitle(p.title || p.raw_system_title || '').trim(),
+      price: Number(p.price || 0),
+      brand: p.brand || ''
+    }));
+
+    const res = await fetch('/api/print/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ products: itemsToPrint, copies: 1 })
+    });
+    const data = await res.json();
+    if (data.status === 'success') {
+      showToast(`🖨️ ${count} adet etiket başarıyla yazdırıldı.`, 'success');
+      clearProductSelection();
+      const searchInp = document.getElementById('productSearchInput');
+      searchProducts(searchInp ? searchInp.value : '');
+    } else {
+      showToast('Yazdırma hatası: ' + (data.message || 'Bilinmeyen hata'), 'error');
+    }
+  } catch (err) {
+    showToast('Bağlantı hatası: ' + err.message, 'error');
+  }
+}
+
+async function executeBatchArchiveSelected() {
+  if (selectedBarcodes.size === 0) {
+    showToast('Lütfen önce pasife alınacak ürünleri seçin.', 'warning');
+    return;
+  }
+
+  const barcodesArray = Array.from(selectedBarcodes);
+  const count = barcodesArray.length;
+
+  const ok = await showAppConfirmModal({
+    title: "Satışı Bırakıldı (Pasife Al)",
+    message: `Seçili ${count} adet ürünü satışı bırakıldı (pasif) olarak işaretlemek istiyor musunuz?\n\n- Bu ürünler listelerden gizlenecektir.\n- Dükkanda yeni fiyat girildiğinde veya mobilden okutulduğunda otomatik tekrar aktifleşir.`,
+    confirmText: "⏸️ Pasife Al",
+    cancelText: "Vazgeç",
+    type: "warning",
+    icon: "⏸️"
+  });
+
+  if (!ok) return;
+
+  try {
+    const res = await fetch('/api/products/batch-archive', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ barcodes: barcodesArray, archived: true })
+    });
+    const data = await res.json();
+    if (data.status === 'success') {
+      showToast(`🚫 ${count} adet ürün satışı bırakıldı olarak işaretlendi.`, 'info');
+      clearProductSelection();
+      const searchInp = document.getElementById('productSearchInput');
+      searchProducts(searchInp ? searchInp.value : '');
+    } else {
+      showToast('Hata: ' + (data.message || 'Bilinmeyen hata'), 'error');
+    }
+  } catch (err) {
+    showToast('Bağlantı hatası: ' + err.message, 'error');
+  }
+}
+
 // ESC tuşuna basıldığında çoklu seçimi temizle
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && selectedBarcodes.size > 0) {
@@ -704,11 +780,11 @@ function renderProductsTable(products) {
     let statusHtml = '';
     if (isMismatch) {
       const diffAmt = Math.abs(posPrice - labelPrice).toFixed(2);
-      statusHtml = `<span class="badge" style="background:rgba(239,68,68,0.2); color:#f87171; border:1px solid rgba(239,68,68,0.4); font-size:10.5px; padding:3px 8px; border-radius:6px; font-weight:700;">⚠️ FARK: ₺${diffAmt}</span>`;
+      statusHtml = `<span class="badge" style="background:rgba(239,68,68,0.2); color:#f87171; border:1px solid rgba(239,68,68,0.4); font-size:11px; padding:3px 8px; border-radius:6px; font-weight:700;">⚠️ Güncel Değil (₺${diffAmt})</span>`;
     } else if (isUnprinted) {
-      statusHtml = `<span class="badge" style="background:rgba(245,158,11,0.15); color:#fbbf24; border:1px solid rgba(245,158,11,0.3); font-size:10.5px; padding:3px 8px; border-radius:6px; font-weight:700;">⚠️ Baskı Bekliyor</span>`;
+      statusHtml = `<span class="badge" style="background:rgba(245,158,11,0.15); color:#fbbf24; border:1px solid rgba(245,158,11,0.3); font-size:11px; padding:3px 8px; border-radius:6px; font-weight:700;">⚠️ Güncel Değil</span>`;
     } else {
-      statusHtml = `<span class="badge" style="background:rgba(16,185,129,0.15); color:#34d399; border:1px solid rgba(16,185,129,0.3); font-size:10.5px; padding:3px 8px; border-radius:6px; font-weight:700;">✅ Etiket Güncel</span>`;
+      statusHtml = `<span class="badge" style="background:rgba(16,185,129,0.15); color:#34d399; border:1px solid rgba(16,185,129,0.3); font-size:11px; padding:3px 8px; border-radius:6px; font-weight:700;">✅ Güncel</span>`;
     }
 
     const isSelected = selectedBarcodes.has(String(p.barcode));
@@ -737,7 +813,7 @@ function renderProductsTable(products) {
     }
 
     return `
-      <tr id="row-${barcodeEscaped}" data-barcode="${barcodeEscaped}" class="${rowClass}" onclick="handleProductRowClick(event, '${barcodeEscaped}', ${idx})" ondblclick="openProductEditModal('${barcodeEscaped}')" style="cursor: pointer;" title="Tıklayın: Ürün Detayları ve Düzenleme | Ctrl / Shift: Çoklu Seçim">
+      <tr id="row-${barcodeEscaped}" data-barcode="${barcodeEscaped}" data-title="${encodeURIComponent(printTitle)}" data-price="${posPrice}" class="${rowClass}" onclick="handleProductRowClick(event, '${barcodeEscaped}', ${idx})" oncontextmenu="handleProductContextMenu(event, '${barcodeEscaped}', '${encodeURIComponent(printTitle)}', ${posPrice}, ${isBl})" ondblclick="openProductEditModal('${barcodeEscaped}')" style="cursor: pointer;" title="Tıklayın: Ürün Detayı | Sağ Tık: Hızlı Menü (Kara Liste, Baskı vs.) | Ctrl / Shift: Çoklu Seçim">
         <td class="col-idx">${globalIdx}</td>
         <td class="col-barcode" style="font-family:'JetBrains Mono', monospace; font-weight:700; color:#818cf8;" title="${p.barcode || ''}">${p.barcode || ''}</td>
         <td class="col-title" style="font-weight:700; color:#fff;" title="Sistem Kaydı: ${escapeHtml(p.raw_system_title || p.title || '')}">${escapeHtml(printTitle)}${newBadge}${blBadge}</td>
@@ -748,7 +824,6 @@ function renderProductsTable(products) {
             <span style="color:#10b981;">📅</span> <span>${priceDate}</span>
           </div>
         </td>
-        <td class="col-print-date" id="print-date-cell-${barcodeEscaped}">${printDateHtml}</td>
         <td class="col-status" id="status-cell-${barcodeEscaped}">${statusHtml}</td>
         <td class="col-action" style="text-align:center;" onclick="event.stopPropagation()">
           ${actionBtnHtml}
@@ -786,7 +861,7 @@ function renderProductsStatusBar(totalItems) {
     <div style="display:flex; align-items:center; gap:8px;">
       <span>Toplam Listelenen: <strong style="color:var(--primary); font-size:13px;">${totalItems.toLocaleString('tr-TR')} Ürün</strong></span>
       <span style="color:#64748b;">|</span>
-      <span style="font-size:12px; color:#94a3b8;">Tüm ürünler tek listede (Shift / Ctrl ile dilediğiniz kadar aralık ve ürün seçebilirsiniz)</span>
+      <span style="font-size:12px; color:#94a3b8;">Sağ tıklayarak hızlıca Kara Listeye ekleyebilir, yazdırabilir veya pasife alabilirsiniz.</span>
     </div>
     <div style="display:flex; align-items:center; gap:8px;">
       <button class="btn btn-secondary btn-sm" onclick="scrollToTableTop()" style="padding:5px 12px; font-weight:700;">⬆️ Başa Dön</button>
@@ -799,8 +874,138 @@ function scrollToTableTop() {
   if (container) container.scrollTop = 0;
 }
 
+// ==========================================================================
+// SAĞ TIK CONTEXT MENÜ YÖNETİMİ
+// ==========================================================================
+let activeCtxBarcode = null;
+let activeCtxTitle = '';
+let activeCtxPrice = 0;
+let activeCtxIsBlacklisted = false;
+
+function handleProductContextMenu(event, barcode, encodedTitle, price, isBl) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  activeCtxBarcode = barcode;
+  activeCtxTitle = decodeURIComponent(encodedTitle || barcode);
+  activeCtxPrice = Number(price || 0);
+  activeCtxIsBlacklisted = !!isBl;
+
+  const menu = document.getElementById('productContextMenu');
+  const titleEl = document.getElementById('ctxMenuTitle');
+  const bcEl = document.getElementById('ctxMenuBarcode');
+  const blItem = document.getElementById('ctxItemBlacklist');
+  const blIcon = document.getElementById('ctxBlacklistIcon');
+  const blText = document.getElementById('ctxBlacklistText');
+
+  if (titleEl) titleEl.textContent = activeCtxTitle;
+  if (bcEl) bcEl.textContent = barcode;
+
+  if (blItem && blIcon && blText) {
+    if (activeCtxIsBlacklisted) {
+      blIcon.textContent = '🛡️';
+      blText.textContent = 'Kara Listeden Çıkar';
+      blItem.style.color = '#34d399';
+    } else {
+      blIcon.textContent = '🚫';
+      blText.textContent = 'Kara Listeye Ekle';
+      blItem.style.color = '#fca5a5';
+    }
+  }
+
+  if (menu) {
+    menu.style.display = 'block';
+
+    // Fare koordinatlarına göre menüyü konumlandır (ekrandan taşmayı engelle)
+    const menuWidth = 220;
+    const menuHeight = 240;
+    let posX = event.clientX;
+    let posY = event.clientY;
+
+    if (posX + menuWidth > window.innerWidth) {
+      posX = window.innerWidth - menuWidth - 10;
+    }
+    if (posY + menuHeight > window.innerHeight) {
+      posY = window.innerHeight - menuHeight - 10;
+    }
+
+    menu.style.left = `${posX}px`;
+    menu.style.top = `${posY}px`;
+  }
+}
+
+async function handleCtxAction(action) {
+  const menu = document.getElementById('productContextMenu');
+  if (menu) menu.style.display = 'none';
+
+  if (!activeCtxBarcode) return;
+
+  const b = activeCtxBarcode;
+  const t = activeCtxTitle;
+  const p = activeCtxPrice;
+
+  if (action === 'print') {
+    if (typeof printBarcode === 'function') {
+      printBarcode(b, null, p);
+    }
+  } else if (action === 'edit') {
+    if (typeof openProductEditModal === 'function') {
+      openProductEditModal(b);
+    }
+  } else if (action === 'confirm_printed') {
+    if (typeof markProductAsPrintedManual === 'function') {
+      markProductAsPrintedManual(b, null);
+    }
+  } else if (action === 'copy_barcode') {
+    navigator.clipboard.writeText(b).then(() => {
+      showToast(`📋 Barkod kopyalandı: ${b}`, 'info');
+    }).catch(() => {
+      showToast(`Barkod: ${b}`, 'info');
+    });
+  } else if (action === 'blacklist') {
+    if (typeof toggleProductBlacklist === 'function') {
+      toggleProductBlacklist(b, null, null);
+    }
+  } else if (action === 'archive') {
+    const ok = confirm(`"${t}" ürününü satışı bırakıldı (pasif) olarak işaretlemek istiyor musunuz?\n\n- Ürün aktif listelerden gizlenecektir.\n- Dükkanda yeni fiyat girildiğinde veya mobilden okutulduğunda otomatik tekrar aktifleşir.`);
+    if (!ok) return;
+
+    try {
+      const res = await fetch(`/api/products/${encodeURIComponent(b)}/toggle-archive`, { method: 'POST' });
+      const data = await res.json();
+      if (data.status === 'success') {
+        showToast(`🚫 "${t}" satışı bırakıldı (pasif) olarak işaretlendi.`, 'info');
+        const searchInp = document.getElementById('productSearchInput');
+        searchProducts(searchInp ? searchInp.value : '');
+      } else {
+        showToast('Hata: ' + data.message, 'error');
+      }
+    } catch (err) {
+      showToast('Bağlantı hatası: ' + err.message, 'error');
+    }
+  }
+}
+
+// Menü dışına tıklandığında context menüsünü kapat
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('productContextMenu');
+  if (menu && menu.style.display !== 'none' && !menu.contains(e.target)) {
+    menu.style.display = 'none';
+  }
+});
+document.addEventListener('contextmenu', (e) => {
+  if (!e.target.closest('#productsTableBody tr')) {
+    const menu = document.getElementById('productContextMenu');
+    if (menu) menu.style.display = 'none';
+  }
+});
+
 // Global Window Dışa Aktarımları
 window.handleProductRowClick = handleProductRowClick;
+window.handleProductContextMenu = handleProductContextMenu;
+window.handleCtxAction = handleCtxAction;
 window.clearProductSelection = clearProductSelection;
 window.executeBatchBlacklist = executeBatchBlacklist;
+window.executeBatchPrintSelected = executeBatchPrintSelected;
+window.executeBatchArchiveSelected = executeBatchArchiveSelected;
 window.updateMultiSelectUI = updateMultiSelectUI;
