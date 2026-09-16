@@ -13,6 +13,92 @@ function escapeHtml(text) {
     .replace(/'/g, '&#039;');
 }
 
+// Global Türkçe Tarih Ayrıştırma ve Formatlayıcı (ISO, SQL datetime, DD.MM.YYYY vb. tam destekli)
+function parseFlexibleDate(dateStr) {
+  if (!dateStr) return null;
+  if (dateStr instanceof Date) return isNaN(dateStr.getTime()) ? null : dateStr;
+  const s = String(dateStr).trim();
+  if (!s) return null;
+
+  // DD.MM.YYYY veya DD.MM.YYYY HH:MM:SS formatı
+  if (/^\d{1,2}\.\d{1,2}\.\d{4}/.test(s)) {
+    const parts = s.split(/\s+/);
+    const dateParts = parts[0].split('.');
+    const day = parseInt(dateParts[0], 10);
+    const month = parseInt(dateParts[1], 10) - 1;
+    const year = parseInt(dateParts[2], 10);
+    let hour = 0, min = 0, sec = 0;
+    if (parts[1]) {
+      const timeParts = parts[1].split(':');
+      hour = parseInt(timeParts[0] || 0, 10);
+      min = parseInt(timeParts[1] || 0, 10);
+      sec = parseInt(timeParts[2] || 0, 10);
+    }
+    const d = new Date(year, month, day, hour, min, sec);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  // ISO / SQL format: YYYY-MM-DD HH:MM:SS veya YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    const parts = s.split(/\s+/);
+    const dateParts = parts[0].split('-');
+    const year = parseInt(dateParts[0], 10);
+    const month = parseInt(dateParts[1], 10) - 1;
+    const day = parseInt(dateParts[2], 10);
+    let hour = 0, min = 0, sec = 0;
+    if (parts[1]) {
+      const timeParts = parts[1].split(':');
+      hour = parseInt(timeParts[0] || 0, 10);
+      min = parseInt(timeParts[1] || 0, 10);
+      sec = parseInt(timeParts[2] || 0, 10);
+    }
+    const d = new Date(year, month, day, hour, min, sec);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  // Standart JS new Date parse denemesi
+  try {
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) return d;
+  } catch (e) {}
+
+  return null;
+}
+
+function getTodayTrDate() {
+  const today = new Date();
+  const d = String(today.getDate()).padStart(2, '0');
+  const months = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+  const m = months[today.getMonth()];
+  const y = today.getFullYear();
+  return `${d} ${m} ${y}`;
+}
+
+function formatTrDate(dateStr, includeTime = false) {
+  if (!dateStr || String(dateStr).trim() === '') {
+    return '-';
+  }
+  const dt = parseFlexibleDate(dateStr);
+  if (!dt) {
+    const str = String(dateStr).trim();
+    if (/^\d{2}\.\d{2}\.\d{4}/.test(str)) return str.slice(0, 10);
+    return str || '-';
+  }
+
+  const d = String(dt.getDate()).padStart(2, '0');
+  const months = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+  const m = months[dt.getMonth()];
+  const y = dt.getFullYear();
+  const dateFormatted = `${d} ${m} ${y}`;
+
+  if (includeTime) {
+    const hh = String(dt.getHours()).padStart(2, '0');
+    const mm = String(dt.getMinutes()).padStart(2, '0');
+    return `${dateFormatted} ${hh}:${mm}`;
+  }
+  return dateFormatted;
+}
+
 // 1. SESLİ GERİ BİLDİRİM (Web Audio API)
 class SoundFeedback {
   static playSuccess() {
@@ -182,7 +268,71 @@ function showAppConfirmModal({ title = 'İşlem Onayı', message, confirmText = 
   });
 }
 
-// 5. SUNUCU KAPATMA DİYALOĞU
+// 5. TOPLU İŞLEM İLERLEME MODALI (PROGRESS MODAL)
+function showAppProgressModal({ title = 'Etiketler Yazdırılıyor', total = 0, initialMessage = 'Yazdırma işlemi başlatılıyor...' }) {
+  let existing = document.getElementById('appProgressModalOverlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'appProgressModalOverlay';
+  overlay.className = 'modal-overlay active';
+  overlay.style.cssText = 'position:fixed; inset:0; z-index:999999; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); background:rgba(0,0,0,0.82); transition:opacity 0.2s ease;';
+
+  overlay.innerHTML = `
+    <div class="modal" style="max-width: 480px; width: 92%; background: #0f172a; border: 1.5px solid #38bdf8; border-radius: 14px; padding: 24px; box-shadow: 0 25px 60px -10px rgba(0,0,0,0.9), 0 0 25px rgba(56,189,248,0.25); animation: modalPop 0.18s cubic-bezier(0.16, 1, 0.3, 1);">
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+        <div style="width:42px; height:42px; border-radius:10px; background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.4); display:flex; align-items:center; justify-content:center; font-size:22px;">
+          🖨️
+        </div>
+        <div style="flex:1; min-width:0;">
+          <h3 style="margin:0; font-size:16px; font-weight:800; color:#fff;">${escapeHtml(title)}</h3>
+          <span style="font-size:11.5px; color:#94a3b8;">Yazıcıya etiket aktarım süreci</span>
+        </div>
+        <div id="appProgressCountBadge" style="font-size:13px; font-weight:800; color:#38bdf8; font-family:'JetBrains Mono', monospace; background:rgba(56,189,248,0.12); padding:4px 10px; border-radius:8px; border:1px solid rgba(56,189,248,0.3);">
+          0 / ${total}
+        </div>
+      </div>
+
+      <!-- İlerleme Çubuğu (Progress Bar) -->
+      <div style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:10px; height:14px; overflow:hidden; margin-bottom:14px; position:relative;">
+        <div id="appProgressBarFill" style="width:0%; height:100%; background:linear-gradient(90deg, #38bdf8, #10b981); border-radius:8px; transition:width 0.15s ease;"></div>
+      </div>
+
+      <!-- Anlık İşlenen Ürün Adı ve Yüzde -->
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px;">
+        <div id="appProgressItemText" style="color:#cbd5e1; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:80%;">
+          ${escapeHtml(initialMessage)}
+        </div>
+        <div id="appProgressPercentText" style="color:#10b981; font-weight:800; font-family:'JetBrains Mono', monospace;">
+          %0
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  return {
+    update(current, currentItemTitle = '') {
+      const pct = total > 0 ? Math.min(100, Math.round((current / total) * 100)) : 0;
+      const countBadge = overlay.querySelector('#appProgressCountBadge');
+      const barFill = overlay.querySelector('#appProgressBarFill');
+      const itemText = overlay.querySelector('#appProgressItemText');
+      const pctText = overlay.querySelector('#appProgressPercentText');
+
+      if (countBadge) countBadge.textContent = `${current} / ${total}`;
+      if (barFill) barFill.style.width = `${pct}%`;
+      if (pctText) pctText.textContent = `%${pct}`;
+      if (itemText && currentItemTitle) itemText.textContent = `Aktarılıyor: ${currentItemTitle}`;
+    },
+    close() {
+      overlay.style.opacity = '0';
+      setTimeout(() => overlay.remove(), 150);
+    }
+  };
+}
+
+// 6. SUNUCU KAPATMA DİYALOĞU
 async function confirmShutdown() {
   const ok = await showAppConfirmModal({
     title: "Sunucuyu Kapat",

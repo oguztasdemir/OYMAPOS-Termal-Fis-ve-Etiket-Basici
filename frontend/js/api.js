@@ -68,21 +68,23 @@ const API = {
   },
 
   // 3. Ürün İşlemleri
-  async getProducts(query = '', onlyNew = false, onlyDiff = false, limit = 0, onlyBlacklist = false) {
+  async getProducts(query = '', onlyNew = false, onlyDiff = false, limit = 0, onlyBlacklist = false, onlyArchived = false) {
     const newParam = onlyNew ? '&only_new=true' : '';
     const diffParam = onlyDiff ? '&only_diff=true' : '';
     const blParam = onlyBlacklist ? '&only_blacklist=true' : '';
+    const archParam = onlyArchived ? '&only_archived=true' : '';
     const limitParam = limit > 0 ? `&limit=${limit}` : '';
-    const res = await fetch(`/api/products?q=${encodeURIComponent(query)}${limitParam}${newParam}${diffParam}${blParam}`);
+    const res = await fetch(`/api/products?q=${encodeURIComponent(query)}${limitParam}${newParam}${diffParam}${blParam}${archParam}`);
     return await res.json();
   },
 
-  async searchProducts(query = '', limit = 0, onlyNew = false, onlyDiff = false, onlyBlacklist = false) {
+  async searchProducts(query = '', limit = 0, onlyNew = false, onlyDiff = false, onlyBlacklist = false, onlyArchived = false) {
     const newParam = onlyNew ? '&only_new=true' : '';
     const diffParam = onlyDiff ? '&only_diff=true' : '';
     const blParam = onlyBlacklist ? '&only_blacklist=true' : '';
+    const archParam = onlyArchived ? '&only_archived=true' : '';
     const limitParam = limit > 0 ? `&limit=${limit}` : '';
-    const res = await fetch(`/api/products?q=${encodeURIComponent(query)}${limitParam}${newParam}${diffParam}${blParam}`);
+    const res = await fetch(`/api/products?q=${encodeURIComponent(query)}${limitParam}${newParam}${diffParam}${blParam}${archParam}`);
     return await res.json();
   },
 

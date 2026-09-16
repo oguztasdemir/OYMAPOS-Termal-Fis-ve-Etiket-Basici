@@ -347,7 +347,7 @@ def import_all_from_source_db(source_db_path: str = None, device_name: str = "DÃ
                     UPDATE urunler 
                     SET title = ?, price = ?, stock_code = COALESCE(NULLIF(?, ''), stock_code), 
                         brand = COALESCE(NULLIF(?, ''), brand), updated_at = ?, price_updated_at = ?, 
-                        label_price = COALESCE(label_price, ?)
+                        label_price = COALESCE(label_price, ?), is_archived = 0, archived_at = NULL
                     WHERE barcode = ?;
                     """, (t, p, sc, brand, now_str, item_date, old_p, b))
 
@@ -617,7 +617,7 @@ def update_products_by_clipboard_data(items: list, device_name: str = "Ana PC - 
                     UPDATE urunler 
                     SET title = ?, raw_system_title = ?, price = ?, price_num = ?, stock_code = COALESCE(NULLIF(?, ''), stock_code), 
                         brand = COALESCE(NULLIF(?, ''), brand), unit = COALESCE(NULLIF(?, ''), unit), updated_at = ?, price_updated_at = ?, 
-                        label_price = COALESCE(label_price, ?)
+                        label_price = COALESCE(label_price, ?), is_archived = 0, archived_at = NULL
                     WHERE barcode = ?;
                     """, (clean_t or old_t, raw_t or clean_t or old_t, str(actual_p), actual_p, sc, brand, unit, now_str, item_date, old_p, b))
 

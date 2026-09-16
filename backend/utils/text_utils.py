@@ -62,7 +62,8 @@ def strip_supplier_stock_codes(title: str) -> str:
     s = re.sub(r'\s*\[\s*X\d+\s*\]|\s*\(\s*X\d+\s*\)', '', s, flags=re.IGNORECASE).strip()
 
     # 4. Marka + Stok Kodu temizleme:
-    # Örn: 'KENT 12429 OLİPS' -> 'KENT OLİPS', 'ULK 1905 TAC KRAKER' -> 'ÜLKER TAC KRAKER', 'ETI 16459 LIFALIF' -> 'ETİ LIFALIF'
+    # Örn: 'ETI 17344 PUF MEYVE DOLGULU 20GR' -> 'ETİ PUF MEYVE DOLGULU 20GR'
+    # 'KENT 12429 OLİPS' -> 'KENT OLİPS', 'ULK 1905 TAC KRAKER' -> 'ÜLKER TAC KRAKER'
     brand_code_pattern = re.compile(
         r'^(RMZ\.ULK|BAY\.ULK|BY\.ULK|ULK|ÜLK|ULKER|ÜLKER|ETI|ETİ|KENT|PINAR|DOĞUŞ|DOGUS|NESTLE|NESCAFE|TORKU|ICIM|İÇİM|KOMİLİ|KOMILI|ÇAYKUR|CAYKUR|BİNGO|BINGO|DURU|HACISAKIR|HACI\s*ŞAKİR|İPEK|IPEK|ELİDOR|ELIDOR|PANTENE|CALVE|SARELLE|TADELLE|HARİBO|HARIBO|FALIM|ALGİDA|ALGIDA|DİMES|DIMES|CAPPY|TAMEK|TAT|ÖNCÜ|ONCU|YUDUM|ORUÇOĞLU|ORUCOGLU|KRİSTAL|KRISTAL|BİFROST|BIFROST)\s+(\d{3,6}|\d{2,4}-\d{1,3})\s+(.+)$',
         re.IGNORECASE
@@ -79,13 +80,8 @@ def strip_supplier_stock_codes(title: str) -> str:
         elif brand in ['KOMILI', 'KOMİLİ']:
             brand = 'KOMİLİ'
         
-        code = m.group(2)
         rest = m.group(3).strip()
-        first_rest = rest.split()[0].upper() if rest.split() else ''
-        if first_rest in ['GR', 'GRAM', 'KG', 'ML', 'LT', 'LİTRE', 'LITRE', 'CL', 'ADET', 'LI', 'LU', 'LÜ', 'LUK', 'LÜK']:
-            s = f"{brand} {code} {rest}"
-        else:
-            s = f"{brand} {rest}"
+        s = f"{brand} {rest}"
 
     # 'ULK ' / 'BAY.ULK ' / 'RMZ.ULK ' öneklerini 'ÜLKER ' ile değiştir
     s = re.sub(r'^(?:RMZ\.ULK|BAY\.ULK|BY\.ULK|ULK)\s+', 'ÜLKER ', s, flags=re.IGNORECASE)
@@ -861,9 +857,9 @@ def format_product_dict(row: dict) -> dict:
         d['has_price_diff'] = abs(d['price'] - d['label_price']) > 0.001
         d['price_diff_amount'] = round(d['price'] - d['label_price'], 2)
     else:
-        d['label_price'] = None
+        d['label_price'] = 0.0 if not d['last_printed_at'] else None
         d['has_price_diff'] = True if not d['last_printed_at'] else False
-        d['price_diff_amount'] = 0.0
+        d['price_diff_amount'] = round(d['price'], 2) if not d['last_printed_at'] else 0.0
 
     return d
 

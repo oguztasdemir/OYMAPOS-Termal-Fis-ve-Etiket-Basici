@@ -98,13 +98,25 @@
         <thead>
           <tr>
             <th style="width: 40px; text-align: center;">#</th>
-            <th style="width: 140px;">Baskı Saati</th>
-            <th style="width: 140px;">Barkod</th>
-            <th>Ürün Adı</th>
-            <th style="width: 110px; text-align: right;">Fiyat</th>
-            <th style="width: 80px; text-align: center;">Adet</th>
-            <th style="width: 130px; text-align: center;">Durum</th>
-            <th style="width: 120px; text-align: center;">Yeniden Bas</th>
+            <th style="width: 130px; cursor: pointer; user-select: none;" onclick="sortPrintHistory('time')" title="Baskı saatine göre sırala">
+              <span>Baskı Saati</span> <span id="hist-sort-icon-time" class="sort-indicator">↕️</span>
+            </th>
+            <th style="width: 135px; cursor: pointer; user-select: none;" onclick="sortPrintHistory('barcode')" title="Barkoda göre sırala">
+              <span>Barkod</span> <span id="hist-sort-icon-barcode" class="sort-indicator">↕️</span>
+            </th>
+            <th style="cursor: pointer; user-select: none;" onclick="sortPrintHistory('title')" title="Ürün adına göre sırala">
+              <span>Ürün Adı</span> <span id="hist-sort-icon-title" class="sort-indicator">↕️</span>
+            </th>
+            <th style="width: 175px; text-align: right; cursor: pointer; user-select: none;" onclick="sortPrintHistory('price')" title="Fiyata veya fiyat değişimine göre sırala">
+              <span>Basılan Fiyat (Değişim)</span> <span id="hist-sort-icon-price" class="sort-indicator">↕️</span>
+            </th>
+            <th style="width: 80px; text-align: center; cursor: pointer; user-select: none;" onclick="sortPrintHistory('copies')" title="Adede göre sırala">
+              <span>Adet</span> <span id="hist-sort-icon-copies" class="sort-indicator">↕️</span>
+            </th>
+            <th style="width: 115px; text-align: center; cursor: pointer; user-select: none;" onclick="sortPrintHistory('status')" title="Duruma göre sırala">
+              <span>Durum</span> <span id="hist-sort-icon-status" class="sort-indicator">↕️</span>
+            </th>
+            <th style="width: 115px; text-align: center;">Yeniden Bas</th>
           </tr>
         </thead>
         <tbody id="printHistoryTableBody">

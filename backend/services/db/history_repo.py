@@ -203,9 +203,11 @@ def update_product_details(barcode: str, title: str = None, price: float = None,
         cursor.execute("""
             UPDATE urunler
             SET title = ?, price = ?, brand = ?, unit = ?, updated_at = ?,
-                price_updated_at = CASE WHEN ? THEN ? ELSE price_updated_at END
+                price_updated_at = CASE WHEN ? THEN ? ELSE price_updated_at END,
+                is_archived = CASE WHEN ? THEN 0 ELSE is_archived END,
+                archived_at = CASE WHEN ? THEN NULL ELSE archived_at END
             WHERE barcode = ?;
-        """, (new_t, new_p, new_b, new_u, now_str, has_price_change, now_str, b))
+        """, (new_t, new_p, new_b, new_u, now_str, has_price_change, now_str, has_price_change, has_price_change, b))
 
         if has_title_change or has_price_change:
             event_type = "price_change" if has_price_change and not has_title_change else ("title_change" if has_title_change and not has_price_change else "manual_edit")

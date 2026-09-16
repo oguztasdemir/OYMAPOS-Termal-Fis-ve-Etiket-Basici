@@ -17,9 +17,9 @@ def get_all_products(limit=None, offset=0, only_new=False, only_diff=False, only
         clauses = []
         params = []
         if only_new:
-            clauses.append("is_new = 1")
+            clauses.append("(is_new = 1 OR label_price IS NULL OR ABS(parse_price(price) - parse_price(COALESCE(label_price, 0))) > 0.001)")
         if only_diff:
-            clauses.append("(label_price IS NOT NULL AND ABS(parse_price(price) - parse_price(label_price)) > 0.001)")
+            clauses.append("(is_new = 1 OR label_price IS NULL OR ABS(parse_price(price) - parse_price(COALESCE(label_price, 0))) > 0.001)")
         
         bl_list = list(blacklist_barcodes or [])
         if only_archived:
@@ -62,9 +62,9 @@ def search_products(query: str, limit=None, only_new=False, only_diff=False, onl
         params = []
         
         if only_new:
-            clauses.append("is_new = 1")
+            clauses.append("(is_new = 1 OR label_price IS NULL OR ABS(parse_price(price) - parse_price(COALESCE(label_price, 0))) > 0.001)")
         if only_diff:
-            clauses.append("(label_price IS NOT NULL AND ABS(parse_price(price) - parse_price(label_price)) > 0.001)")
+            clauses.append("(is_new = 1 OR label_price IS NULL OR ABS(parse_price(price) - parse_price(COALESCE(label_price, 0))) > 0.001)")
         
         bl_list = list(blacklist_barcodes or [])
         if only_archived:
@@ -256,9 +256,9 @@ def get_products_count(only_new=False, only_diff=False, only_blacklist=False, on
         clauses = []
         params = []
         if only_new:
-            clauses.append("is_new = 1")
+            clauses.append("(is_new = 1 OR label_price IS NULL OR ABS(parse_price(price) - parse_price(COALESCE(label_price, 0))) > 0.001)")
         if only_diff:
-            clauses.append("(label_price IS NOT NULL AND ABS(parse_price(price) - parse_price(label_price)) > 0.001)")
+            clauses.append("(is_new = 1 OR label_price IS NULL OR ABS(parse_price(price) - parse_price(COALESCE(label_price, 0))) > 0.001)")
         
         bl_list = list(blacklist_barcodes or [])
         if only_archived:

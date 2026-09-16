@@ -18,15 +18,24 @@
   <link rel="stylesheet" href="/frontend/css/style.css?v={{ cache_bust }}">
   <link rel="stylesheet" href="/frontend/css/components.css?v={{ cache_bust }}">
   <script>
-    // F5 Yenilemelerinde sekme çakışması veya FOUC (flash) oluşmaması için kaydedilen sekmeyi önceden uygula
+    // Tarayıcı ilk açıldığında doğrudan hafif 'Ana Sayfa' (tab-home) açılsın.
+    // Aynı oturum içinde F5 yapıldığında ise kullanıcının kaldığı sekme korunsun.
     (function() {
       try {
-        var savedTab = localStorage.getItem('active_tab');
-        if (savedTab && savedTab !== 'tab-home') {
-          var style = document.createElement('style');
-          style.id = 'pre-tab-style';
-          style.innerHTML = '#tab-home { display: none !important; } #' + savedTab + ' { display: block !important; }';
-          document.head.appendChild(style);
+        var isSessionReload = sessionStorage.getItem('app_session_started');
+        if (!isSessionReload) {
+          // İlk açılış (taze sekme/pencere) -> Ana Sayfaya yönlendir
+          sessionStorage.setItem('app_session_started', 'true');
+          localStorage.setItem('active_tab', 'tab-home');
+        } else {
+          // F5 Yenilemesi -> Kayıtlı sekmeyi FOUC olmadan uygula
+          var savedTab = localStorage.getItem('active_tab');
+          if (savedTab && savedTab !== 'tab-home') {
+            var style = document.createElement('style');
+            style.id = 'pre-tab-style';
+            style.innerHTML = '#tab-home { display: none !important; } #' + savedTab + ' { display: block !important; }';
+            document.head.appendChild(style);
+          }
         }
       } catch(e) {}
     })();
@@ -65,11 +74,6 @@
       <button class="nav-item tab-btn" data-tab="tab-price-reports" style="color:#10b981;">
         <span class="nav-icon">📊</span>
         <span class="nav-label">Fiyat Değişim Raporları</span>
-      </button>
-      <button class="nav-item tab-btn" data-tab="tab-market-radar" style="color:#f59e0b;">
-        <span class="nav-icon">🕵️</span>
-        <span class="nav-label">Piyasa & Zam Radarı</span>
-        <span class="badge" id="sidebarMarketRadarBadge" style="display:none; background:#f43f5e; color:#fff; font-size:10px; font-weight:800; padding:2px 6px; border-radius:10px; margin-left:auto;">0</span>
       </button>
       <button class="nav-item tab-btn" data-tab="tab-design">
         <span class="nav-icon">🎨</span>
@@ -167,7 +171,6 @@
       {{ include "partials/tabs/tab_products.html" }}
       {{ include "partials/tabs/tab_price_update.html" }}
       {{ include "partials/tabs/tab_price_reports.html" }}
-      {{ include "partials/tabs/tab_market_radar.html" }}
       {{ include "partials/tabs/tab_studio.html" }}
       {{ include "partials/tabs/tab_vegawin.html" }}
       {{ include "partials/tabs/tab_devices.html" }}

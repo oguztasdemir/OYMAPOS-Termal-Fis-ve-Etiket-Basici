@@ -128,13 +128,7 @@ def check_printer_connection(printer_name: str = None) -> dict:
 PRINT_HISTORY_FILE = os.path.join(DATA_DIR, "baski_gecmisi.json")
 
 def get_print_history(limit: int = 500, date_filter: str = None) -> list:
-    """Son etiket baskı geçmişini döner. 
-    date_filter:
-      - 'all' veya None: tümü
-      - '2026': sadece 2026 yılı
-      - '09.2026' veya '2026-09': Eylül 2026
-      - '15.09.2026' veya '2026-09-15': 15 Eylül 2026
-    """
+    """Son etiket baskı geçmişini döner ve her ürünün değişim öncesi / sonrası fiyat bilgilerini ekler."""
     if os.path.exists(PRINT_HISTORY_FILE):
         try:
             with open(PRINT_HISTORY_FILE, 'r', encoding='utf-8') as f:
@@ -158,8 +152,67 @@ def get_print_history(limit: int = 500, date_filter: str = None) -> list:
                             # Yıl eşleşmesi (Örn: "2026")
                             elif df == year_s:
                                 filtered.append(h)
-                    return filtered[:limit]
-                return history[:limit]
+                    raw_list = filtered[:limit]
+                else:
+                    raw_list = history[:limit]
+
+                # 🚀 Fiyat Değişim Bilgilerini Zenginleştir (Değişim Öncesi & Sonrası)
+                barcodes = list(set(h.get('barcode') for h in raw_list if h.get('barcode') and h.get('barcode') != '-'))
+                if barcodes:
+                    from backend.services.db.connection import db_session
+                    price_map = {}
+                    with db_session() as conn:
+                        cursor = conn.cursor()
+                        placeholders = ','.join('?' for _ in barcodes)
+                        # 1. product_history tablosundan son değişim kaydı
+                        cursor.execute(f"""
+                            SELECT barcode, old_price, new_price, diff_amount, diff_percent
+                            FROM product_history
+                            WHERE barcode IN ({placeholders}) AND event_type IN ('price_change', 'new_product')
+                            ORDER BY id DESC
+                        """, barcodes)
+                        for row in cursor.fetchall():
+                            b = row['barcode']
+                            if b not in price_map:
+                                price_map[b] = {
+                                    'old_price': row['old_price'],
+                                    'new_price': row['new_price'],
+                                    'diff_amount': row['diff_amount'],
+                                    'diff_percent': row['diff_percent']
+                                }
+
+                        # 2. vegawin_price_changes tablosundan eksikleri tamamla
+                        missing_barcodes = [b for b in barcodes if b not in price_map]
+                        if missing_barcodes:
+                            m_placeholders = ','.join('?' for _ in missing_barcodes)
+                            cursor.execute(f"""
+                                SELECT barcode, old_price, new_price, diff_amount, diff_percent
+                                FROM vegawin_price_changes
+                                WHERE barcode IN ({m_placeholders})
+                                ORDER BY id DESC
+                            """, missing_barcodes)
+                            for row in cursor.fetchall():
+                                b = row['barcode']
+                                if b not in price_map:
+                                    price_map[b] = {
+                                        'old_price': row['old_price'],
+                                        'new_price': row['new_price'],
+                                        'diff_amount': row['diff_amount'],
+                                        'diff_percent': row['diff_percent']
+                                    }
+
+                    for item in raw_list:
+                        bc = item.get('barcode')
+                        if bc and bc in price_map:
+                            p_info = price_map[bc]
+                            if item.get('old_price') is None and p_info.get('old_price') is not None:
+                                item['old_price'] = p_info.get('old_price')
+                            if item.get('diff_amount') is None and p_info.get('diff_amount') is not None:
+                                item['diff_amount'] = p_info.get('diff_amount')
+                            if item.get('diff_percent') is None and p_info.get('diff_percent') is not None:
+                                item['diff_percent'] = p_info.get('diff_percent')
+
+                return raw_list
         except Exception:
             return []
     return []

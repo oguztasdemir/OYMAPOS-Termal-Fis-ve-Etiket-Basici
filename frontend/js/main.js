@@ -12,7 +12,12 @@ document.addEventListener('DOMContentLoaded', () => {
   loadPrinters();
   loadTemplates();
   restoreSavedState();
-  searchProducts('');
+  
+  // Eğer doğrudan ürün sekmesindeyse yükle (F5 durumunda), ana sayfadaysa arka planda donma yapmaması için geciktir / geçişe bırak
+  if (activeTab === 'tab-search') {
+    searchProducts('');
+  }
+  
   loadPriceChanges();
   loadNewProducts();
   loadSyncHistory();
@@ -377,6 +382,14 @@ function switchTab(target) {
   const preStyle = document.getElementById('pre-tab-style');
   if (preStyle) preStyle.remove();
 
+  if (target === 'tab-search') {
+    if (typeof cachedProductsList === 'undefined' || cachedProductsList.length === 0) {
+      if (typeof searchProducts === 'function') {
+        const input = document.getElementById('productSearchInput');
+        searchProducts(input ? input.value : '');
+      }
+    }
+  }
   if (target === 'tab-design') {
     loadTemplates();
   }

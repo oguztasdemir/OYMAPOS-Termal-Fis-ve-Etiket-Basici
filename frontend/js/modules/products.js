@@ -14,7 +14,7 @@ function cleanProductTitle(title) {
   s = s.replace(/^\d{8,14}\s+/, '');
   // 2. Sondaki [X12], (X24) gibi koli paket bilgilerini temizle
   s = s.replace(/\s*\[\s*X\d+\s*\]|\s*\(\s*X\d+\s*\)/gi, '');
-  // 3. Marka + Stok kodu temizleme (KENT 12429 -> KENT, ULK 1905 -> ÜLKER)
+  // 3. Marka + Stok kodu temizleme (ETI 17344 PUF -> ETİ PUF, KENT 12429 -> KENT, ULK 1905 -> ÜLKER)
   const brandCodeRegex = /^(RMZ\.ULK|BAY\.ULK|BY\.ULK|ULK|ÜLK|ULKER|ÜLKER|ETI|ETİ|KENT|PINAR|DOĞUŞ|DOGUS|NESTLE|NESCAFE|TORKU|ICIM|İÇİM|KOMİLİ|KOMILI|ÇAYKUR|CAYKUR|BİNGO|BINGO|DURU|HACISAKIR|HACI\s*ŞAKİR|İPEK|IPEK|ELİDOR|ELIDOR|PANTENE|CALVE|SARELLE|TADELLE|HARİBO|HARIBO|FALIM|ALGİDA|ALGIDA|DİMES|DIMES|CAPPY|TAMEK|TAT|ÖNCÜ|ONCU|YUDUM|ORUÇOĞLU|ORUCOGLU|KRİSTAL|KRISTAL)\s+(\d{3,6}|\d{2,4}-\d{1,3})\s+(.+)$/i;
   const match = s.match(brandCodeRegex);
   if (match) {
@@ -24,14 +24,8 @@ function cleanProductTitle(title) {
     else if (['ICIM', 'İÇİM'].includes(brand)) brand = 'İÇİM';
     else if (['KOMILI', 'KOMİLİ'].includes(brand)) brand = 'KOMİLİ';
 
-    const code = match[2];
     const rest = match[3].trim();
-    const firstRest = rest.split(/\s+/)[0]?.toUpperCase() || '';
-    if (['GR', 'GRAM', 'KG', 'ML', 'LT', 'LİTRE', 'LITRE', 'CL', 'ADET', 'LI', 'LU', 'LÜ', 'LUK', 'LÜK'].includes(firstRest)) {
-      s = `${brand} ${code} ${rest}`;
-    } else {
-      s = `${brand} ${rest}`;
-    }
+    s = `${brand} ${rest}`;
   }
 
   s = s.replace(/^(?:RMZ\.ULK|BAY\.ULK|BY\.ULK|ULK)\s+/gi, 'ÜLKER ');
@@ -124,11 +118,13 @@ function toggleFilter(filterType) {
   const btnDiff = document.getElementById('filterDiffBtn');
   const btnNew = document.getElementById('filterNewBtn');
   const btnBl = document.getElementById('filterBlacklistBtn');
+  const btnArch = document.getElementById('filterArchivedBtn');
   
   if (btnAll) btnAll.classList.toggle('active', filterType === 'all');
   if (btnDiff) btnDiff.classList.toggle('active', filterType === 'diff');
   if (btnNew) btnNew.classList.toggle('active', filterType === 'new');
   if (btnBl) btnBl.classList.toggle('active', filterType === 'blacklist');
+  if (btnArch) btnArch.classList.toggle('active', filterType === 'archived');
 
   // Filtre değişince seçimi temizle ve buton görünürlüğünü güncelle
   if (typeof clearProductSelection === 'function') {
@@ -184,13 +180,28 @@ function handleSearchKeydown(e) {
 }
 
 async function searchProducts(query) {
+  const tbody = document.getElementById('productsTableBody');
+  if (tbody) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="9" style="padding: 48px 16px; text-align: center;">
+          <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;">
+            <div class="loading-spinner" style="width: 38px; height: 38px; border: 3px solid rgba(56,189,248,0.2); border-top-color: #38bdf8; border-radius: 50%; animation: spin 0.7s linear infinite;"></div>
+            <div style="font-size: 14px; font-weight: 800; color: #f8fafc; letter-spacing: 0.3px;">Ürünler yükleniyor, lütfen bekleyin...</div>
+            <div style="font-size: 11.5px; color: #64748b;">Stok veritabanından güncel liste ve fiyatlar alınıyor</div>
+          </div>
+        </td>
+      </tr>`;
+  }
+
   try {
     const res = await API.searchProducts(
       query,
       0,
       currentFilter === 'new',
       currentFilter === 'diff',
-      currentFilter === 'blacklist'
+      currentFilter === 'blacklist',
+      currentFilter === 'archived'
     );
     const data = res.data || res;
     if (res.status === 'success' || data.products) {
@@ -235,12 +246,52 @@ async function searchProducts(query) {
         else blTabCountEl.textContent = blVal.toLocaleString('tr-TR');
       }
 
+      const archCountEl = document.getElementById('archivedProductsCount');
+      const archVal = counts.archived !== undefined ? counts.archived : 0;
+      if (archCountEl) {
+        if (typeof animateCount === 'function') animateCount(archCountEl, archVal);
+        else archCountEl.textContent = archVal.toLocaleString('tr-TR');
+      }
+
       if (typeof updateHomeDashboardInfo === 'function') {
         updateHomeDashboardInfo();
       }
     }
   } catch (err) {
     console.error('Ürünler aranamadı:', err);
+    if (tbody) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="9" style="padding: 36px 16px; text-align: center; color: #f87171;">
+            <div style="font-size: 28px; margin-bottom: 6px;">⚠️</div>
+            <div style="font-weight: 700;">Ürünler yüklenirken bir sorun oluştu.</div>
+            <div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">${escapeHtml(err.message || 'Sunucuya ulaşılamadı')}</div>
+          </td>
+        </tr>`;
+    }
+  }
+}
+
+async function refreshProductsTable(btn) {
+  const icon = btn ? btn.querySelector('.refresh-icon') : null;
+  if (icon) {
+    icon.style.transform = 'rotate(360deg)';
+  }
+  if (btn) btn.disabled = true;
+
+  try {
+    const searchVal = document.getElementById('productSearchInput')?.value || '';
+    await searchProducts(searchVal);
+    if (typeof showToast === 'function') {
+      showToast('Ürün listesi ve sayaçlar güncellendi.', 'info', 2000);
+    }
+  } catch (e) {
+    console.error('Yenileme hatası:', e);
+  } finally {
+    setTimeout(() => {
+      if (icon) icon.style.transform = 'rotate(0deg)';
+      if (btn) btn.disabled = false;
+    }, 500);
   }
 }
 
@@ -365,36 +416,6 @@ async function toggleProductBlacklist(barcode, btnElement, event) {
   }
 }
 
-function getTodayTrDate() {
-  const today = new Date();
-  const d = String(today.getDate()).padStart(2, '0');
-  const months = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
-  const m = months[today.getMonth()];
-  const y = today.getFullYear();
-  return `${d} ${m} ${y}`;
-}
-
-function formatTrDate(dateStr) {
-  if (!dateStr || dateStr.trim() === '') {
-    return getTodayTrDate();
-  }
-  const str = dateStr.trim();
-  try {
-    const dt = new Date(str);
-    if (!isNaN(dt.getTime())) {
-      const d = String(dt.getDate()).padStart(2, '0');
-      const months = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
-      const m = months[dt.getMonth()];
-      const y = dt.getFullYear();
-      return `${d} ${m} ${y}`;
-    }
-  } catch (e) {}
-  if (/^\d{2}\.\d{2}\.\d{4}/.test(str)) {
-    return str.slice(0, 10);
-  }
-  return str;
-}
-
 let currentSortColumn = null;
 let currentSortDirection = 'asc'; // 'asc' veya 'desc'
 
@@ -443,13 +464,17 @@ function sortTable(column) {
       valB = (b.label_price !== null && b.label_price !== undefined) ? Number(b.label_price) : -1;
       return currentSortDirection === 'asc' ? valA - valB : valB - valA;
     } else if (column === 'date') {
-      valA = String(a.price_updated_at || a.updated_at || a.created_at || '');
-      valB = String(b.price_updated_at || b.updated_at || b.created_at || '');
-      return currentSortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      const dtA = parseFlexibleDate(a.price_updated_at || a.updated_at || a.created_at);
+      const dtB = parseFlexibleDate(b.price_updated_at || b.updated_at || b.created_at);
+      valA = dtA ? dtA.getTime() : 0;
+      valB = dtB ? dtB.getTime() : 0;
+      return currentSortDirection === 'asc' ? valA - valB : valB - valA;
     } else if (column === 'print_date') {
-      valA = String(a.last_printed_at || '');
-      valB = String(b.last_printed_at || '');
-      return currentSortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      const dtA = parseFlexibleDate(a.last_printed_at);
+      const dtB = parseFlexibleDate(b.last_printed_at);
+      valA = dtA ? dtA.getTime() : 0;
+      valB = dtB ? dtB.getTime() : 0;
+      return currentSortDirection === 'asc' ? valA - valB : valB - valA;
     } else if (column === 'status') {
       const getStatusRank = (p) => {
         const hasL = (p.label_price !== null && p.label_price !== undefined);
@@ -497,7 +522,6 @@ function handleProductRowClick(event, barcode, globalIndex) {
     const start = Math.min(anchor, globalIndex);
     const end = Math.max(anchor, globalIndex);
 
-    // Temel seçimin üzerine aralığı ekle
     selectedBarcodes = new Set(selectionBase);
     
     for (let i = start; i <= end; i++) {
@@ -510,7 +534,7 @@ function handleProductRowClick(event, barcode, globalIndex) {
     return;
   }
 
-  // 2. CTRL İLE TEKİL EKLE/ÇIKAR
+  // 2. CTRL İLE TEKİL EKLE / ÇIKAR (Çoklu seçim modunu başlatır veya günceller)
   if (isCtrl) {
     event.preventDefault();
     if (selectedBarcodes.has(bStr)) {
@@ -525,14 +549,25 @@ function handleProductRowClick(event, barcode, globalIndex) {
     return;
   }
 
-  // 3. NORMAL TIKLAMA (Shift/Ctrl olmadan):
-  // Yeni bir seçim başlatır ve Shift için başlangıç noktası (Anchor) olarak bu satırı belirler
-  selectedBarcodes.clear();
-  selectedBarcodes.add(bStr);
-  selectionBase.clear();
-  selectionBase.add(bStr);
-  lastAnchorIndex = globalIndex;
-  updateMultiSelectUI();
+  // 3. EĞER ÇOKLU SEÇİM MODU AÇIKSA (En az 1 ürün seçiliyse) Normal tıklamayla da seçime ekle/çıkar
+  if (selectedBarcodes.size > 0) {
+    event.preventDefault();
+    if (selectedBarcodes.has(bStr)) {
+      selectedBarcodes.delete(bStr);
+      selectionBase.delete(bStr);
+    } else {
+      selectedBarcodes.add(bStr);
+      selectionBase.add(bStr);
+    }
+    lastAnchorIndex = globalIndex;
+    updateMultiSelectUI();
+    return;
+  }
+
+  // 4. ÇOKLU SEÇİM KAPALIYKEN NORMAL 1 TIKLAMA: ÜRÜN DETAYI VE DÜZENLEME MODALINI AÇ
+  if (typeof openProductEditModal === 'function') {
+    openProductEditModal(bStr);
+  }
 }
 
 function clearProductSelection() {
@@ -547,6 +582,8 @@ function updateMultiSelectUI() {
   const countText = document.getElementById('multiSelectCountText');
   const btnAdd = document.getElementById('btnBatchAddToBlacklist');
   const btnRemove = document.getElementById('btnBatchRemoveFromBlacklist');
+  const btnArchive = document.getElementById('btnBatchArchiveSelected');
+  const btnRestore = document.getElementById('btnBatchRestoreSelected');
   const count = selectedBarcodes.size;
 
   if (bar) {
@@ -557,13 +594,20 @@ function updateMultiSelectUI() {
   }
 
   // Aktif sekmeye göre butonları göster / gizle:
-  // Kara liste sekmesindeysek sadece "Kara Listeden Çıkar", diğer sekmelerde ise sadece "Kara Listeye Ekle"
   const isBlacklistTab = (currentFilter === 'blacklist');
+  const isArchivedTab = (currentFilter === 'archived');
+
   if (btnAdd) {
     btnAdd.style.display = isBlacklistTab ? 'none' : 'inline-flex';
   }
   if (btnRemove) {
     btnRemove.style.display = isBlacklistTab ? 'inline-flex' : 'none';
+  }
+  if (btnArchive) {
+    btnArchive.style.display = isArchivedTab ? 'none' : 'inline-flex';
+  }
+  if (btnRestore) {
+    btnRestore.style.display = isArchivedTab ? 'inline-flex' : 'none';
   }
 
   // DOM'daki satırların görsel durumunu güncelle
@@ -631,16 +675,50 @@ async function executeBatchPrintSelected() {
   if (selectedList.length === 0) return;
 
   const count = selectedList.length;
+
+  // ⚠️ Satış Fiyatı Düşük, Etiket Fiyatı Yüksek Olan Şüpheli Ürünleri Tespit Et
+  // (Örn: Etiketi önceden basılmış ama kasada/ana bilgisayarda fiyat güncellenmemiş olabilir)
+  const suspiciousItems = selectedList.filter(p => {
+    const posPrice = Number(p.price || 0);
+    const labelPrice = (p.label_price !== null && p.label_price !== undefined) ? Number(p.label_price) : null;
+    return labelPrice !== null && posPrice < labelPrice;
+  });
+
+  if (suspiciousItems.length > 0) {
+    const sampleNames = suspiciousItems.slice(0, 3).map(p => `• ${p.title || p.barcode} (Kasa: ${p.price}₺, Etiket: ${p.label_price}₺)`).join('\n');
+    const extraCount = suspiciousItems.length > 3 ? `\n... ve ${suspiciousItems.length - 3} ürün daha.` : '';
+
+    const proceedSuspicious = await showAppConfirmModal({
+      title: "⚠️ Dikkat: Fiyat Tutarsızlığı Tespit Edildi!",
+      message: `Seçilen ürünlerden ${suspiciousItems.length} adedinin Kasa Satış Fiyatı, mevcut Etiket Fiyatından DAHA DÜŞÜK görünüyor!\n\nBu durum, etiketin önceden basıldığını ancak ana bilgisayarda/kasada fiyatın henüz düzeltilmediğini gösterebilir:\n\n${sampleNames}${extraCount}\n\nYine de bu ürünlerin etiketlerini basmak istiyor musunuz?`,
+      confirmText: "Devam Et (Yazdır)",
+      cancelText: "İptal Et & Kontrol Et",
+      type: "danger",
+      icon: "⚠️"
+    });
+
+    if (!proceedSuspicious) {
+      showToast("Yazdırma işlemi fiyat kontrolü için iptal edildi.", "info");
+      return;
+    }
+  }
+
   const ok = await showAppConfirmModal({
     title: "Toplu Etiket Yazdır",
-    message: `Seçili ${count} adet ürün için etiket yazdırmak istiyor musunuz?`,
-    confirmText: "🖨️ Yazdır",
+    message: `Seçili ${count} adet ürün için etiket yazdırma işlemi başlatılsın mı?\n\n- Yazdırma süreci canlı olarak ekranda takip edilecektir.`,
+    confirmText: "🖨️ Yazdırmayı Başlat",
     cancelText: "Vazgeç",
     type: "primary",
     icon: "🖨️"
   });
 
   if (!ok) return;
+
+  const progressModal = showAppProgressModal({
+    title: 'Etiketler Yazıcıya Gönderiliyor',
+    total: count,
+    initialMessage: 'Yazdırma kuyruğu hazırlanıyor...'
+  });
 
   try {
     const itemsToPrint = selectedList.map(p => ({
@@ -650,28 +728,61 @@ async function executeBatchPrintSelected() {
       brand: p.brand || ''
     }));
 
-    const res = await fetch('/api/print/batch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ products: itemsToPrint, copies: 1 })
-    });
-    const data = await res.json();
-    if (data.status === 'success') {
-      showToast(`🖨️ ${count} adet etiket başarıyla yazdırıldı.`, 'success');
-      clearProductSelection();
-      const searchInp = document.getElementById('productSearchInput');
-      searchProducts(searchInp ? searchInp.value : '');
-    } else {
-      showToast('Yazdırma hatası: ' + (data.message || 'Bilinmeyen hata'), 'error');
+    // Büyük partileri 5'erli paketler halinde kuyruğa göndererek gerçekçi ve kesintisiz canlı ilerleme çubuğu sağla
+    const batchChunkSize = 5;
+    let processed = 0;
+
+    for (let i = 0; i < itemsToPrint.length; i += batchChunkSize) {
+      const chunk = itemsToPrint.slice(i, i + batchChunkSize);
+      
+      const res = await fetch('/api/print/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ products: chunk, copies: 1 })
+      });
+      const data = await res.json();
+      
+      if (data.status !== 'success') {
+        throw new Error(data.message || 'Baskı işlemi sırasında hata oluştu.');
+      }
+
+      processed += chunk.length;
+      const lastItemTitle = chunk[chunk.length - 1]?.title || '';
+      progressModal.update(processed, lastItemTitle);
+      
+      // Küçük bir gecikme ile arayüzün akıcı güncellenmesini sağla
+      if (processed < count) {
+        await new Promise(r => setTimeout(r, 120));
+      }
     }
+
+    // Kısa bir bekleme sonrası progress modalını kapat
+    await new Promise(r => setTimeout(r, 300));
+    progressModal.close();
+
+    // İşlem bitince kullanıcıdan onay ve teyit iste
+    const isDoneOk = await showAppConfirmModal({
+      title: "Yazdırma Tamamlandı ✅",
+      message: `Toplam ${count} adet ürün başarıyla yazıcıya aktarıldı ve raf etiketleri güncellendi.\n\nSeçim listesi temizlensin mi?`,
+      confirmText: "Tamam & Listeyi Yenile",
+      cancelText: "Kapat",
+      type: "success",
+      icon: "✅"
+    });
+
+    clearProductSelection();
+    const searchInp = document.getElementById('productSearchInput');
+    searchProducts(searchInp ? searchInp.value : '');
+
   } catch (err) {
-    showToast('Bağlantı hatası: ' + err.message, 'error');
+    progressModal.close();
+    showToast('Yazdırma hatası: ' + err.message, 'error');
   }
 }
 
-async function executeBatchArchiveSelected() {
+async function executeBatchArchiveSelected(shouldArchive = true) {
   if (selectedBarcodes.size === 0) {
-    showToast('Lütfen önce pasife alınacak ürünleri seçin.', 'warning');
+    showToast(shouldArchive ? 'Lütfen önce pasife alınacak ürünleri seçin.' : 'Lütfen önce aktife alınacak ürünleri seçin.', 'warning');
     return;
   }
 
@@ -679,12 +790,14 @@ async function executeBatchArchiveSelected() {
   const count = barcodesArray.length;
 
   const ok = await showAppConfirmModal({
-    title: "Satışı Bırakıldı (Pasife Al)",
-    message: `Seçili ${count} adet ürünü satışı bırakıldı (pasif) olarak işaretlemek istiyor musunuz?\n\n- Bu ürünler listelerden gizlenecektir.\n- Dükkanda yeni fiyat girildiğinde veya mobilden okutulduğunda otomatik tekrar aktifleşir.`,
-    confirmText: "⏸️ Pasife Al",
+    title: shouldArchive ? "Satışı Durduruldu (Pasife Al)" : "Tekrar Satışa Aç (Aktif Et)",
+    message: shouldArchive
+      ? `Seçili ${count} adet ürünü 'Satışı Durduruldu (Pasif)' olarak işaretlemek istiyor musunuz?\n\n- Bu ürünler silinmez, pasif listesinde saklanır.\n- Fiyatı değişirse veya yeni aktarım geldiğinde otomatik olarak tekrar aktifleşir.`
+      : `Seçili ${count} adet ürünü tekrar normal satış ve etiket listesine aktif olarak taşımak istiyor musunuz?`,
+    confirmText: shouldArchive ? "⏸️ Pasife Al" : "▶️ Tekrar Satışa Aç",
     cancelText: "Vazgeç",
-    type: "warning",
-    icon: "⏸️"
+    type: shouldArchive ? "warning" : "success",
+    icon: shouldArchive ? "⏸️" : "✨"
   });
 
   if (!ok) return;
@@ -693,11 +806,11 @@ async function executeBatchArchiveSelected() {
     const res = await fetch('/api/products/batch-archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ barcodes: barcodesArray, archived: true })
+      body: JSON.stringify({ barcodes: barcodesArray, archived: shouldArchive })
     });
     const data = await res.json();
     if (data.status === 'success') {
-      showToast(`🚫 ${count} adet ürün satışı bırakıldı olarak işaretlendi.`, 'info');
+      showToast(data.message || (shouldArchive ? `🚫 ${count} adet ürün satışı durduruldu.` : `✨ ${count} adet ürün tekrar satışa açıldı.`), 'success');
       clearProductSelection();
       const searchInp = document.getElementById('productSearchInput');
       searchProducts(searchInp ? searchInp.value : '');
@@ -709,10 +822,38 @@ async function executeBatchArchiveSelected() {
   }
 }
 
-// ESC tuşuna basıldığında çoklu seçimi temizle
+// ESC tuşuna basıldığında çoklu seçimi temizle, Ctrl+A yapıldığında tümünü seç
 document.addEventListener('keydown', (e) => {
+  // Ctrl+A ile Tablodaki Tüm Ürünleri Seç
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) {
+    // Input, textarea veya modal içindeyse tarayıcının varsayılan metin seçimini bozma
+    const isInputActive = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+    const anyModalOpen = document.querySelector('.modal-backdrop[style*="display: flex"], .modal-overlay:not([style*="display: none"])');
+    
+    if (!isInputActive && !anyModalOpen && activeTab === 'tab-search') {
+      if (cachedProductsList && cachedProductsList.length > 0) {
+        e.preventDefault();
+        selectedBarcodes.clear();
+        selectionBase.clear();
+        cachedProductsList.forEach(p => {
+          if (p.barcode) {
+            selectedBarcodes.add(String(p.barcode));
+            selectionBase.add(String(p.barcode));
+          }
+        });
+        lastAnchorIndex = 0;
+        updateMultiSelectUI();
+        if (typeof showToast === 'function') {
+          showToast(`📋 Listedeki tüm ürünler seçildi (${selectedBarcodes.size} ürün).`, 'info', 1500);
+        }
+      }
+      return;
+    }
+  }
+
+  // Escape Tuşu ile Seçimi Temizle
   if (e.key === 'Escape' && selectedBarcodes.size > 0) {
-    const anyModal = document.querySelector('.modal-overlay:not([style*="display: none"])');
+    const anyModal = document.querySelector('.modal-backdrop[style*="display: flex"], .modal-overlay:not([style*="display: none"])');
     if (!anyModal) {
       clearProductSelection();
     }
@@ -749,22 +890,22 @@ function renderProductsTable(products) {
     const priceDate = formatTrDate(p.price_updated_at || p.updated_at || p.created_at);
 
     const hasLabelPrice = (p.label_price !== null && p.label_price !== undefined);
-    const labelPrice = hasLabelPrice ? Number(p.label_price) : null;
-    const labelPriceStr = hasLabelPrice ? labelPrice.toFixed(2) : '-';
-
-    // Fiyat Farkı Tespiti
-    const isMismatch = hasLabelPrice && Math.abs(posPrice - labelPrice) > 0.001;
     const isUnprinted = !p.last_printed_at;
+    const labelPrice = hasLabelPrice ? Number(p.label_price) : (isUnprinted ? 0.0 : null);
+    const labelPriceStr = (labelPrice !== null) ? labelPrice.toFixed(2) : '-';
+
+    // Fiyat Farkı Tespiti (Yeni eklenen veya basılmayan ürünün etiket fiyatı 0 kabul edilir, fark = posPrice)
+    const isMismatch = (labelPrice !== null && Math.abs(posPrice - labelPrice) > 0.001) || isUnprinted;
 
     let labelPriceHtml = '';
-    if (hasLabelPrice) {
+    if (labelPrice !== null) {
       if (isMismatch) {
         labelPriceHtml = `<span style="color:#fbbf24; font-weight:800; font-family:var(--font-mono); font-size:13px;">₺ ${labelPriceStr}</span>`;
       } else {
         labelPriceHtml = `<span style="color:#93c5fd; font-weight:700; font-family:var(--font-mono); font-size:13px;">₺ ${labelPriceStr}</span>`;
       }
     } else {
-      labelPriceHtml = `<span style="color:var(--text-muted); font-size:11px;">Basılmadı</span>`;
+      labelPriceHtml = `<span style="color:var(--text-muted); font-size:11px;">Basılmadı (₺ 0,00)</span>`;
     }
 
     let printDateHtml = '';
@@ -779,10 +920,8 @@ function renderProductsTable(products) {
 
     let statusHtml = '';
     if (isMismatch) {
-      const diffAmt = Math.abs(posPrice - labelPrice).toFixed(2);
-      statusHtml = `<span class="badge" style="background:rgba(239,68,68,0.2); color:#f87171; border:1px solid rgba(239,68,68,0.4); font-size:11px; padding:3px 8px; border-radius:6px; font-weight:700;">⚠️ Güncel Değil (₺${diffAmt})</span>`;
-    } else if (isUnprinted) {
-      statusHtml = `<span class="badge" style="background:rgba(245,158,11,0.15); color:#fbbf24; border:1px solid rgba(245,158,11,0.3); font-size:11px; padding:3px 8px; border-radius:6px; font-weight:700;">⚠️ Güncel Değil</span>`;
+      const diffAmt = Math.abs(posPrice - (labelPrice || 0)).toFixed(2);
+      statusHtml = `<span class="badge" style="background:rgba(239,68,68,0.2); color:#f87171; border:1px solid rgba(239,68,68,0.4); font-size:11px; padding:3px 8px; border-radius:6px; font-weight:700;">⚠️ Fark: ₺${diffAmt}</span>`;
     } else {
       statusHtml = `<span class="badge" style="background:rgba(16,185,129,0.15); color:#34d399; border:1px solid rgba(16,185,129,0.3); font-size:11px; padding:3px 8px; border-radius:6px; font-weight:700;">✅ Güncel</span>`;
     }
@@ -795,13 +934,21 @@ function renderProductsTable(products) {
     const printTitle = cleanProductTitle(p.title || p.raw_system_title || '').trim() || (p.title || '');
 
     const isBl = !!p.is_blacklisted;
+    const isArchived = (p.is_archived == 1 || p.is_archived === true);
     const blBadge = isBl ? '<span class="badge" style="font-size:10px; margin-left:6px; background:rgba(239,68,68,0.25); color:#fca5a5; border:1px solid rgba(239,68,68,0.45);">🛡️ KARA LİSTE</span>' : '';
+    const archBadge = isArchived ? '<span class="badge" style="font-size:10px; margin-left:6px; background:rgba(245,158,11,0.25); color:#fde68a; border:1px solid rgba(245,158,11,0.45);">⏸️ SATIŞI DURDURULDU</span>' : '';
 
     let actionBtnHtml = '';
     if (isBl) {
       actionBtnHtml = `
         <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); toggleProductBlacklist('${barcodeEscaped}', this, event)" style="padding: 4px 10px; font-size: 11.5px; font-weight:700; color:#34d399; background:rgba(52,211,153,0.12); border-color:rgba(52,211,153,0.35);" title="Kara Listeden Çıkar (Tekrar Stok ve Etiket Listesine Al)">
           ✓ Kaldır
+        </button>
+      `;
+    } else if (isArchived) {
+      actionBtnHtml = `
+        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); toggleProductArchiveDirect('${barcodeEscaped}')" style="padding: 4px 10px; font-size: 11.5px; font-weight:700; color:#34d399; background:rgba(52,211,153,0.12); border-color:rgba(52,211,153,0.35);" title="Tekrar Satışa Aç (Aktif Et)">
+          ▶️ Aktif Et
         </button>
       `;
     } else {
@@ -813,10 +960,10 @@ function renderProductsTable(products) {
     }
 
     return `
-      <tr id="row-${barcodeEscaped}" data-barcode="${barcodeEscaped}" data-title="${encodeURIComponent(printTitle)}" data-price="${posPrice}" class="${rowClass}" onclick="handleProductRowClick(event, '${barcodeEscaped}', ${idx})" oncontextmenu="handleProductContextMenu(event, '${barcodeEscaped}', '${encodeURIComponent(printTitle)}', ${posPrice}, ${isBl})" ondblclick="openProductEditModal('${barcodeEscaped}')" style="cursor: pointer;" title="Tıklayın: Ürün Detayı | Sağ Tık: Hızlı Menü (Kara Liste, Baskı vs.) | Ctrl / Shift: Çoklu Seçim">
+      <tr id="row-${barcodeEscaped}" data-barcode="${barcodeEscaped}" data-title="${encodeURIComponent(printTitle)}" data-price="${posPrice}" class="${rowClass}" onclick="handleProductRowClick(event, '${barcodeEscaped}', ${idx})" oncontextmenu="handleProductContextMenu(event, '${barcodeEscaped}', '${encodeURIComponent(printTitle)}', ${posPrice}, ${isBl}, ${isArchived})" ondblclick="openProductEditModal('${barcodeEscaped}')" style="cursor: pointer;" title="Tıklayın: Ürün Detayı & Düzenleme | Ctrl + Tıklayın: Çoklu Seçim Modu | Sağ Tık: Hızlı Menü">
         <td class="col-idx">${globalIdx}</td>
         <td class="col-barcode" style="font-family:'JetBrains Mono', monospace; font-weight:700; color:#818cf8;" title="${p.barcode || ''}">${p.barcode || ''}</td>
-        <td class="col-title" style="font-weight:700; color:#fff;" title="Sistem Kaydı: ${escapeHtml(p.raw_system_title || p.title || '')}">${escapeHtml(printTitle)}${newBadge}${blBadge}</td>
+        <td class="col-title" style="font-weight:700; color:#fff;" title="Sistem Kaydı: ${escapeHtml(p.raw_system_title || p.title || '')}">${escapeHtml(printTitle)}${newBadge}${blBadge}${archBadge}</td>
         <td class="col-pos-price" id="pos-price-cell-${barcodeEscaped}">₺ ${posPriceStr}</td>
         <td class="col-label-price" id="label-price-cell-${barcodeEscaped}">${labelPriceHtml}</td>
         <td class="col-price-date">
@@ -881,8 +1028,9 @@ let activeCtxBarcode = null;
 let activeCtxTitle = '';
 let activeCtxPrice = 0;
 let activeCtxIsBlacklisted = false;
+let activeCtxIsArchived = false;
 
-function handleProductContextMenu(event, barcode, encodedTitle, price, isBl) {
+function handleProductContextMenu(event, barcode, encodedTitle, price, isBl, isArchived) {
   event.preventDefault();
   event.stopPropagation();
 
@@ -890,6 +1038,7 @@ function handleProductContextMenu(event, barcode, encodedTitle, price, isBl) {
   activeCtxTitle = decodeURIComponent(encodedTitle || barcode);
   activeCtxPrice = Number(price || 0);
   activeCtxIsBlacklisted = !!isBl;
+  activeCtxIsArchived = !!isArchived;
 
   const menu = document.getElementById('productContextMenu');
   const titleEl = document.getElementById('ctxMenuTitle');
@@ -897,6 +1046,9 @@ function handleProductContextMenu(event, barcode, encodedTitle, price, isBl) {
   const blItem = document.getElementById('ctxItemBlacklist');
   const blIcon = document.getElementById('ctxBlacklistIcon');
   const blText = document.getElementById('ctxBlacklistText');
+
+  const archIcon = document.getElementById('ctxArchiveIcon');
+  const archText = document.getElementById('ctxArchiveText');
 
   if (titleEl) titleEl.textContent = activeCtxTitle;
   if (bcEl) bcEl.textContent = barcode;
@@ -910,6 +1062,16 @@ function handleProductContextMenu(event, barcode, encodedTitle, price, isBl) {
       blIcon.textContent = '🚫';
       blText.textContent = 'Kara Listeye Ekle';
       blItem.style.color = '#fca5a5';
+    }
+  }
+
+  if (archIcon && archText) {
+    if (activeCtxIsArchived) {
+      archIcon.textContent = '▶️';
+      archText.textContent = 'Tekrar Satışa Aç (Aktif Et)';
+    } else {
+      archIcon.textContent = '⏸️';
+      archText.textContent = 'Satışı Durduruldu (Pasife Al)';
     }
   }
 
@@ -934,6 +1096,22 @@ function handleProductContextMenu(event, barcode, encodedTitle, price, isBl) {
   }
 }
 
+async function toggleProductArchiveDirect(barcode) {
+  try {
+    const res = await fetch(`/api/products/${encodeURIComponent(barcode)}/toggle-archive`, { method: 'POST' });
+    const data = await res.json();
+    if (data.status === 'success') {
+      showToast(data.message || 'Ürün durumu güncellendi.', 'success');
+      const searchInp = document.getElementById('productSearchInput');
+      searchProducts(searchInp ? searchInp.value : '');
+    } else {
+      showToast('Hata: ' + (data.message || 'İşlem gerçekleştirilemedi.'), 'error');
+    }
+  } catch (err) {
+    showToast('Bağlantı hatası: ' + err.message, 'error');
+  }
+}
+
 async function handleCtxAction(action) {
   const menu = document.getElementById('productContextMenu');
   if (menu) menu.style.display = 'none';
@@ -943,6 +1121,7 @@ async function handleCtxAction(action) {
   const b = activeCtxBarcode;
   const t = activeCtxTitle;
   const p = activeCtxPrice;
+  const isArch = activeCtxIsArchived;
 
   if (action === 'print') {
     if (typeof printBarcode === 'function') {
@@ -967,22 +1146,14 @@ async function handleCtxAction(action) {
       toggleProductBlacklist(b, null, null);
     }
   } else if (action === 'archive') {
-    const ok = confirm(`"${t}" ürününü satışı bırakıldı (pasif) olarak işaretlemek istiyor musunuz?\n\n- Ürün aktif listelerden gizlenecektir.\n- Dükkanda yeni fiyat girildiğinde veya mobilden okutulduğunda otomatik tekrar aktifleşir.`);
+    const promptMsg = isArch
+      ? `"${t}" ürününü tekrar aktif satış ve etiket listesine almak istiyor musunuz?`
+      : `"${t}" ürününü 'Satışı Durduruldu (Pasif)' olarak işaretlemek istiyor musunuz?\n\n- Ürün silinmez, pasif listesinde saklanır.\n- Dükkanda yeni fiyat girildiğinde veya aktarım yapıldığında otomatik olarak tekrar aktifleşir.`;
+    
+    const ok = confirm(promptMsg);
     if (!ok) return;
 
-    try {
-      const res = await fetch(`/api/products/${encodeURIComponent(b)}/toggle-archive`, { method: 'POST' });
-      const data = await res.json();
-      if (data.status === 'success') {
-        showToast(`🚫 "${t}" satışı bırakıldı (pasif) olarak işaretlendi.`, 'info');
-        const searchInp = document.getElementById('productSearchInput');
-        searchProducts(searchInp ? searchInp.value : '');
-      } else {
-        showToast('Hata: ' + data.message, 'error');
-      }
-    } catch (err) {
-      showToast('Bağlantı hatası: ' + err.message, 'error');
-    }
+    await toggleProductArchiveDirect(b);
   }
 }
 
@@ -1000,12 +1171,29 @@ document.addEventListener('contextmenu', (e) => {
   }
 });
 
+function openPriceReportsFromProducts() {
+  if (typeof switchTab === 'function') {
+    switchTab('tab-price-reports');
+  } else {
+    const tabBtn = document.querySelector('[data-tab="tab-price-reports"]');
+    if (tabBtn) tabBtn.click();
+  }
+  if (typeof initPriceReportsModule === 'function') {
+    initPriceReportsModule();
+  }
+}
+
 // Global Window Dışa Aktarımları
 window.handleProductRowClick = handleProductRowClick;
 window.handleProductContextMenu = handleProductContextMenu;
 window.handleCtxAction = handleCtxAction;
+window.toggleProductArchiveDirect = toggleProductArchiveDirect;
 window.clearProductSelection = clearProductSelection;
 window.executeBatchBlacklist = executeBatchBlacklist;
 window.executeBatchPrintSelected = executeBatchPrintSelected;
 window.executeBatchArchiveSelected = executeBatchArchiveSelected;
 window.updateMultiSelectUI = updateMultiSelectUI;
+window.toggleFilter = toggleFilter;
+window.refreshProductsTable = refreshProductsTable;
+window.openPriceReportsFromProducts = openPriceReportsFromProducts;
+

@@ -538,6 +538,75 @@ function _updateHistDayPills(availableDates) {
   pillsContainer.innerHTML = pillsHtml;
 }
 
+let currentHistSortColumn = null;
+let currentHistSortDirection = 'desc';
+let cachedPrintHistoryList = [];
+
+function sortPrintHistory(column) {
+  if (currentHistSortColumn === column) {
+    currentHistSortDirection = currentHistSortDirection === 'asc' ? 'desc' : 'asc';
+  } else {
+    currentHistSortColumn = column;
+    currentHistSortDirection = (column === 'time' || column === 'price' || column === 'copies') ? 'desc' : 'asc';
+  }
+
+  // Sıralama ikonlarını güncelle
+  const icons = ['time', 'barcode', 'title', 'price', 'copies', 'status'];
+  icons.forEach(col => {
+    const el = document.getElementById(`hist-sort-icon-${col}`);
+    if (el) {
+      if (col === currentHistSortColumn) {
+        el.textContent = currentHistSortDirection === 'asc' ? '▲ (A-Z)' : '▼ (Z-A)';
+        el.style.color = '#38bdf8';
+        el.style.fontWeight = '800';
+      } else {
+        el.textContent = '↕️';
+        el.style.color = '';
+        el.style.fontWeight = '';
+      }
+    }
+  });
+
+  if (!cachedPrintHistoryList || cachedPrintHistoryList.length === 0) return;
+
+  cachedPrintHistoryList.sort((a, b) => {
+    let valA, valB;
+    if (column === 'time') {
+      valA = String(a.printed_at || '');
+      valB = String(b.printed_at || '');
+      return currentHistSortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+    } else if (column === 'barcode') {
+      valA = String(a.barcode || '');
+      valB = String(b.barcode || '');
+      return currentHistSortDirection === 'asc' ? valA.localeCompare(valB, 'tr', { numeric: true }) : valB.localeCompare(valA, 'tr', { numeric: true });
+    } else if (column === 'title') {
+      valA = String(a.title || '');
+      valB = String(b.title || '');
+      return currentHistSortDirection === 'asc' ? valA.localeCompare(valB, 'tr') : valB.localeCompare(valA, 'tr');
+    } else if (column === 'price') {
+      valA = Number(a.price || 0);
+      valB = Number(b.price || 0);
+      return currentHistSortDirection === 'asc' ? valA - valB : valB - valA;
+    } else if (column === 'copies') {
+      valA = Number(a.copies || 1);
+      valB = Number(b.copies || 1);
+      return currentHistSortDirection === 'asc' ? valA - valB : valB - valA;
+    } else if (column === 'status') {
+      valA = a.status === 'success' ? 1 : 0;
+      valB = b.status === 'success' ? 1 : 0;
+      return currentHistSortDirection === 'asc' ? valA - valB : valB - valA;
+    }
+    return 0;
+  });
+
+  const tbody = document.getElementById('printHistoryTableBody');
+  if (tbody) {
+    const isFirstLoad = !selectedHistYear && !selectedHistMonth && !selectedHistDay;
+    const currentFilter = isFirstLoad ? 'all' : getActiveHistFilterString();
+    tbody.innerHTML = _buildHistoryTableHtml(cachedPrintHistoryList, currentFilter);
+  }
+}
+
 function _buildHistoryTableHtml(history, currentFilter) {
   if (history.length === 0) {
     return `<tr><td colspan="8" style="text-align: center; padding: 40px; color: var(--text-muted);">🖨️ ${currentFilter && currentFilter !== 'all' ? `"${currentFilter}" filtresine ait baskı kaydı bulunamadı.` : 'Henüz kayıtlı bir etiket baskısı bulunmuyor.'}</td></tr>`;
@@ -567,13 +636,41 @@ function _buildHistoryTableHtml(history, currentFilter) {
     const statusBadge = isSuccess
       ? `<span class="badge" style="background:rgba(16,185,129,0.15); color:#34d399; border:1px solid rgba(16,185,129,0.3); font-size:11px; padding:3px 8px; border-radius:6px; font-weight:700;">✅ Başarılı</span>`
       : `<span class="badge" style="background:rgba(239,68,68,0.15); color:#f87171; border:1px solid rgba(239,68,68,0.3); font-size:11px; padding:3px 8px; border-radius:6px; font-weight:700;" title="${escapeHtml(item.message)}">❌ Hata</span>`;
-    const priceStr = (item.price !== null && item.price !== undefined) ? `${Number(item.price).toFixed(2)} TL` : '-';
+    
+    // Fiyat ve Değişim Öncesi / Sonrası Gösterimi
+    const curPriceNum = (item.price !== null && item.price !== undefined) ? Number(item.price) : null;
+    const oldPriceNum = (item.old_price !== null && item.old_price !== undefined) ? Number(item.old_price) : null;
+    const hasPriceDiff = (oldPriceNum !== null && curPriceNum !== null && Math.abs(oldPriceNum - curPriceNum) > 0.001);
+
+    let priceCellHtml = '';
+    if (hasPriceDiff) {
+      const diffVal = curPriceNum - oldPriceNum;
+      const diffSign = diffVal > 0 ? '+' : '';
+      const diffColor = diffVal > 0 ? '#34d399' : '#f87171'; // Zam yeşil/vurgulu veya kırmızı
+      priceCellHtml = `
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
+          <div style="display:flex; align-items:center; gap:5px; font-family:var(--font-mono);">
+            <span style="font-size:11px; color:#94a3b8; text-decoration:line-through;">₺ ${oldPriceNum.toFixed(2)}</span>
+            <span style="color:#38bdf8; font-size:11px;">➔</span>
+            <strong style="color:#fbbf24; font-size:13px;">₺ ${curPriceNum.toFixed(2)}</strong>
+          </div>
+          <div style="font-size:10px; font-weight:800; color:${diffColor}; background:rgba(0,0,0,0.3); padding:1px 5px; border-radius:4px;">
+            ${diffSign}${diffVal.toFixed(2)} TL
+          </div>
+        </div>
+      `;
+    } else if (curPriceNum !== null) {
+      priceCellHtml = `<strong style="font-size:13px; color:#fbbf24; font-family:var(--font-mono);">₺ ${curPriceNum.toFixed(2)}</strong>`;
+    } else {
+      priceCellHtml = `<span style="color:var(--text-muted); font-size:11.5px;">-</span>`;
+    }
+
     html += `<tr>
       <td style="text-align: center; color: var(--text-muted); font-size: 11.5px;">${rowIdxInDay}</td>
       <td style="font-size: 12px; color: #38bdf8; font-family: var(--font-mono); font-weight: 700;"><span style="color:#94a3b8; font-size:11px; margin-right:4px;">🕒</span>${escapeHtml(itemTime || item.printed_at)}</td>
       <td style="font-family: var(--font-mono); font-weight: 700; color: #818cf8; font-size: 12.5px;">${escapeHtml(item.barcode)}</td>
       <td style="font-weight: 700; color: #fff; font-size: 12.5px;">${escapeHtml(item.title)}</td>
-      <td style="text-align: right; font-weight: 800; color: #fbbf24; font-family: var(--font-mono);">${escapeHtml(priceStr)}</td>
+      <td style="text-align: right;">${priceCellHtml}</td>
       <td style="text-align: center; font-weight: 700; color: #cbd5e1;">${item.copies || 1} Adet</td>
       <td style="text-align: center;">${statusBadge}</td>
       <td style="text-align: center;"><button class="btn btn-secondary btn-sm" onclick="reprintFromHistory('${escapeHtml(item.barcode)}', this)" style="padding: 3px 10px; font-size: 11.5px; border-color: rgba(56,189,248,0.4); color: #38bdf8;" title="Bu etiketi tekrar yazdır">🖨️ Tekrar Bas</button></td>
@@ -593,6 +690,7 @@ async function loadPrintHistoryTable() {
     const res = await API.getPrintHistory(300, currentFilter);
     const data = (res && res.data) || {};
     const history = data.history || [];
+    cachedPrintHistoryList = history;
     let availableDates = data.available_dates || [];
 
     // Eğer backend available_dates dönmediyse veya boşsa, history içindeki tarihlerden kendimiz çıkaralım
@@ -656,7 +754,7 @@ async function purgePrinterQueueAction() {
     const res = await API.purgePrinterQueue();
     if (res.status === 'success') {
       showToast(res.message || 'Yazıcı kuyruğu temizlendi.', 'success');
-      updateTopbarPrinterStatus();
+      if (typeof updateTopbarPrinterStatus === 'function') updateTopbarPrinterStatus();
     } else {
       showToast('Kuyruk temizlenemedi: ' + res.message, 'error');
     }
@@ -664,3 +762,9 @@ async function purgePrinterQueueAction() {
     showToast('Hata: ' + err.message, 'error');
   }
 }
+
+// Global Window Exports
+window.sortPrintHistory = sortPrintHistory;
+window.loadPrintHistoryTable = loadPrintHistoryTable;
+window.reprintFromHistory = reprintFromHistory;
+window.purgePrinterQueueAction = purgePrinterQueueAction;
