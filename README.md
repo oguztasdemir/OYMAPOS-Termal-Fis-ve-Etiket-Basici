@@ -6,6 +6,18 @@ Herhangi bir özel POS veya ERP yazılımına bağımlı kalmadan; panodan kopya
 
 ---
 
+## 📸 Ekran Görüntüleri & Arayüz Önizlemesi
+
+| 🖥️ Masaüstü Kontrol Merkezi & Ürün Masası | 📱 Mobil Reyon Asistanı (Telefon Terminali) |
+| :---: | :---: |
+| <img src="frontend/assets/screenshots/desktop_products.png" width="580" alt="Masaüstü Ürünler Masası"> | <img src="frontend/assets/screenshots/mobile_assistant.png" width="260" alt="Mobil Reyon Terminali"> |
+
+| 📊 Ana Kontrol Paneli (Dashboard) |
+| :---: |
+| <img src="frontend/assets/screenshots/desktop_dashboard.png" width="860" alt="Masaüstü Dashboard"> |
+
+---
+
 ## 📖 Sistem Panelleri ve Kullanım Kılavuzu
 
 ### 1. 📦 Ürünler & Etiket Masası
