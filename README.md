@@ -10,10 +10,11 @@ Herhangi bir özel POS veya ERP yazılımına bağımlı kalmadan; panodan kopya
 
 Akıllı telefonunuzu herhangi bir uygulama yüklemeden reyon el terminaline dönüştürün. Kamera ile barkod okutma, anlık ürün sorgulama, fiyat değiştirme ve kasadaki yazıcıya tek tıkla yazdırma imkanı sunar.
 
-| 1. Fiyat Gör & Ürün Kartı | 2. Basım Kuyruğu & Gönderim | 3. Günlük Değişenler Listesi |
-| :---: | :---: | :---: |
-| <img src="frontend/assets/screenshots/mobile_scan_active.png" width="280" alt="Mobil Fiyat Gör ve Ürün Kartı"> | <img src="frontend/assets/screenshots/mobile_queue.png" width="280" alt="Mobil Basım Kuyruğu"> | <img src="frontend/assets/screenshots/mobile_changes.png" width="280" alt="Mobil Değişenler Listesi"> |
-| **Barkod Okutma & Detay:**<br>Kamera veya manuel aramayla anında satış fiyatı, etiket fiyatı ve piyasa karşılaştırması. | **Kuyruk Yönetimi:**<br>Okutulan ürünler ters kronolojik sırayla toplanır; toplu olarak kasadaki termal yazıcıya iletilir. | **Reyon Denetimi:**<br>Günün fiyatı değişen ürünlerini listeler, tek tıkla barkod dökümü ve PDF indirme sağlar. |
+| Ekran Önizlemesi | Modül & Özellik Açıklaması |
+| :--- | :--- |
+| <img src="frontend/assets/screenshots/mobile_scan_active.png" width="280" alt="Mobil Fiyat Gör ve Ürün Kartı"> | ### 1. 🏷️ Fiyat Gör & Ürün Detay Kartı<br><br>• **Anlık Kamera & Lazer Tarama:** Telefon kamerası lazer okuyucu hassasiyetinde barkodu anında yakalar.<br>• **Kasa & Etiket Karşılaştırması:** Kasadaki güncel satış fiyatı ile basılı raf etiketi fiyatını yan yana gösterir.<br>• **Telefondan Fiyat Güncelleme:** Reyonda gezerken tek tıkla yeni fiyat girilip sisteme kaydedilebilir.<br>• **Piyasa Radarı:** Ürünün zincir marketlerdeki anlık fiyatlarıyla kıyaslamasını listeler. |
+| <img src="frontend/assets/screenshots/mobile_queue.png" width="280" alt="Mobil Basım Kuyruğu"> | ### 2. 📋 Kablosuz Basım Kuyruğu<br><br>• **Ters Kronolojik Sıralama:** Okutulan son ürün daima en üstte listelenir.<br>• **Kasadaki Yazıcıya Gönder:** Reyonda toplanan etiket listesi tek dokunuşla kasadaki termal yazıcıya iletilir.<br>• **Adet & Fiyat Kontrolü:** Yazdırma öncesinde etiket adedi veya fiyatı reyon üzerinden revize edilebilir. |
+| <img src="frontend/assets/screenshots/mobile_changes.png" width="280" alt="Mobil Değişenler Listesi"> | ### 3. 📊 Günlük Değişenler & Döküm<br><br>• **Günün Değişen Fiyatları:** O gün fiyatı değişen tüm ürünler zam/indirim oranlarıyla listelenir.<br>• **Ekrandan Barkod Okutma:** Reyon görevlisinin masaüstü veya el tipi okuyucu ile tarayabilmesi için ekranda büyük barkod açar.<br>• **Mobil PDF İndirme:** Günlük değişim raporunu telefona PDF formatında indirir. |
 
 ---
 
@@ -21,43 +22,13 @@ Akıllı telefonunuzu herhangi bir uygulama yüklemeden reyon el terminaline dö
 
 OYMAPOS Masaüstü Arayüzü, yoğun market temposunda hızlı işlem yapabilmek için klavye odaklı, sade ve güçlü araçlarla donatılmıştır.
 
-### 1. 🏠 Ana Kontrol Paneli (Dashboard)
-Toplam stok durumu, fiyatı değişen ürün sayısı, aktif yazıcı bağlantısı ve hızlı yönlendirme kartları.
-<p align="center">
-  <img src="frontend/assets/screenshots/desktop_dashboard.png" width="920" alt="Masaüstü Dashboard Paneli">
-</p>
-
----
-
-### 2. 📦 Ürünler & Hızlı Etiket Masası (Excel Grid)
-4.900+ ürünün anlık arandığı, fiyat farkı olanların tek tıkla süzüldüğü ve `Shift/Ctrl + Tık` ile çoklu etiket basıldığı ana merkez.
-<p align="center">
-  <img src="frontend/assets/screenshots/desktop_products.png" width="920" alt="Masaüstü Ürünler Masası">
-</p>
-
----
-
-### 3. ⚡ Fiyat Güncelleme Masası (Ctrl+V & Excel)
-Muhasebe programından veya toptancı listesinden kopyalanan verileri anında yapıştırın. Zam gelenler yeşil/kırmızı renk kodlarıyla gösterilir ve güvenle aktarılır.
-<p align="center">
-  <img src="frontend/assets/screenshots/desktop_price_update.png" width="920" alt="Fiyat Güncelleme Masası">
-</p>
-
----
-
-### 4. 📊 Günlük Fiyat Değişim Raporları & A4 Barkod PDF Dökümü
-Günün veya geçmiş günlerin fiyat değişimlerini kaynak bazlı (mobil, masaüstü, dosya) filtreleyin. Reyonda okutulabilecek A4 büyük barkodlu PDF dökümü alın.
-<p align="center">
-  <img src="frontend/assets/screenshots/desktop_price_reports.png" width="920" alt="Fiyat Değişim Raporları">
-</p>
-
----
-
-### 5. 🎨 Etiket Düzenle & Şablonlar (Stüdyo)
-76x40mm Standart Market Rafı ve 60x40mm Kompakt şablonları canlı önizleyin. Resmi Yerli Üretim Logosu, Birim Fiyat Kutusu ve Reyon Kodu alanlarını özelleştirin.
-<p align="center">
-  <img src="frontend/assets/screenshots/desktop_studio.png" width="920" alt="Etiket Tasarım Stüdyosu">
-</p>
+| Ekran Önizlemesi | Modül & Özellik Açıklaması |
+| :--- | :--- |
+| <img src="frontend/assets/screenshots/desktop_dashboard.png" width="540" alt="Masaüstü Dashboard"> | ### 🏠 Ana Kontrol Paneli (Dashboard)<br><br>• **Genel Durum Özeti:** Toplam stok (4.908 ürün), fiyat farkı olan ürünler ve sistem sağlık durumu.<br>• **Canlı Yazıcı Takibi:** Seçili termal yazıcının bağlantı ve hazır olma durumunu anlık gösterir.<br>• **Hızlı Modül Kısayolları:** Tek tıkla ürün masasına, aktarıma veya stüdyoya geçiş. |
+| <img src="frontend/assets/screenshots/desktop_products.png" width="540" alt="Masaüstü Ürünler Masası"> | ### 📦 Ürünler & Hızlı Etiket Masası (Excel Grid)<br><br>• **Hızlı Arama & Filtre:** İsim veya barkodla anında filtreleme.<br>• **Fiyat Tutarsızlık Alarmı:** Kasada fiyatı düşük, etikette yüksek olan ürünler için akıllı uyarı.<br>• **Çoklu Seçim:** `Shift + Tık` (Aralık) ve `Ctrl + Tık` (Tek tek) ile toplu etiket yazdırma.<br>• **Satışı Durdurulanlar (Pasif):** Silinmeyen, yeni fiyat geldiğinde otomatik aktife dönen pasif ürün yönetimi. |
+| <img src="frontend/assets/screenshots/desktop_price_update.png" width="540" alt="Fiyat Güncelleme Masası"> | ### ⚡ Fiyat Güncelleme Masası (Ctrl+V & Excel)<br><br>• **Panodan Doğrudan Yapıştırma (Ctrl + V):** Muhasebe programından kopyalanan satırları saniyeler içinde içeri aktarır.<br>• **Renk Kodlu Güvenli Karşılaştırma:** Zam gelenler, indirim yapılanlar ve yeni ürünler onay öncesinde listelenir.<br>• **Geri Alma (Rollback / Undo):** Hatalı aktarımlarda tek tıkla önceki fiyatlara anında dönüş. |
+| <img src="frontend/assets/screenshots/desktop_price_reports.png" width="540" alt="Fiyat Değişim Raporları"> | ### 📊 Günlük Değişim Raporları & A4 Barkod PDF<br><br>• **Kaynak Bazlı Filtreleme:** Mobil terminal, masaüstü veya toplu aktarım kaynaklarına göre filtreleme.<br>• **A4 Büyük Barkodlu PDF:** Reyonda gezerek okutulabilecek A4 boyutunda büyük barkodlu döküm.<br>• **Etiketleri Otomatik Eşitle:** Baskı alındıktan sonra tek tıkla raf etiket fiyatlarını satış fiyatına eşitler. |
+| <img src="frontend/assets/screenshots/desktop_studio.png" width="540" alt="Etiket Tasarım Stüdyosu"> | ### 🎨 Etiket Tasarım Stüdyosu & Şablonlar<br><br>• **Standart Ebatlar:** 76x40 mm (Standart Market Rafı), 60x40 mm (Kompakt), 40x20 mm.<br>• **Yasal Ögeler:** Resmi Yerli Üretim Logosu, 1 KG/1 LT Birim Fiyat Kutusu ve Reyon Kodu.<br>• **Canlı Önizleme:** Yazıcıya göndermeden önce birebir etiket çıktısını ekranda görme imkanı. |
 
 ---
 
