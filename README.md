@@ -6,59 +6,58 @@ Herhangi bir özel POS veya ERP yazılımına bağımlı kalmadan; panodan kopya
 
 ---
 
-## 📸 Ekran Görüntüleri & Arayüz Önizlemesi
+## 📱 Mobil Reyon Terminali (Telefon ile Kablosuz Denetim)
 
-| 🖥️ Masaüstü Kontrol Merkezi & Ürün Masası | 📱 Mobil Reyon Asistanı (Telefon Terminali) |
-| :---: | :---: |
-| <img src="frontend/assets/screenshots/desktop_products.png" width="580" alt="Masaüstü Ürünler Masası"> | <img src="frontend/assets/screenshots/mobile_assistant.png" width="260" alt="Mobil Reyon Terminali"> |
+Akıllı telefonunuzu herhangi bir uygulama yüklemeden reyon el terminaline dönüştürün. Kamera ile barkod okutma, anlık ürün sorgulama, fiyat değiştirme ve kasadaki yazıcıya tek tıkla yazdırma imkanı sunar.
 
-| 📊 Ana Kontrol Paneli (Dashboard) |
-| :---: |
-| <img src="frontend/assets/screenshots/desktop_dashboard.png" width="860" alt="Masaüstü Dashboard"> |
+| 1. Fiyat Gör & Ürün Kartı | 2. Basım Kuyruğu & Gönderim | 3. Günlük Değişenler Listesi |
+| :---: | :---: | :---: |
+| <img src="frontend/assets/screenshots/mobile_scan_active.png" width="280" alt="Mobil Fiyat Gör ve Ürün Kartı"> | <img src="frontend/assets/screenshots/mobile_queue.png" width="280" alt="Mobil Basım Kuyruğu"> | <img src="frontend/assets/screenshots/mobile_changes.png" width="280" alt="Mobil Değişenler Listesi"> |
+| **Barkod Okutma & Detay:**<br>Kamera veya manuel aramayla anında satış fiyatı, etiket fiyatı ve piyasa karşılaştırması. | **Kuyruk Yönetimi:**<br>Okutulan ürünler ters kronolojik sırayla toplanır; toplu olarak kasadaki termal yazıcıya iletilir. | **Reyon Denetimi:**<br>Günün fiyatı değişen ürünlerini listeler, tek tıkla barkod dökümü ve PDF indirme sağlar. |
 
 ---
 
-## 📖 Sistem Panelleri ve Kullanım Kılavuzu
+## 🖥️ Masaüstü Yönetim Masası & Temel Paneller
 
-### 1. 📦 Ürünler & Etiket Masası
-* **Arama & Filtreleme:** Ürün adı, barkod veya reyon kodu ile anında filtreleme.
-* **Ürün Detay Kartı:** Listede bir ürüne 1 kez tıklandığında ürünün detayları, fiyat geçmişi ve etiket önizlemesi görüntülenir.
-* **Hızlı Düzenleme:** Ürüne çift tıklandığında ürün adı, satış fiyatı, birim miktarı ve KDV oranı doğrudan düzenlenebilir.
-* **Çoklu Seçim:** `Shift + Tık` ile aralık seçimi, `Ctrl + Tık` ile bağımsız çoklu ürün seçimi yapılabilir.
-* **Fiyat Farkı Takibi:** "⚠️ Fiyatı Değişenler" filtresiyle, kasadaki güncel fiyatı ile basılı raf etiketi uyuşmayan ürünler tek tıkla listelenir.
-* **Kara Liste Filtresi:** Poşet, depozito vb. etiket basılmayacak ürünler tek tıkla gizlenir veya yönetilir.
+OYMAPOS Masaüstü Arayüzü, yoğun market temposunda hızlı işlem yapabilmek için klavye odaklı, sade ve güçlü araçlarla donatılmıştır.
 
-### 2. ⚡ Fiyat Güncelleme (Ctrl+V & Excel Masası)
-* **Panodan Doğrudan Yapıştırma (Ctrl + V):** Muhasebe programından veya Excel'den kopyalanan satırları doğrudan yapıştırarak saniyeler içinde içeri aktarma.
-* **Excel / CSV Yükleme:** Sürükle-bırak yöntemiyle dosya yükleme desteği.
-* **2 Aşamalı Güvenli Karşılaştırma Masası:** Zam gelenler, indirim yapılanlar ve yeni ürünler onay öncesinde renk kodlarıyla gösterilir.
-* **Geri Alma (Rollback / Undo):** İstenmeyen aktarımlarda tek tıkla önceki fiyatlara anında dönebilme.
+### 1. 🏠 Ana Kontrol Paneli (Dashboard)
+Toplam stok durumu, fiyatı değişen ürün sayısı, aktif yazıcı bağlantısı ve hızlı yönlendirme kartları.
+<p align="center">
+  <img src="frontend/assets/screenshots/desktop_dashboard.png" width="920" alt="Masaüstü Dashboard Paneli">
+</p>
 
-### 3. 📊 Fiyat Değişim Raporları & PDF Baskı
-* **Günlük ve Kaynak Bazlı Takip:** Mobil terminalden, masaüstünden veya toplu aktarımdan gelen fiyat değişimleri ayrı ayrı filtrelenir.
-* **A4 Büyük Barkodlu Değişim Raporu:** Reyon görevlisinin reyonda gezerken el tipi okuyucu veya telefonla okutabileceği büyük barkodlu A4 PDF dökümü oluşturulur.
-* **Otomatik Etiket Fiyatı Eşitleme:** PDF basıldıktan sonra sistem onay ister ve ürünlerin raf etiket fiyatları otomatik olarak güncellenir.
+---
 
-### 4. 🎨 Etiket Düzenle & Şablonlar (Stüdyo)
-* **Hazır Standart Boyutlar:** 76x40 mm (Standart Market Rafı), 60x40 mm (Kompakt), 40x20 mm ve özel ebatlar.
-* **Yasal Ögeler:** Resmi Yerli Üretim Logosu, Birim Fiyat Kutusu (1 KG / 1 LT), Gramaj/Miktar Rozeti, Reyon Kodu ve QR Kod desteği.
-* **Görsel Tasarım Masası:** Ögelerin yerleşimi canlı önizleme üzerinden anında kontrol edilir.
+### 2. 📦 Ürünler & Hızlı Etiket Masası (Excel Grid)
+4.900+ ürünün anlık arandığı, fiyat farkı olanların tek tıkla süzüldüğü ve `Shift/Ctrl + Tık` ile çoklu etiket basıldığı ana merkez.
+<p align="center">
+  <img src="frontend/assets/screenshots/desktop_products.png" width="920" alt="Masaüstü Ürünler Masası">
+</p>
 
-### 5. 🔄 Dükkan & Kasa Veri Aktarımı
-* **Otomatik Dosya İzleme:** Kasa programının ürettiği `fiyat.xlsx` veya `urunler.csv` dosyası güncellendiğinde sistem fiyatları otomatik algılar.
-* **Yerel Ağ Senkronizasyonu:** Dükkandaki diğer bilgisayarlardan `http://[IP]:8000/sync` adresi üzerinden veri aktarımı.
-* **Terazi & Manav Barkodu:** 27, 28 ve 29 ile başlayan gramajlı ve tutarlı terazi barkodlarını otomatik ayrıştırma.
+---
 
-### 6. 📱 Mobil Barkod Terminali (Reyon Asistanı)
-* **Uygulamasız Kullanım:** Tarayıcı üzerinden `http://[IP]:8000/mobile` adresine girilerek telefon kamerası lazer barkod okuyucuya dönüştürülür.
-* **Telefondan Fiyat Değiştirme:** Reyonda gezerken barkodu okutup tek tıkla yeni fiyat girilebilir.
-* **Ters Kronolojik Basım Listesi:** En son okutulan ürün daima en üstte listelenir, böylece reyon görevlisi işlemlerini anlık takip edebilir.
-* **Kasaya Gönder:** Telefondan seçilen etiketler kasadaki termal yazıcıya doğrudan kablosuz iletilir.
+### 3. ⚡ Fiyat Güncelleme Masası (Ctrl+V & Excel)
+Muhasebe programından veya toptancı listesinden kopyalanan verileri anında yapıştırın. Zam gelenler yeşil/kırmızı renk kodlarıyla gösterilir ve güvenle aktarılır.
+<p align="center">
+  <img src="frontend/assets/screenshots/desktop_price_update.png" width="920" alt="Fiyat Güncelleme Masası">
+</p>
 
-### 7. ⚙️ Yazıcı & Donanım Ayarları
-* **Termal Yazıcı Yönetimi:** Xprinter, Zebra, Argox, HPRT, Bixolon vb. tüm yazıcılarla doğrudan Windows RAW Spooler (ZPL / TSPL) entegrasyonu.
-* **Baskı Kalibrasyonu:** Koyuluk (Darkness) ve yatay/dikey ofset kaydırma ayarları.
-* **Tek Tıkla Yedekleme:** Veritabanı ve ayarları `.zip` formatında dışa aktarma ve geri yükleme.
+---
+
+### 4. 📊 Günlük Fiyat Değişim Raporları & A4 Barkod PDF Dökümü
+Günün veya geçmiş günlerin fiyat değişimlerini kaynak bazlı (mobil, masaüstü, dosya) filtreleyin. Reyonda okutulabilecek A4 büyük barkodlu PDF dökümü alın.
+<p align="center">
+  <img src="frontend/assets/screenshots/desktop_price_reports.png" width="920" alt="Fiyat Değişim Raporları">
+</p>
+
+---
+
+### 5. 🎨 Etiket Düzenle & Şablonlar (Stüdyo)
+76x40mm Standart Market Rafı ve 60x40mm Kompakt şablonları canlı önizleyin. Resmi Yerli Üretim Logosu, Birim Fiyat Kutusu ve Reyon Kodu alanlarını özelleştirin.
+<p align="center">
+  <img src="frontend/assets/screenshots/desktop_studio.png" width="920" alt="Etiket Tasarım Stüdyosu">
+</p>
 
 ---
 
@@ -66,17 +65,18 @@ Herhangi bir özel POS veya ERP yazılımına bağımlı kalmadan; panodan kopya
 
 | Kısayol | Açıklama |
 | :--- | :--- |
-| **`F2`** | Hızlı Fiyat Gör & Barkod / Stok Sorgulama modalını açar. |
+| **`F2`** | Hızlı Fiyat Gör & Barkod / Stok Sorgulama penceresini açar. |
 | **`Shift + Tık`** | Ürün tablosunda seçilen iki ürün arasındaki tüm satırları seçer (Aralık Seçimi). |
-| **`Ctrl + Tık`** | Ürün tablosunda istenen ürünleri tek tek seçime ekler/çıkarır. |
-| **`ESC`** | Açık olan önizleme, düzenleme ve arama modallarını kapatır. |
+| **`Ctrl + Tık`** | Ürün tablosunda istenen ürünleri tek tek çoklu seçime ekler/çıkarır. |
+| **`Ctrl + K`** | Doğrudan ürün arama çubuğuna odaklanır. |
+| **`ESC`** | Açık olan önizleme, düzenleme ve arama pencerelerini kapatır. |
 
 ---
 
 ## 🚀 Kurulum ve Başlatma
 
 ### 1. Tek Tıkla Başlatma (Tavsiye Edilen)
-Proje ana dizinindeki **`BASLAT.bat`** dosyasına çift tıklayın. Sistem ortamı otomatik hazırlar ve tarayıcıyı açar.
+Proje ana dizinindeki **`BASLAT.bat`** dosyasına çift tıklayın. Sistem Python ortamını ve bağımlılıkları kontrol ederek sunucuyu otomatik başlatır.
 
 ### 2. Manuel Başlatma (Geliştirici Modu)
 ```bash
@@ -94,6 +94,6 @@ Tarayıcınızda arayüz `http://localhost:8000` adresinde açılacaktır.
 
 | Modül | Yerel Adres | Açıklama |
 | :--- | :--- | :--- |
-| 🖥️ **Masaüstü Kontrol Merkezi** | `http://localhost:8000/` | Ürünler, şablonlar, fiyat değişimi ve raporlar. |
-| 💻 **Veri Aktarım Masası** | `http://[IP_ADRESI]:8000/sync` | Ağdaki diğer bilgisayarlardan dosya/pano aktarımı. |
-| 📱 **Reyon Mobil Terminali** | `http://[IP_ADRESI]:8000/mobile` | Telefon kamerasıyla kablosuz reyon denetimi ve etiket basımı. |
+| 🖥️ **Masaüstü Kontrol Merkezi** | `http://localhost:8000/` | Ürünler, şablonlar, fiyat değişimi ve raporlama masası. |
+| 💻 **Veri Aktarım Masası** | `http://[IP_ADRESI]:8000/sync` | Yerel ağdaki diğer bilgisayarlardan dosya ve pano aktarımı. |
+| 📱 **Reyon Mobil Terminali** | `http://[IP_ADRESI]:8000/mobile` | Telefon kamerasıyla kablosuz reyon denetimi ve anlık etiket basımı. |
